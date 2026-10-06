@@ -164,26 +164,71 @@ function setup() {
 }
 
 // track menu (shown until a track is picked; picking reloads with ?track=id)
-const menuEl = document.getElementById('menu');
-if (!trackDef) {
+const $ = id => document.getElementById(id);
+const banner = $('banner'), posEl = $('pos'), posStrokeEl = $('posStroke'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
+const mini = $('mini').getContext('2d');
+const audio = new AudioSys();
+if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
+const items = new Items(track, scene, audio);
+const itemEl = $('item');
+const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
+const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
+
+// ------- title screen & course menu flow (no ?track=): title -> menu -> ?track=id -------
+const titleEl = $('title'), pushStart = $('pushStart'), menuEl = $('menu');
+const atTitle = () => titleEl.style.display !== 'none';
+let blinkTick = 0;
+function titleStep(now) {
+  // MK64 start menu: ((gGlobalTimer / 8) % 3) != 0 draws the PUSH START button (menu_items.c:5905)
+  if (atTitle()) {
+    blinkTick = Math.floor(now / 1000 * 60 / 8);
+    pushStart.style.visibility = blinkTick % 3 !== 0 ? 'visible' : 'hidden';
+  }
+}
+function enterMenus() {
+  if (!atTitle()) return;
+  titleEl.style.display = 'none';
   menuEl.style.display = 'flex';
-  const list = document.getElementById('menuList');
+  menuBtns[0]?.focus();
+}
+function backToTitle() {
+  menuEl.style.display = 'none';
+  titleEl.style.display = 'flex';
+}
+const menuBtns = [];
+const menuElDiv = $('menuList');
+if (!trackDef) {
+  titleEl.style.display = 'flex';
   TRACKS.forEach((t, i) => {
     const b = document.createElement('button');
-    b.innerHTML = `<b>${i + 1}. ${t.name}</b><span>${t.blurb}</span>`;
+    b.innerHTML = `<img alt="" src="/mk64/menu/previews/${t.id}.png" loading="lazy" /><span><b>${i + 1}. ${t.name}</b><br><span>${t.blurb}</span></span>`;
     b.onclick = () => { location.search = `?track=${t.id}`; };
-    list.appendChild(b);
+    menuElDiv.appendChild(b);
+    menuBtns.push(b);
   });
-  // arrows move focus around the 2-column grid (Enter clicks the focused button); digits 1-9 still jump
-  const btns = [...list.children];
-  btns[0].focus();
-  addEventListener('keydown', e => {
-    const i = btns.indexOf(document.activeElement), step = { ArrowUp: -2, ArrowDown: 2, ArrowLeft: -1, ArrowRight: 1 }[e.code];
-    if (step) { e.preventDefault(); const j = i < 0 ? 0 : i + step; if (j >= 0 && j < btns.length) btns[j].focus({ preventScroll: false }); return; }
-    const n = parseInt(e.key, 10);
-    if (n >= 1 && n <= 9 && n <= TRACKS.length) location.search = `?track=${TRACKS[n - 1].id}`;
-  });
+} else {
+  titleEl.style.display = 'none';
+  $('hud').style.display = 'block';
 }
+titleEl.addEventListener('click', enterMenus);
+addEventListener('keydown', e => {
+  if (!trackDef) {
+    if (atTitle() && (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter')) { e.preventDefault(); enterMenus(); return; }
+    if (!atTitle() && e.code === 'Escape') { backToTitle(); return; }
+    if (!atTitle() && (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+      e.preventDefault();
+      const i = menuBtns.indexOf(document.activeElement), step = { ArrowUp: -2, ArrowDown: 2, ArrowLeft: -1, ArrowRight: 1 }[e.code];
+      const j = i < 0 ? 0 : i + step;
+      if (j >= 0 && j < menuBtns.length) menuBtns[j].focus({ preventScroll: false });
+      return;
+    }
+    if (!atTitle() && (e.code === 'Enter' || e.code === 'NumpadEnter')) {
+      const b = menuBtns[menuBtns.indexOf(document.activeElement)];
+      if (b) { e.preventDefault(); b.click(); }
+      return;
+    }
+  }
+});
 
 // input
 const keys = {};
@@ -230,17 +275,6 @@ function playerInput() {
     drift: kb.drift || p.drift,
   };
 }
-
-// HUD
-const $ = id => document.getElementById(id);
-const banner = $('banner'), posEl = $('pos'), posStrokeEl = $('posStroke'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
-const mini = $('mini').getContext('2d');
-const audio = new AudioSys();
-if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
-const items = new Items(track, scene, audio);
-const itemEl = $('item');
-const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
-const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
 // minimap
 const mm = [];
@@ -330,6 +364,7 @@ function frame(now) {
     if (!flyInit) { camera.position.copy(target); flyLook.copy(look); flyInit = true; }
     const a = 1 - Math.exp(-3 * dt);
     camera.position.lerp(target, a); flyLook.lerp(look, a); camera.lookAt(flyLook);
+    titleStep(now);   // blink PUSH START while the attract fly-along runs behind the title overlay
     updateSky();
     renderer.render(scene, camera);
     return;

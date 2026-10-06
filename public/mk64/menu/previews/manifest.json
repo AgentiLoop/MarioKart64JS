@@ -1,0 +1,126 @@
+{
+  "romSha1": "579c48e211ae952530ffc8738709f078d5dd215e",
+  "metadataSource": "n64decomp/mk64/assets/course_previews.json",
+  "previews": {
+    "mario": {
+      "symbol": "gTextureCoursePreviewMarioRaceway",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "33afd48da47e1d5feae028b7bd39e8e9dae7c29241d8c91136d09a89d07021df"
+    },
+    "choco": {
+      "symbol": "gTextureCoursePreviewChocoMountain",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "53baf6371e3ed371b6ea9e9432c2c6df575066de7b5fe7b50b00495f23bd35e6"
+    },
+    "bowser": {
+      "symbol": "gTextureCoursePreviewBowsersCastle",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "af536d12196ac7f6e9e90a80673e9a893b68e31a9dd93ebc7c5a5eef5a9abfd4"
+    },
+    "banshee": {
+      "symbol": "gTextureCoursePreviewBansheeBoardwalk",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "e54278d9bf0f9f7cd2973b18c654f964ddef7289580e8bb1f3b0e9a43f4883f5"
+    },
+    "yoshi": {
+      "symbol": "gTextureCoursePreviewYoshiValley",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "0cf78a4e66902d717b2fef5754bf554f0a0fbb0fffc3d8d498f28a211b76c42c"
+    },
+    "frappe": {
+      "symbol": "gTextureCoursePreviewFrappeSnowland",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "106643b73626c9171d0f8eabbb93f030397d44dd864de12428141108ddbec439"
+    },
+    "koopa": {
+      "symbol": "gTextureCoursePreviewKoopaTroopaBeach",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "9d0e3c6c32493f9d9ecd5e1c2b527efbc92d59b64b74e13f815c205d8b4daada"
+    },
+    "royal": {
+      "symbol": "gTextureCoursePreviewRoyalRaceway",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "769118f6a8625a548d52d1b955dcce1c275a163d1a2462451af8403158c30297"
+    },
+    "luigi": {
+      "symbol": "gTextureCoursePreviewLuigiRaceway",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "7e1442fc2d5e83b5b6b4b99900ec045e16d093eaa68aa28057cf7298dee52bf6"
+    },
+    "moomoo": {
+      "symbol": "gTextureCoursePreviewMooMooFarm",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "376d52423386b5e5b36645e2944e14e7a6834dc4d88f92d35049155b9af09fd3"
+    },
+    "toad": {
+      "symbol": "gTextureCoursePreviewToadsTurnpike",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "f6b6c5dd451b6c60b57bd502f5dcc0bbf9a727d375096a1010e82ed07824b37a"
+    },
+    "kalimari": {
+      "symbol": "gTextureCoursePreviewKalimariDesert",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "1442ef3622131142a25a9ed41d3cfa6a43069ae2489ffbc88084a8401d1b3c8c"
+    },
+    "sherbet": {
+      "symbol": "gTextureCoursePreviewSherbetLand",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "2e3c79ea7efdea41a7ecbb300dec4f612b88fd6c8e41957acb777b24d8571a06"
+    },
+    "rainbow": {
+      "symbol": "gTextureCoursePreviewRainbowRoad",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "69b6d30c7711a2b1db55a7ca323d2d619283b23887826e1a336a52fa38c077f1"
+    },
+    "wario": {
+      "symbol": "gTextureCoursePreviewWarioStadium",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "c913c2ccde7d8f5be0c85711e3a1b54b7ad629b2639d2f61a192c4de4ff0d351"
+    },
+    "dk": {
+      "symbol": "gTextureCoursePreviewDksJungleParkway",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "1044e9b8660f14773ad1db8cc8b443700c15e34aab3a58e943436c00267800fe"
+    },
+    "block-fort": {
+      "symbol": "gTextureCoursePreviewBlockFort",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "9f27864270a3d492c9f85316ff1e15035ad698710ff2490c97c2c99ec25d46fd"
+    },
+    "skyscraper": {
+      "symbol": "gTextureCoursePreviewSkyscraper",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "d7ff5bde1b45fc7cd9646323f2899d43d8cddabbfba6ecd97f7c1575755a2653"
+    },
+    "double-deck": {
+      "symbol": "gTextureCoursePreviewDoubleDeck",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "c7cc0e8cae3e91f15096f8928731669d4780c90a645488f9725395020fead833"
+    },
+    "big-donut": {
+      "symbol": "gTextureCoursePreviewBigDonut",
+      "width": 128,
+      "height": 78,
+      "pngSha256": "a962e6e67ecb029ecf60eb44480c838558cba0d34abf96fa098531407dd244cc"
+    }
+  }
+}
