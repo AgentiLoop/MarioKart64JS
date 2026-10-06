@@ -227,7 +227,7 @@ function playerInput() {
 
 // HUD
 const $ = id => document.getElementById(id);
-const banner = $('banner'), posEl = $('pos'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
+const banner = $('banner'), posEl = $('pos'), posStrokeEl = $('posStroke'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
 const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
@@ -348,7 +348,7 @@ function frame(now) {
   itemEl.textContent = player.item ? ITEM_LABELS[player.item] : 'NO ITEM';
   const order = rank();
   const place = order.indexOf(player) + 1;
-  posEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
+  posEl.innerHTML = posStrokeEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
   lapEl.textContent = `LAP ${Math.min(LAPS, player.crossings + 1)}/${LAPS}`;
   timeEl.textContent = fmt(raceTime);
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;

@@ -8,8 +8,11 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Trebuchet MS", system-ui, sans-serif; }
   canvas#game { display: block; width: 100%; height: 100%; }
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; }
-  #pos { position: absolute; left: 24px; bottom: 20px; font-size: 128px; font-style: italic; line-height: 1; color: #ffe033; background: linear-gradient(#fff36b, #ff9d00); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; -webkit-text-stroke: 5px #1a1a6e; paint-order: stroke fill; text-shadow: none; filter: drop-shadow(0 4px 0 #000); }
-  #pos small { font-size: 44px; }
+  /* place: outline drawn on a separate layer underneath the fill so the "th" stroke never crosses the number */
+  #pos, #posStroke { position: absolute; left: 24px; bottom: 20px; font-size: 128px; font-style: italic; line-height: 1; text-shadow: none; }
+  #posStroke { color: #1a1a6e; -webkit-text-stroke: 5px #1a1a6e; filter: drop-shadow(0 4px 0 #000); }
+  #pos { color: #ffe033; background: linear-gradient(#fff36b, #ff9d00); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  #pos small, #posStroke small { font-size: 44px; }
   #lap { position: absolute; right: 24px; top: 16px; font-size: 34px; text-align: right; color: #ffe033; }
   #time { font-size: 24px; color: #fff; font-family: "Courier New", monospace; letter-spacing: 1px; }
   #speed { position: absolute; right: 24px; bottom: 20px; font-size: 56px; font-style: italic; color: #7dff6a; }
@@ -33,6 +36,7 @@
   <canvas id="mini" width="340" height="340"></canvas>
   <div id="lap"><div id="lapText">LAP 1/3</div><div id="time">0:00.00</div></div>
   <div id="item">NO ITEM</div>
+  <div id="posStroke">1<small>st</small></div>
   <div id="pos">1<small>st</small></div>
   <div id="speed">0<small> km/h</small></div>
   <div id="banner"></div>
