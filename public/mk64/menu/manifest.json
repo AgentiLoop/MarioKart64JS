@@ -1,0 +1,56 @@
+{
+  "romSha1": "579c48e211ae952530ffc8738709f078d5dd215e",
+  "source": "n64decomp/mk64 menu_items.c (gMenuTexturesBackground, gBackgroundColor, convert_img_to_greyscale, adjust_img_colour)",
+  "images": {
+    "background_blue_sky": {
+      "width": 320,
+      "height": 240,
+      "pngSha256": "c90da5f830d8e068ff43420f7cc65e5da090acb050020d675c4b689e7f56d79c",
+      "format": "tkmk00",
+      "romOffset": "0x8094c0"
+    },
+    "background_sunset": {
+      "width": 320,
+      "height": 240,
+      "pngSha256": "51830ac650aa21cf74e52ea7d2605f420a2433ab85641dd4c084d6ee708159ab",
+      "format": "tkmk00",
+      "romOffset": "0x8162c0"
+    },
+    "background_main_menu": {
+      "width": 320,
+      "height": 240,
+      "pngSha256": "2686faab0b34569bd50f36f41b0549d4457bc2801e2105aaceb2fc5c083297b2",
+      "format": "tkmk00+greyscale(0x19)+tint",
+      "romOffset": "0x8094c0",
+      "tint": [
+        255,
+        175,
+        175
+      ]
+    },
+    "background_player_select": {
+      "width": 320,
+      "height": 240,
+      "pngSha256": "1fcd7174e0cb43d28f6adfbc46257192226c26b58bc89dc9ebbb2a5b9b688d23",
+      "format": "tkmk00+greyscale(0x19)+tint",
+      "romOffset": "0x8094c0",
+      "tint": [
+        175,
+        255,
+        175
+      ]
+    },
+    "background_course_select": {
+      "width": 320,
+      "height": 240,
+      "pngSha256": "fe2bbbb7653d2cee2441d0cb887770a281a1236f1689419bff4a58f60908b52c",
+      "format": "tkmk00+greyscale(0x19)+tint",
+      "romOffset": "0x8094c0",
+      "tint": [
+        175,
+        175,
+        255
+      ]
+    }
+  }
+}

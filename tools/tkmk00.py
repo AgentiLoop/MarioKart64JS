@@ -216,13 +216,9 @@ class Tkmk00:
                             rgba1 = 0
                             if row != 0:
                                 rgba0 = rgba16[p - w]
-                            if not (row == 0 and col == 0):
-                                if col != 0 or row != 0:
-                                    rgba1 = rgba16[p - 1]
-                            else:
-                                rgba1 = 0
-                            if row == 0 and col == 0:
-                                rgba0 = rgba1 = 0
+                                rgba1 = rgba16[p - 1]
+                            elif col != 0:
+                                rgba1 = rgba16[p - 1]
 
                             red0 = (rgba0 & 0x7C0) >> 6
                             red1 = (rgba1 & 0x7C0) >> 6

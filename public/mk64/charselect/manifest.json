@@ -1,0 +1,104 @@
+{
+  "romSha1": "579c48e211ae952530ffc8738709f078d5dd215e",
+  "source": "n64decomp/mk64 data/texture_tkmk00.s, data/course_player_selection.s",
+  "images": {
+    "player_select_banner": {
+      "format": "tkmk00",
+      "width": 220,
+      "height": 32,
+      "romOffset": "0x7fa3c0",
+      "pngSha256": "1d77c7bb185cf56585c6e021dabb16825863ffa7c9f96f3af6cdc1f6e0c26f8d"
+    },
+    "name_mario": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fc0c0",
+      "pngSha256": "9937ec53984b3ab3275cbae359191e121e963ab282b511eb9f99646b65e8493a"
+    },
+    "name_luigi": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fbec0",
+      "pngSha256": "d3b93946623ef04fddd5b211f187de414fc41ef36442c22a88122f466dbd9792"
+    },
+    "name_peach": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fc2c0",
+      "pngSha256": "1c0705639e6c42ae318865e7b50c3401025849a707554da720b0d3fcb0792bf0"
+    },
+    "name_toad": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fbac0",
+      "pngSha256": "4b5d9bdc67273ca23b60e56b388847214eb808adb90f5110d811ef26865daee1"
+    },
+    "name_yoshi": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fc6c0",
+      "pngSha256": "763c99c90bc797ea9d537e89be514e031beede9f1eef6a68f046240caaa3f13d"
+    },
+    "name_donkeykong": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fb8c0",
+      "pngSha256": "c5b9f69fbb8c52790cf4493447c02501e0212de48e0ea4053fff9392e297b321"
+    },
+    "name_wario": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fc4c0",
+      "pngSha256": "e8607aa62b778a4dc3aa953a1c38476553732e610e7489d8d87f8e284f5e6974"
+    },
+    "name_bowser": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 12,
+      "romOffset": "0x7fbcc0",
+      "pngSha256": "93e997a36de7f49b0313e5ae6b88ad40cd25972f940ad756d2ad1efe360f06fe"
+    },
+    "ok": {
+      "format": "tkmk00",
+      "width": 31,
+      "height": 19,
+      "romOffset": "0x8092c0",
+      "pngSha256": "398ed763f5dd375106a7719f3245885d46e85666f3adee9fe6270b4c3c6f1535"
+    },
+    "p1_border_blue": {
+      "format": "rgba16",
+      "width": 64,
+      "height": 64,
+      "romOffset": "0x7dd63c",
+      "pngSha256": "e064fe046cac844546c90a0a19480a05ac8e839d13e575c8303610ff0caa82d8"
+    },
+    "p2_border_red": {
+      "format": "rgba16",
+      "width": 64,
+      "height": 64,
+      "romOffset": "0x7df63c",
+      "pngSha256": "9001f5df1e99ae3832d832a1e6e853f1b4b560dbae1f29ea28019c67ba1c2e07"
+    },
+    "p3_border_orange": {
+      "format": "rgba16",
+      "width": 64,
+      "height": 64,
+      "romOffset": "0x7e163c",
+      "pngSha256": "eaaab724324767db1a41c237e771d354a1efadbc92cfb939bdab5168d995ccee"
+    },
+    "p4_border_green": {
+      "format": "rgba16",
+      "width": 64,
+      "height": 64,
+      "romOffset": "0x7e363c",
+      "pngSha256": "5d799efa8c7710f69c9a8adc49b911071c5f06886fca588a878b73ba6ac489e6"
+    }
+  }
+}

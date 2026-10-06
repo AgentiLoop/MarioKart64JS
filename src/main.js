@@ -13,6 +13,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 const trackId = new URLSearchParams(location.search).get('track');
+const playerChar = new URLSearchParams(location.search).get('char') || localStorage.getItem('mk64char') || 'mario';
 const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show the track menu
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
@@ -146,17 +147,21 @@ function setup() {
   karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4;
   const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];
   // start line is at s=0; grid sits behind it so lap 1 begins on crossing
-  const order = [7, 0, 1, 2, 3, 4, 5, 6];
-  order.forEach((ci, i) => {
+  // player takes their character (URL ?char= / localStorage), AI fill the rest in native order.
+  // With playerChar=mario this reproduces the old [7,0,1,2,3,4,5,6] grid exactly.
+  const rest = characters.filter(c => c !== playerChar);
+  const order = [rest[6], playerChar, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5]];
+  order.forEach((c, i) => {
+    const ci = characters.indexOf(c);
     const [d, back] = slots[i];
     const k = new Kart(track, {
-      color: PALETTE[ci], s: track.length - back, d, isPlayer: ci === 0,
-      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: characters[ci],
+      color: PALETTE[ci], s: track.length - back, d, isPlayer: c === playerChar,
+      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c,
     });
     k.aiOffset = d * 0.8;
     k.prevS = k.s; k.crossings = 0;
     scene.add(k.mesh); karts.push(k);
-    if (ci === 0) player = k;
+    if (c === playerChar) player = k;
   });
   camPos.copy(player.world); camInit = false;
   banner.textContent = '';
@@ -174,9 +179,23 @@ const itemEl = $('item');
 const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
-// ------- title screen & course menu flow (no ?track=): title -> menu -> ?track=id -------
-const titleEl = $('title'), pushStart = $('pushStart'), menuEl = $('menu');
-const atTitle = () => titleEl.style.display !== 'none';
+// ------- title screen & menu flow (no ?track=): title -> course menu -> character select -> ?track=id&char=c -------
+// All three live inside #screen, a 320x240 frame scaled uniformly to the viewport (N64 4:3 output).
+const screenEl = $('screen'), hintEl = $('hint');
+const titleEl = $('title'), pushStart = $('pushStart'), menuEl = $('menu'), charEl = $('char');
+const BASE = import.meta.env?.BASE_URL ?? '/';
+let curScreen = null;
+function showScreen(el, hint) {
+  for (const s of [titleEl, menuEl, charEl]) s.style.display = s === el ? 'block' : 'none';
+  curScreen = el;
+  hintEl.textContent = hint;
+}
+function fitScreen() {
+  const s = Math.min(innerWidth / 320, innerHeight / 240);
+  screenEl.style.transform = `translate(-50%, -50%) scale(${s})`;
+}
+addEventListener('resize', fitScreen);
+const atTitle = () => curScreen === titleEl;
 let blinkTick = 0;
 function titleStep(now) {
   // MK64 start menu: ((gGlobalTimer / 8) % 3) != 0 draws the PUSH START button (menu_items.c:5905)
@@ -187,46 +206,210 @@ function titleStep(now) {
 }
 function enterMenus() {
   if (!atTitle()) return;
-  titleEl.style.display = 'none';
-  menuEl.style.display = 'flex';
+  showScreen(menuEl, 'Click a course, or use the arrow keys and Enter · Esc goes back to the title');
   menuBtns[0]?.focus();
 }
 function backToTitle() {
-  menuEl.style.display = 'none';
-  titleEl.style.display = 'flex';
+  showScreen(titleEl, 'Press Enter / Start / click anywhere to continue');
 }
 const menuBtns = [];
 const menuElDiv = $('menuList');
+
+// ------- character select: CHARACTER_SELECT_MENU laid out at the ROM's pixel positions -------
+// Grid ids 1..8 run left to right, top row then bottom (menus.c player_select_menu_act: R_JPAD = id+1,
+// D_JPAD = id+4); id = index+1 into sCharacterGridOrder MARIO LUIGI PEACH TOAD YOSHI DK WARIO BOWSER.
+// Portrait origins D_800E7108 (menu_items.c:114): x 24/93/162/231, y 63 (top row) / 145 (bottom row);
+// 64x64 face at (x,y), 64x12 name plate at (x,y+64), P1 border 64x64 over the face.
+const CHAR_ORDER = ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'];
+const CHAR_POS = [[24, 63], [93, 63], [162, 63], [231, 63], [24, 145], [93, 145], [162, 145], [231, 145]];
+const NAMES = { mario: 'Mario', luigi: 'Luigi', peach: 'Peach', toad: 'Toad', yoshi: 'Yoshi', donkeykong: 'D. Kong', wario: 'Wario', bowser: 'Bowser' };
+// MkAnimation frame tables, decoded from textures.c D_02006708..: frame index = face_XX
+const ANIM = {
+  base: { frames: [0], rate: 50 },                       // D_02006708 [00@0x32]
+  hover: { frames: [15], rate: 5 },                      // D_800E8320/8340 [15@5]
+  singleBlink: [1, 2, 3, 4, 5, 4, 3, 2, 1, 0].map(f => ({ frames: [f], rate: 1 })).concat([{ frames: [0], rate: 10 }]),
+  doubleBlink: [1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0].map(f => ({ frames: [f], rate: 1 })).concat([{ frames: [0], rate: 10 }]),
+  celebrate: { seq: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15], rate: 1 },   // D_02006718: 06..14 @1, 15 @5
+  deselect: { seq: [15, 14, 13, 12, 11, 10, 9, 8, 7, 6], rate: 2 },    // D_02006788: 15..06 @2
+};
+const faceState = [];
+const faceImgs = [];       // one <img> per cell: tall atlas positioned so frame f shows
+let charCursor = 0;        // player's grid slot 0..7 (grid id - 1)
+let charSel = null;        // chosen slot once confirmed
+let selCourse = null;      // pending track id
+let okMode = false;        // PLAYER_SELECT_MENU_OK reached
+let menuTick = 0;          // ~gGlobalTimer / gCycleFlashMenu (30 Hz)
+
+function frameOf(st, i) {
+  const hovered = i === charCursor && !okMode;
+  const selected = i === charSel;
+  // sub-state machine mirroring func_800AA69C (updates once per rAF, ~2x native 30 Hz)
+  st.t--;
+  if (st.t <= 0) {
+    switch (st.sub) {
+      case 0: { // base: blink on random_int(0xC8) >= 0xC5 (menus.c:9876)
+        const r = (Math.random() * 200) | 0;
+        if (selected && hovered) { st.sub = 1; st.idx = 0; }
+        else if (r >= 0xC6) { st.sub = 4; st.idx = 0; }
+        else if (r >= 0xC5) { st.sub = 5; st.idx = 0; }
+        st.t = 1; break;
+      }
+      case 1: // celebrate 06..15; native holds 15 (D_800E8440=0x0a -> substate 2 hover)
+        st.idx++; st.t = ANIM.celebrate.rate;
+        if (st.idx >= ANIM.celebrate.seq.length) {
+          if (selected && hovered) { st.idx = ANIM.celebrate.seq.length - 1; st.t = 5; }   // hold face 15
+          else { st.sub = 3; st.idx = 0; }   // deselected -> 15..06 @2
+        }
+        break;
+      case 3: // deselect: 15->06 @2 then back to base
+        st.idx++; st.t = ANIM.deselect.rate;
+        if (st.idx >= ANIM.deselect.seq.length) { st.sub = 0; st.t = ANIM.base.rate; }
+        break;
+      case 4: case 5: { // single/double blink
+        const seq = st.sub === 4 ? ANIM.singleBlink : ANIM.doubleBlink;
+        st.idx++; st.t = seq[st.idx]?.rate ?? 1;
+        if (st.idx >= seq.length) { st.sub = 0; st.t = ANIM.base.rate; }
+        break;
+      }
+    }
+  }
+  // hover shows face 15 (D_800E8340 [15@5]); selected runs its animation
+  if (hovered && !selected && st.sub !== 1 && st.sub !== 3) return 15;
+  switch (st.sub) {
+    case 1: return ANIM.celebrate.seq[Math.min(st.idx, ANIM.celebrate.seq.length - 1)];
+    case 3: return ANIM.deselect.seq[Math.min(st.idx, ANIM.deselect.seq.length - 1)];
+    case 4: { const s = ANIM.singleBlink[Math.min(st.idx, ANIM.singleBlink.length - 1)]; return s.frames[0]; }
+    case 5: { const s = ANIM.doubleBlink[Math.min(st.idx, ANIM.doubleBlink.length - 1)]; return s.frames[0]; }
+    default: return ANIM.base.frames[0];
+  }
+}
+function charStep(now) {
+  if (curScreen !== charEl) return;
+  menuTick = Math.floor(now / 1000 * 30);
+  faceState.forEach((st, i) => {
+    const f = frameOf(st, i);
+    // atlas is 17 frames stacked: shift the img up by f frames inside the overflow-hidden holder
+    faceImgs[i].style.top = `-${f * 64}px`;
+  });
+  // P1 border: env colour pulses 191..255 once the character is picked (menu_items.c:6072-6090)
+  const cell = $('charGrid').children[charSel ?? charCursor];
+  if (cell) {
+    let t = menuTick % 16; t = t >= 8 ? 128 - t * 8 : t * 8;
+    cell.querySelector('.border').style.filter = charSel !== null ? `brightness(${(t + 191) / 255})` : '';
+  }
+  // OK box: solid near-black until selected, then the grey flash of draw_flash_select_case_slow (speed 64)
+  let g = ((menuTick % 64) << 9) / 64; if (g > 0x100) g = 0x200 - g; g = Math.min(g, 255) | 0;
+  $('charOk').querySelector('.box').style.background = okMode ? `rgb(${g},${g},${g})` : 'rgb(1,1,1)';
+}
+function enterChar(trackId) {
+  selCourse = trackId;
+  showScreen(charEl, 'Click a driver, or use the arrow keys and Enter · Esc goes back to course select');
+  okMode = false; charSel = null; charCursor = 0;   // P1 cursor starts on grid 1 (Mario)
+  faceState.length = 0; faceImgs.length = 0;
+  const grid = $('charGrid');
+  grid.innerHTML = '';
+  CHAR_ORDER.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'char';
+    b.style.left = `${CHAR_POS[i][0]}px`; b.style.top = `${CHAR_POS[i][1]}px`;
+    b.setAttribute('aria-label', NAMES[c]);
+    const holder = document.createElement('div');
+    holder.className = 'holder';
+    const img = document.createElement('img');
+    img.className = 'face'; img.alt = '';
+    img.src = `${BASE}mk64/faces/${c}.png`;
+    holder.appendChild(img);
+    faceImgs.push(img);
+    faceState.push({ sub: 0, idx: 0, t: ANIM.base.rate });
+    const name = document.createElement('img');
+    name.className = 'name'; name.alt = '';
+    name.src = `${BASE}mk64/charselect/name_${c}.png`;
+    const border = document.createElement('img');
+    border.className = 'border'; border.alt = '';
+    border.src = `${BASE}mk64/charselect/p1_border_blue.png`;
+    b.append(holder, name, border);
+    b.onclick = () => { charCursor = i; pickChar(i); };
+    grid.appendChild(b);
+  });
+  updateCharClasses();
+}
+function updateCharClasses() {
+  [...$('charGrid').children].forEach((b, i) => {
+    const on = i === (charSel ?? charCursor);
+    b.classList.toggle('cursor', on);
+    if (!on) b.querySelector('.border').style.filter = '';
+  });
+}
+function pickChar(slot) {
+  charSel = slot;
+  okMode = true;   // single player: every pick leads to OK (menus.c:1543)
+  updateCharClasses();
+  $('charOk').focus();
+}
+function confirmChar() {
+  if (charSel === null) return;
+  const c = CHAR_ORDER[charSel];
+  localStorage.setItem('mk64char', c);
+  location.search = `?track=${selCourse}&char=${c}`;
+}
+function backFromChar() {
+  if (okMode) { okMode = false; charSel = null; updateCharClasses(); return; }   // B on OK goes back (menus.c:1651)
+  showScreen(menuEl, 'Click a course, or use the arrow keys and Enter · Esc goes back to the title');
+  menuBtns[0]?.focus();
+}
+$('charOk').onclick = confirmChar;
+
 if (!trackDef) {
-  titleEl.style.display = 'flex';
+  canvas.style.display = 'none';   // menus are the 4:3 frame on black, like the console output
+  screenEl.style.display = 'block';
+  hintEl.style.display = 'block';
+  fitScreen();
+  backToTitle();
   TRACKS.forEach((t, i) => {
     const b = document.createElement('button');
-    b.innerHTML = `<img alt="" src="/mk64/menu/previews/${t.id}.png" loading="lazy" /><span><b>${i + 1}. ${t.name}</b><br><span>${t.blurb}</span></span>`;
-    b.onclick = () => { location.search = `?track=${t.id}`; };
+    b.innerHTML = `<img alt="" src="${BASE}mk64/menu/previews/${t.id}.png" loading="lazy" /><span><b>${i + 1}. ${t.name}</b><br><span>${t.blurb}</span></span>`;
+    b.onclick = () => enterChar(t.id);
     menuElDiv.appendChild(b);
     menuBtns.push(b);
   });
 } else {
-  titleEl.style.display = 'none';
   $('hud').style.display = 'block';
 }
 titleEl.addEventListener('click', enterMenus);
 addEventListener('keydown', e => {
   if (!trackDef) {
     if (atTitle() && (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter')) { e.preventDefault(); enterMenus(); return; }
+    if (curScreen === charEl) {
+      // player_select_menu_act: left/right stay inside the row (ids 1-4 / 5-8), up/down swap rows
+      const col = charCursor % 4, row = charCursor >> 2;
+      const move = { ArrowLeft: col > 0 ? -1 : 0, ArrowRight: col < 3 ? 1 : 0, ArrowUp: row > 0 ? -4 : 0, ArrowDown: row < 1 ? 4 : 0 }[e.code];
+      if (move !== undefined) {
+        e.preventDefault();
+        if (!okMode && move) { charCursor += move; updateCharClasses(); }
+        return;
+      }
+      if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+        e.preventDefault();
+        if (okMode) confirmChar(); else pickChar(charCursor);
+        return;
+      }
+      if (e.code === 'Escape' || e.code === 'Backspace') { e.preventDefault(); backFromChar(); return; }
+      return;
+    }
     if (!atTitle() && e.code === 'Escape') { backToTitle(); return; }
-    if (!atTitle() && (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+    if (curScreen === menuEl && (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
       e.preventDefault();
       const i = menuBtns.indexOf(document.activeElement), step = { ArrowUp: -2, ArrowDown: 2, ArrowLeft: -1, ArrowRight: 1 }[e.code];
       const j = i < 0 ? 0 : i + step;
       if (j >= 0 && j < menuBtns.length) menuBtns[j].focus({ preventScroll: false });
       return;
     }
-    if (!atTitle() && (e.code === 'Enter' || e.code === 'NumpadEnter')) {
+    if (curScreen === menuEl && (e.code === 'Enter' || e.code === 'NumpadEnter')) {
       const b = menuBtns[menuBtns.indexOf(document.activeElement)];
       if (b) { e.preventDefault(); b.click(); }
       return;
     }
+    if (!atTitle() && e.code === 'Space') e.preventDefault();
   }
 });
 
@@ -365,6 +548,7 @@ function frame(now) {
     const a = 1 - Math.exp(-3 * dt);
     camera.position.lerp(target, a); flyLook.lerp(look, a); camera.lookAt(flyLook);
     titleStep(now);   // blink PUSH START while the attract fly-along runs behind the title overlay
+    charStep(now);    // animate the character-select faces when that screen is open
     updateSky();
     renderer.render(scene, camera);
     return;

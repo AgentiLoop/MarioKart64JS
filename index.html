@@ -8,27 +8,42 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Trebuchet MS", system-ui, sans-serif; }
   canvas#game { display: block; width: 100%; height: 100%; }
 
-  /* ---------- native MK64 title screen (blue sky background from the ROM) ---------- */
-  #title { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; z-index: 5; }
-  #titleBg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
-  #title .stack { position: relative; margin-top: 7vh; display: flex; flex-direction: column; align-items: center; }
-  #titleLogo { width: min(70vw, 640px); image-rendering: pixelated; }
-  #copyright { position: absolute; top: calc(7vh + min(35vw, 320px) * 128 / 256 + 12px); width: 124px; }
-  #pushStart { position: relative; margin-top: 26vh; width: 159px; height: 16px; image-rendering: pixelated; }
-  #title .hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 13px; color: #fff; opacity: .75; font-weight: 700; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
+  /* ---------- native 320x240 menu screen, scaled uniformly to fit (4:3 letterbox like the N64 frame) ---------- */
+  #screen { position: fixed; left: 50%; top: 50%; width: 320px; height: 240px; transform: translate(-50%, -50%) scale(3); transform-origin: center; z-index: 5; display: none; background: #000; }
+  #screen img, #screen canvas { image-rendering: pixelated; }
+  #screen .scr { position: absolute; inset: 0; display: none; overflow: hidden; }
+  #screen .scr img { position: absolute; display: block; }
+  #screen .bg { left: 0; top: 0; width: 320px; height: 240px; }
+  #hint { position: fixed; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 13px; color: #fff; opacity: .75; font-weight: 700; text-shadow: 0 1px 0 #000, 0 0 4px #000; z-index: 6; display: none; pointer-events: none; }
 
-  /* ---------- MK64-style menus ---------- */
-  #menu { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: safe center; gap: 14px; padding: 20px 0; box-sizing: border-box; overflow-y: auto; z-index: 4; }
-  #menuBg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; filter: grayscale(.4); }
-  #menu .inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  #menu h1 { margin: 0 0 10px; font-size: 64px; font-style: italic; font-family: "Arial Black", system-ui, sans-serif; color: #ffd23a; -webkit-text-stroke: 6px #b3200f; paint-order: stroke fill; text-shadow: 0 6px 0 #000; }
-  #menuList { display: grid; grid-template-columns: repeat(2, minmax(300px, 440px)); gap: 12px; }
-  #menu button { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 12px; padding: 8px 14px; font: inherit; text-align: left; color: #fff; background: linear-gradient(rgba(26,26,110,.85), rgba(0,0,40,.85)); border: 4px solid #fff; box-shadow: 0 0 0 3px #e0301e, 0 4px 0 3px #000; border-radius: 14px; cursor: pointer; }
-  #menu button img { width: 104px; image-rendering: pixelated; border: 2px solid #fff; border-radius: 4px; background: #000; }
-  #menu button:hover, #menu button:focus { outline: none; background: linear-gradient(#4a63f0, #2438b0); transform: scale(1.03); }
-  #menu button b { display: block; font-size: 21px; }
-  #menu button span { font-size: 12px; opacity: .85; }
-  #menu p { opacity: .85; font-size: 14px; color: #fff; text-shadow: 0 1px 0 #000; }
+  /* ---------- title: START_MENU items at their ROM positions (menu_items.c / textures.c dX,dY) ---------- */
+  #titleLogo { left: 32px; top: 7px; width: 256px; height: 128px; }      /* render_game_logo centred at (160,71) */
+  #copyright { left: 98px; top: 199px; width: 124px; height: 17px; }
+  #pushStart { left: 81px; top: 179px; width: 159px; height: 16px; }
+
+  /* ---------- course select (not yet native; HTML grid inside the 320x240 frame) ---------- */
+  #menu { flex-direction: column; align-items: center; }
+  #menu.scr { display: none; }
+  #menu .inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; width: 100%; height: 100%; box-sizing: border-box; overflow-y: auto; }
+  #menu h1 { margin: 0; font-size: 18px; font-style: italic; font-family: "Arial Black", system-ui, sans-serif; color: #ffd23a; -webkit-text-stroke: 1.5px #b3200f; paint-order: stroke fill; text-shadow: 0 2px 0 #000; }
+  #menuList { display: grid; grid-template-columns: repeat(2, 150px); gap: 3px; }
+  #menu button { display: grid; grid-template-columns: 32px 1fr; align-items: center; gap: 4px; padding: 0 3px; height: 22px; font: inherit; text-align: left; color: #fff; background: rgba(0,0,40,.8); border: 1px solid #fff; box-shadow: 0 0 0 1px #e0301e; border-radius: 3px; cursor: pointer; }
+  #menu button img { position: static; width: 32px; height: 20px; background: #000; }
+  #menu button:hover, #menu button:focus { outline: none; background: #2438b0; }
+  #menu button b { display: block; font-size: 7px; line-height: 1; }
+  #menu button br, #menu button span span { display: none; }
+
+  /* ---------- character select: CHARACTER_SELECT_MENU at ROM positions (D_800E7108, D_02004B4C, D_02004B74) ---------- */
+  #charBanner { left: 51px; top: 16px; width: 220px; height: 32px; }
+  .char { position: absolute; width: 64px; height: 76px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .char .holder { position: absolute; left: 0; top: 0; width: 64px; height: 64px; overflow: hidden; }
+  .char .face { left: 0; width: 64px; height: 1088px; }           /* 17 stacked 64x64 frames */
+  .char .name { left: 0; top: 64px; width: 64px; height: 12px; }
+  .char .border { left: 0; top: 0; width: 64px; height: 64px; display: none; pointer-events: none; }
+  .char.cursor .border { display: block; }
+  #charOk { position: absolute; left: 264px; top: 202px; width: 31px; height: 19px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  #charOk .box { position: absolute; left: 0; top: 0; width: 30px; height: 18px; background: rgb(1,1,1); }   /* func_800A8564 box */
+  #charOk img { left: 0; top: 0; width: 31px; height: 19px; }
 
   /* ---------- HUD ---------- */
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; display: none; }
@@ -50,26 +65,34 @@
 <body>
 <canvas id="game"></canvas>
 
-<!-- MK64 title screen: ROM logo, copyright and flashing PRESS START, over the blue sky -->
-<div id="title">
-  <img id="titleBg" alt="" src="/mk64/menu/background_blue_sky.png" />
-  <div class="stack">
+<!-- 320x240 native menu frame: title / course select / character select, all at ROM pixel positions -->
+<div id="screen">
+  <!-- START_MENU: blue-sky background, logo, copyright, flashing PUSH START -->
+  <div id="title" class="scr">
+    <img id="titleBg" class="bg" alt="" src="/mk64/menu/background_blue_sky.png" />
     <img id="titleLogo" alt="TarioKart 64" src="/mk64/menu/logo_mario_kart_64.png" />
     <img id="copyright" alt="" src="/mk64/menu/copyright_1996.png" />
     <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" />
   </div>
-  <p class="hint">Press Enter / Start / click anywhere to continue · arrow keys + Enter · M course menu</p>
-</div>
 
-<!-- course select: MK64 course preview thumbnails from the ROM -->
-<div id="menu">
-  <img id="menuBg" alt="" src="/mk64/menu/background_sunset.png" />
-  <div class="inner">
-    <h1>SELECT COURSE</h1>
-    <div id="menuList"></div>
-    <p>Click a course, or use the arrow keys and Enter · Esc goes back to the title</p>
+  <!-- course select: MK64 course preview thumbnails from the ROM (tinted COURSE_SELECT_BACKGROUND) -->
+  <div id="menu" class="scr">
+    <img id="menuBg" class="bg" alt="" src="/mk64/menu/background_course_select.png" />
+    <div class="inner">
+      <h1>SELECT COURSE</h1>
+      <div id="menuList"></div>
+    </div>
+  </div>
+
+  <!-- CHARACTER_SELECT_MENU: tinted background, PLAYER SELECT banner, 8 portraits + names, P1 border cursor, OK -->
+  <div id="char" class="scr">
+    <img id="charBg" class="bg" alt="" src="/mk64/menu/background_player_select.png" />
+    <img id="charBanner" alt="" src="/mk64/charselect/player_select_banner.png" />
+    <div id="charGrid"></div>
+    <button id="charOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" /></button>
   </div>
 </div>
+<div id="hint"></div>
 
 <div id="hud">
   <canvas id="mini" width="340" height="340"></canvas>
