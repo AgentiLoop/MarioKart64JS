@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import luigiCourse from '../public/mk64/luigi-raceway/course.json' with { type: 'json' };
+import marioCourse from '../public/mk64/mario-raceway/course.json' with { type: 'json' };
 
 export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
 
@@ -9,8 +10,15 @@ export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
 export const TRACKS = [
   {
     id: 'luigi', name: 'Luigi Raceway', blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
-    native: luigiCourse,
+    native: luigiCourse, dir: 'luigi-raceway',
     control: luigiCourse.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE)),
+    padSpots: [],
+    theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
+  },
+  {
+    id: 'mario', name: 'Mario Raceway', blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
+    native: marioCourse, dir: 'mario-raceway',
+    control: marioCourse.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE)),
     padSpots: [],
     theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
   },
@@ -188,7 +196,7 @@ export class Track {
   }
 
   // Static course batches converted by tools/extract-course.py. Render state follows
-  // render_luigi_raceway: unlit shade colour * texture, opaque except alpha-edged flags.
+  // render_<course>: unlit shade colour * texture, opaque except alpha-edged flags.
   _buildNativeMeshes() {
     const course = this.def.native;
     const loader = new THREE.TextureLoader();
@@ -211,7 +219,7 @@ export class Track {
       geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
       let map = null;
       if (batch.texture) {
-        map = loader.load(`${import.meta.env?.BASE_URL ?? '/'}mk64/luigi-raceway/${course.textures[batch.texture].image}`);
+        map = loader.load(`${import.meta.env?.BASE_URL ?? '/'}mk64/${this.def.dir}/${course.textures[batch.texture].image}`);
         map.colorSpace = THREE.SRGBColorSpace;
         map.flipY = false;
         map.wrapS = wrap[batch.wrapS]; map.wrapT = wrap[batch.wrapT];
@@ -221,7 +229,7 @@ export class Track {
       }
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
         map, vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false,
-        alphaTest: batch.texture === 'gLRTextureFlagRed' ? 0.5 : 0,
+        alphaTest: batch.alphaTest ? 0.5 : 0,   // G_RM_AA_ZB_TEX_EDGE lists
       }));
       mesh.name = batch.texture || 'shade';
       this.group.add(mesh);
