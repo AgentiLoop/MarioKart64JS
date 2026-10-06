@@ -165,64 +165,6 @@ export const TRACKS = [
     native: null, control: null, padSpots: [],
     theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
   })),
-  {
-    id: 'meadow', name: 'Meadow Circuit', blurb: 'Rolling green hills, gentle banking. Good for learning.',
-    control: [
-      [0, 0, 0], [100, 0, 10], [200, 4, -20], [290, 14, -80], [330, 26, -170],
-      [300, 30, -260], [220, 22, -320], [130, 8, -340], [40, 0, -310],
-      [-30, -6, -250], [-120, -8, -230], [-210, 0, -250], [-290, 12, -200],
-      [-320, 20, -110], [-280, 12, -30], [-190, 4, 20], [-100, 0, 30],
-    ],
-    padSpots: [[0.12, 0], [0.33, -4], [0.33, 4], [0.58, 0], [0.82, -5], [0.82, 5]],
-    theme: {
-      road: '#3b3d44', grass: '#3f8f3a', curbA: '#d8222b', curbB: '#fafafa', wallA: '#e9e9ee', wallB: '#2a63c8',
-      skyTop: 0x3b8ee8, skyBot: 0xbfe3ff, hemiSky: 0xdff0ff, hemiGround: 0x4a6b3a, sun: 0xfff2d6,
-      trunk: 0x6b4423, leaf: 0x1f6b2d, snowCap: false, trees: 380,
-    },
-  },
-  {
-    id: 'frost', name: 'Frost Ridge', blurb: 'Long climb to a snowy summit, then a fast plunge. Sweeping bends.',
-    control: [
-      [0, 0, 0], [120, 0, -15], [240, -6, -60], [320, -14, -150], [320, -8, -250],
-      [250, 6, -330], [150, 22, -360], [60, 34, -410], [-30, 44, -450], [-140, 46, -430],
-      [-235, 38, -360], [-275, 24, -260], [-285, 10, -150], [-235, 2, -60], [-130, 0, -10],
-    ],
-    padSpots: [[0.08, 0], [0.30, -4], [0.30, 4], [0.52, 0], [0.74, -5], [0.74, 5], [0.92, 0]],
-    theme: {
-      road: '#454a58', grass: '#e8f1fa', curbA: '#2a63c8', curbB: '#fafafa', wallA: '#cfe3f5', wallB: '#e0482f',
-      skyTop: 0x5a7fb5, skyBot: 0xdce8f4, hemiSky: 0xe8f1ff, hemiGround: 0x8fa0b8, sun: 0xfff8ec,
-      trunk: 0x4a3322, leaf: 0x2c6b52, snowCap: true, trees: 300,
-    },
-  },
-  {
-    id: 'dunes', name: 'Sunset Dunes', blurb: 'Hot desert sprint with tight hairpins and rolling dune jumps.',
-    control: [
-      [0, 0, 0], [110, 2, 20], [210, 8, 10], [290, 14, -40], [310, 10, -120],
-      [260, 4, -180], [180, 0, -200], [120, 6, -250], [130, 16, -330], [200, 22, -390],
-      [120, 20, -450], [10, 12, -430], [-70, 6, -370], [-60, 0, -290], [-150, -4, -250],
-      [-250, 2, -270], [-320, 10, -210], [-300, 8, -110], [-220, 2, -50], [-110, 0, -20],
-    ],
-    padSpots: [[0.10, 0], [0.28, -4], [0.28, 4], [0.47, 0], [0.66, -5], [0.66, 5], [0.88, 0]],
-    theme: {
-      road: '#4a443f', grass: '#d9a55b', curbA: '#e8731c', curbB: '#fff1d6', wallA: '#f0d9a8', wallB: '#b8452a',
-      skyTop: 0xe0703a, skyBot: 0xffd9a0, hemiSky: 0xffe2b8, hemiGround: 0xa87a40, sun: 0xffc27a,
-      trunk: 0x5a3a1c, leaf: 0x4f7a2a, snowCap: false, trees: 90,
-    },
-  },
-  {
-    id: 'moonlit', name: 'Moonlit Raceway', blurb: 'Night circuit under a purple sky. Wide sweepers and a tight S-bend.',
-    control: [
-      [0, 0, 0], [120, 0, 0], [230, 0, -30], [300, 4, -100], [310, 8, -200],
-      [260, 12, -280], [170, 14, -320], [110, 10, -380], [20, 6, -400], [-70, 2, -370],
-      [-110, -2, -300], [-200, -4, -270], [-280, 0, -210], [-290, 4, -120], [-230, 2, -50], [-130, 0, -20],
-    ],
-    padSpots: [[0.10, 0], [0.30, -4], [0.30, 4], [0.50, 0], [0.70, -5], [0.70, 5], [0.90, 0]],
-    theme: {
-      road: '#2e2f3a', grass: '#2a3f5c', curbA: '#e23fd0', curbB: '#e8f4ff', wallA: '#8a7fd0', wallB: '#2a2160',
-      skyTop: 0x0b0a2e, skyBot: 0x4a3a8c, hemiSky: 0x8a8cff, hemiGround: 0x1b2540, sun: 0xb8c4ff,
-      trunk: 0x2b1d33, leaf: 0x2a5a58, snowCap: false, trees: 240,
-    },
-  },
 ];
 
 export const HALF_WIDTH = 11;   // drivable asphalt half-width
