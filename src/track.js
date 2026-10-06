@@ -1,27 +1,38 @@
 import * as THREE from 'three';
-import luigiCourse from '../public/mk64/luigi-raceway/course.json' with { type: 'json' };
-import marioCourse from '../public/mk64/mario-raceway/course.json' with { type: 'json' };
 
 export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
+
+// The 16 original race courses in cup order, converted by tools/extract-course.py.
+// Course data is fetched on demand (loadNativeCourse) so the menu stays light.
+const NATIVE_COURSES = [
+  ['luigi', 'luigi-raceway', 'Luigi Raceway'], ['moomoo', 'moo-moo-farm', 'Moo Moo Farm'],
+  ['koopa', 'koopa-troopa-beach', 'Koopa Troopa Beach'], ['kalimari', 'kalimari-desert', 'Kalimari Desert'],
+  ['toad', 'toads-turnpike', "Toad's Turnpike"], ['frappe', 'frappe-snowland', 'Frappe Snowland'],
+  ['choco', 'choco-mountain', 'Choco Mountain'], ['mario', 'mario-raceway', 'Mario Raceway'],
+  ['wario', 'wario-stadium', 'Wario Stadium'], ['sherbet', 'sherbet-land', 'Sherbet Land'],
+  ['royal', 'royal-raceway', 'Royal Raceway'], ['bowser', 'bowsers-castle', "Bowser's Castle"],
+  ['dk', 'dks-jungle-parkway', "D.K.'s Jungle Parkway"], ['yoshi', 'yoshi-valley', 'Yoshi Valley'],
+  ['banshee', 'banshee-boardwalk', 'Banshee Boardwalk'], ['rainbow', 'rainbow-road', 'Rainbow Road'],
+];
+
+export async function loadNativeCourse(def) {
+  if (def.native || !def.dir) return def;
+  const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/course.json`);
+  if (!res.ok) throw new Error(`Course data ${def.dir}: HTTP ${res.status}`);
+  def.native = await res.json();
+  def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
+  return def;
+}
 
 // Track defined as a closed 3D spline (x, y=elevation, z). Banking is derived
 // automatically from horizontal curvature so hills, dips and camber all fall out
 // of the control points.
 export const TRACKS = [
-  {
-    id: 'luigi', name: 'Luigi Raceway', blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
-    native: luigiCourse, dir: 'luigi-raceway',
-    control: luigiCourse.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE)),
-    padSpots: [],
+  ...NATIVE_COURSES.map(([id, dir, name]) => ({
+    id, name, dir, blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
+    native: null, control: null, padSpots: [],
     theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
-  },
-  {
-    id: 'mario', name: 'Mario Raceway', blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
-    native: marioCourse, dir: 'mario-raceway',
-    control: marioCourse.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE)),
-    padSpots: [],
-    theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
-  },
+  })),
   {
     id: 'meadow', name: 'Meadow Circuit', blurb: 'Rolling green hills, gentle banking. Good for learning.',
     control: [
@@ -206,12 +217,13 @@ export class Track {
     this.textures = [];
     for (const batch of course.batches) {
       const positions = [], colors = [], uvs = [];
+      const [u0, v0] = batch.tileOrigin ?? [0, 0];   // gsDPSetTileSize upper-left, in texels
       for (const index of batch.indices) {
         const [x, y, z, s, t, r, g, b] = course.vertices[index];
         positions.push(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
         color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
         colors.push(color.r, color.g, color.b);
-        uvs.push(s / 32 / batch.width, t / 32 / batch.height);   // S10.5 texels; PNG rows stay top-down
+        uvs.push((s / 32 - u0) / batch.width, (t / 32 - v0) / batch.height);   // S10.5 texels; PNG rows stay top-down
       }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -230,7 +242,10 @@ export class Track {
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
         map, vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false,
         alphaTest: batch.alphaTest ? 0.5 : 0,   // G_RM_AA_ZB_TEX_EDGE lists
+        // G_RM_AA_ZB_XLU_* lists blend by texture alpha (course vertex alpha is always 0 in the ROM)
+        transparent: !!batch.translucent, depthWrite: !batch.translucent,
       }));
+      if (batch.translucent) mesh.renderOrder = 1;
       mesh.name = batch.texture || 'shade';
       this.group.add(mesh);
     }

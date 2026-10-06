@@ -3,9 +3,18 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 
 // road: textures the decomp draws for the asphalt (route waypoints must sit on them).
+// Courses without a road pattern only require every waypoint to lie over course geometry
+// (jumps on Royal Raceway, Wario Stadium etc. put waypoints well above the surface).
 const COURSES = [
   { dir: 'luigi-raceway', tris: 3022, road: /^gLRTextureRoad/ },
   { dir: 'mario-raceway', tris: 2549, road: /^gMRTexture(Road0|RoadFinish0|674354)$/ },
+  { dir: 'moo-moo-farm', tris: 3195 }, { dir: 'koopa-troopa-beach', tris: 3602 },
+  { dir: 'kalimari-desert', tris: 2932 }, { dir: 'toads-turnpike', tris: 3732 },
+  { dir: 'frappe-snowland', tris: 3179 }, { dir: 'choco-mountain', tris: 2397 },
+  { dir: 'wario-stadium', tris: 3637 }, { dir: 'sherbet-land', tris: 1276 },
+  { dir: 'royal-raceway', tris: 3514 }, { dir: 'bowsers-castle', tris: 4788 },
+  { dir: 'dks-jungle-parkway', tris: 3726 }, { dir: 'yoshi-valley', tris: 2456 },
+  { dir: 'banshee-boardwalk', tris: 2668 }, { dir: 'rainbow-road', tris: 1634 },
 ];
 for (const { dir: name, tris: expectedTris, road: roadName } of COURSES) {
 const dir = new URL(`../public/mk64/${name}/`, import.meta.url);
@@ -26,8 +35,8 @@ test(`${name}: course batches reference valid vertices and extracted textures`, 
   assert.equal(tris, expectedTris);
 });
 
-test(`${name}: every route waypoint lies on native road surface`, () => {
-  const road = course.batches.filter(b => roadName.test(b.texture ?? ''));
+test(`${name}: every route waypoint lies on native ${roadName ? 'road surface' : 'course geometry'}`, () => {
+  const road = course.batches.filter(b => roadName ? roadName.test(b.texture ?? '') : true);
   assert.ok(road.length >= 2);
   const v = course.vertices;
   const surfaceY = (x, z) => {
@@ -52,7 +61,7 @@ test(`${name}: every route waypoint lies on native road surface`, () => {
     maxDy = Math.max(maxDy, Math.abs(s - y));
   }
   assert.equal(missing, 0, `${missing}/${course.path.length} waypoints off road`);
-  assert.ok(maxDy <= 12, `max waypoint/road height gap ${maxDy}`);
+  if (roadName) assert.ok(maxDy <= 12, `max waypoint/road height gap ${maxDy}`);
 });
 
 test(`${name}: route is a closed loop`, () => {

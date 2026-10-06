@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track, TRACKS } from './track.js';
+import { Track, TRACKS, loadNativeCourse } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -36,7 +36,7 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 24, 12), new THREE.Sha
 }));
 scene.add(sky);
 
-const track = new Track(trackDef || TRACKS[0]);
+const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]));
 scene.add(track.group);
 
 const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf4cd30, 0xe78d32];
