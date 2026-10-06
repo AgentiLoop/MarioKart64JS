@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track, TRACKS, loadNativeCourse } from './track.js';
+import { Track, TRACKS, loadNativeCourse, nativeSkyColors, NATIVE_SCALE } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -27,14 +27,48 @@ sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 300 });
 scene.add(sun, sun.target);
 
-// sky dome
-const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 24, 12), new THREE.ShaderMaterial({
-  side: THREE.BackSide, depthWrite: false, fog: false,
-  uniforms: { top: { value: skyTop }, bot: { value: skyBot } },
-  vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-  fragmentShader: 'uniform vec3 top; uniform vec3 bot; varying float h; void main(){ gl_FragColor = vec4(mix(bot, top, clamp(h*1.6,0.,1.)),1.); }',
-}));
+// sky: native courses use MK64's screen-space skybox (render_skybox / func_802A487C):
+// two Gouraud quads split at the projected y=0 horizon, colours written unconverted.
+const nativeSky = nativeSkyColors((trackDef || TRACKS[0]).id);
+let sky;
+if (nativeSky) {
+  const c = a => new THREE.Vector3(...a.map(v => v / 255));
+  sky = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    depthTest: false, depthWrite: false, fog: false,
+    uniforms: { horizon: { value: 0 }, top: { value: c(nativeSky.top) }, hor: { value: c(nativeSky.horizon) },
+      below: { value: c(nativeSky.below) }, bottom: { value: c(nativeSky.bottom) } },
+    vertexShader: 'varying float y; void main(){ y = position.y; gl_Position = vec4(position.xy, 1., 1.); }',
+    fragmentShader: `uniform float horizon; uniform vec3 top, hor, below, bottom; varying float y;
+      void main(){
+        vec3 c = y >= horizon ? mix(hor, top, clamp((y - horizon) / max(1. - horizon, 1e-4), 0., 1.))
+                              : mix(below, bottom, clamp((horizon - y) / max(horizon + 1., 1e-4), 0., 1.));
+        gl_FragColor = vec4(c, 1.);
+      }`,
+  }));
+  sky.frustumCulled = false; sky.renderOrder = -1000;
+  scene.background = null;
+} else {
+  sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 24, 12), new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: skyTop }, bot: { value: skyBot } },
+    vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 bot; varying float h; void main(){ gl_FragColor = vec4(mix(bot, top, clamp(h*1.6,0.,1.)),1.); }',
+  }));
+}
 scene.add(sky);
+// MK64 projects a y=0 point 30000 units out to find the horizon row; we take that
+// point along the camera's horizontal heading (assumption: avoids the original's
+// fixed +Z point flipping when facing away).
+const _hp = new THREE.Vector3();
+function updateSky() {
+  if (!nativeSky) return;
+  camera.updateMatrixWorld();
+  camera.getWorldDirection(_hp); _hp.y = 0;
+  if (_hp.lengthSq() < 1e-8) _hp.set(0, 0, -1);
+  _hp.normalize().multiplyScalar(30000 * NATIVE_SCALE).add(camera.position); _hp.y = 0;
+  sky.material.uniforms.horizon.value = _hp.project(camera).y;
+}
+window.__sky = nativeSky && { colors: nativeSky, get horizon() { return sky.material.uniforms.horizon.value; } };
 
 const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]));
 scene.add(track.group);
@@ -219,6 +253,7 @@ function frame(now) {
   if (!trackDef) {   // menu open: orbit the camera over the default course, no race
     const t = now / 4000, p = track.pos[Math.floor(t * 40) % track.n];
     camera.position.set(p.x + Math.cos(t * 3) * 40, p.y + 25, p.z + Math.sin(t * 3) * 40); camera.lookAt(p);
+    updateSky();
     renderer.render(scene, camera);
     return;
   }
@@ -257,6 +292,7 @@ function frame(now) {
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
   updateCamera(dt);
   drawMini();
+  updateSky();
   renderer.render(scene, camera);
 }
 let lastTick = 4;

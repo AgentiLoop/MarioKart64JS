@@ -15,6 +15,38 @@ const NATIVE_COURSES = [
   ['banshee', 'banshee-boardwalk', 'Banshee Boardwalk'], ['rainbow', 'rainbow-road', 'Rainbow Road'],
 ];
 
+// Per-course sky gradients, verbatim from mk64-master yamls/courses/*_metadata.yml
+// (sky_colors / sky_colors2 -> sTopSkyBoxColors / sBottomSkyBoxColors). Each entry is
+// [topR, topG, topB, bottomR, bottomG, bottomB] as s16; the game stores them into u8
+// vertex colours, so only the low byte is used (skybox_and_splitscreen.c:313-317, 410-440).
+export const NATIVE_SKY = {
+  mario: [[128, 4280, 6136, 216, 7144, 32248], [0, 0, 0, 0, 0, 0]],
+  choco: [[255, 255, 255, 255, 255, 255], [255, 255, 255, 255, 255, 255]],
+  bowser: [[48, 1544, 49528, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
+  banshee: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
+  yoshi: [[113, 70, 255, 255, 184, 99], [95, 40, 15, 0, 0, 0]],
+  frappe: [[28, 11, 90, 0, 99, 164], [0, 99, 164, 0, 0, 0]],
+  koopa: [[48, 1688, 54136, 216, 7144, 32248], [48, 1688, 54136, 0, 0, 0]],
+  royal: [[238, 144, 255, 255, 224, 240], [255, 224, 240, 0, 0, 0]],
+  luigi: [[128, 4280, 6136, 216, 7144, 32248], [216, 7144, 32248, 0, 0, 0]],
+  moomoo: [[0, 18, 255, 197, 211, 255], [255, 184, 99, 0, 0, 0]],
+  toad: [[0, 2, 94, 209, 65, 23], [209, 65, 23, 0, 0, 0]],
+  kalimari: [[195, 231, 255, 255, 192, 0], [255, 192, 0, 0, 0, 0]],
+  sherbet: [[128, 4280, 6136, 216, 7144, 32248], [216, 7144, 32248, 128, 4280, 6136]],
+  rainbow: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
+  wario: [[20, 30, 56, 40, 60, 110], [0, 0, 0, 0, 0, 0]],
+  dk: [[255, 174, 0, 255, 229, 124], [22, 145, 22, 0, 0, 0]],
+};
+// Above the horizon: top colour at the screen top fading to the bottom colour at the
+// horizon. Below it (drawn behind the course): sky_colors2 top at the horizon to
+// bottom at the screen bottom. Returns u8 RGB triples.
+export function nativeSkyColors(id) {
+  const e = NATIVE_SKY[id];
+  if (!e) return null;
+  const rgb = (a, i) => a.slice(i, i + 3).map(v => v & 0xff);
+  return { top: rgb(e[0], 0), horizon: rgb(e[0], 3), below: rgb(e[1], 0), bottom: rgb(e[1], 3) };
+}
+
 export async function loadNativeCourse(def) {
   if (def.native || !def.dir) return def;
   const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/course.json`);
