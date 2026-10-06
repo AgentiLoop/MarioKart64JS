@@ -218,7 +218,8 @@ def convert(source, rom, course_id):
         if name in arrays:
             for entry in re.findall(r'\w+', arrays[name]):
                 if entry in lists:
-                    walk(entry)
+                    state['mode'] = mode  # render_course_segments submits one entry per call, so a
+                    walk(entry)           # wrapper's trailing render-mode change (e.g. DKJ dl_0) doesn't carry over
         else:
             walk(resolve(name))
     # Lists reached only by course_generate_collision_mesh (invisible collision geometry), by
