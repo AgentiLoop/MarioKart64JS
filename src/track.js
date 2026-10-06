@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import luigiCourse from '../public/mk64/luigi-raceway/course.json';
+import luigiCourse from '../public/mk64/luigi-raceway/course.json' with { type: 'json' };
 
 export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
 
