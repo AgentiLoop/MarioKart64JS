@@ -17,11 +17,11 @@ const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show t
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
-scene.fog = new THREE.Fog(th.skyBot, 200, 900);
+scene.fog = new THREE.Fog(th.skyBot, 160, 750);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2500);
 
-scene.add(new THREE.HemisphereLight(th.hemiSky, th.hemiGround, 1.6));
-const sun = new THREE.DirectionalLight(th.sun, 2.2);
+scene.add(new THREE.HemisphereLight(th.hemiSky, th.hemiGround, 1.35));
+const sun = new THREE.DirectionalLight(th.sun, 2.5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 300 });
