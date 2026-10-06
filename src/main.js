@@ -88,6 +88,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true; audio.start();
   if (e.code === 'KeyR') setup();
   if (e.code === 'KeyM') location.search = '';
+  if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { retro = !retro; resize(); }
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) items.use(player);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -131,6 +132,7 @@ const $ = id => document.getElementById(id);
 const banner = $('banner'), posEl = $('pos'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
 const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
+if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
 const items = new Items(track, scene, audio);
 const itemEl = $('item');
 const ordinal = n => ['st', 'nd', 'rd', 'th', 'th'][n - 1];

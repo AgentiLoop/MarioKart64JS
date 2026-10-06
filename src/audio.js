@@ -1,4 +1,4 @@
-// Tiny procedural WebAudio: engine hum, skid noise, countdown beeps.
+// Tiny procedural WebAudio: engine hum, skid noise, countdown beeps, original chiptune race music.
 export class AudioSys {
   constructor() { this.ctx = null; }
   start() {
@@ -20,6 +20,62 @@ export class AudioSys {
     this.noiseGain = ctx.createGain(); this.noiseGain.gain.value = 0;
     this.noise.connect(this.bp); this.bp.connect(this.noiseGain); this.noiseGain.connect(this.master);
     this.noise.start();
+    this.hat = ctx.createBuffer(1, 2205, ctx.sampleRate); const hd = this.hat.getChannelData(0);
+    for (let i = 0; i < hd.length; i++) hd[i] = Math.random() * 2 - 1;
+    if (this.wantMusic && !this.muted) this.playMusic(this.wantMusic);
+  }
+  // Original chiptune: seeded 8-bar loop (square lead, triangle bass, noise hats), per-course key/tempo.
+  playMusic(id) {
+    this.stopMusic();
+    if (!this.ctx || this.muted) { this.wantMusic = id; return; }
+    this.wantMusic = id;
+    const T = {
+      meadow: { bpm: 150, root: 60, sc: [0, 2, 4, 7, 9, 12], prog: [0, 5, 7, 5], seed: 7 },
+      frost: { bpm: 138, root: 57, sc: [0, 3, 5, 7, 10, 12], prog: [0, 8, 5, 7], seed: 11 },
+      dunes: { bpm: 144, root: 62, sc: [0, 1, 4, 5, 7, 8, 12], prog: [0, 0, 5, 1], seed: 23 },
+      moonlit: { bpm: 126, root: 55, sc: [0, 3, 5, 7, 10, 12], prog: [0, 3, 8, 7], seed: 31 },
+    }[id] || { bpm: 144, root: 60, sc: [0, 2, 4, 7, 9, 12], prog: [0, 5, 7, 5], seed: 3 };
+    let r = T.seed; const rnd = () => (r = (r * 1664525 + 1013904223) >>> 0) / 4294967296;
+    const step = 60 / T.bpm / 2, steps = 8 * 16 / 2;   // 8th notes, 64 steps
+    const lead = [], bass = [];
+    for (let i = 0; i < steps; i++) {
+      const chord = T.prog[Math.floor(i / 16) % T.prog.length];
+      bass.push(i % 2 === 0 ? chord - 12 + (i % 8 === 4 ? 7 : 0) : null);
+      lead.push(rnd() < 0.7 ? chord + T.sc[Math.floor(rnd() * T.sc.length)] : null);
+    }
+    const first = lead.slice(0, 8);
+    for (let i = 0; i < steps; i++) if (i % 16 < 8 && (i % 32) >= 16) lead[i] = first[i % 8];
+    const ctx = this.ctx, hz = n => 440 * Math.pow(2, (n - 69) / 12);
+    const note = (type, n, t, d, v) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.value = hz(n);
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(g); g.connect(this.musicGain); o.start(t); o.stop(t + d + 0.02);
+    };
+    this.musicGain = ctx.createGain(); this.musicGain.gain.value = 0.35; this.musicGain.connect(this.master);
+    let i = 0, next = ctx.currentTime + 0.1;
+    this.musicTimer = setInterval(() => {
+      while (next < ctx.currentTime + 0.4) {
+        const k = i % steps;
+        if (lead[k] !== null) note('square', T.root + lead[k] + 12, next, step * 0.9, 0.12);
+        if (bass[k] !== null) note('triangle', T.root + bass[k] - 12, next, step * 1.8, 0.35);
+        if (k % 4 === 2) {
+          const b = ctx.createBufferSource(); b.buffer = this.hat; const g = ctx.createGain();
+          g.gain.setValueAtTime(0.06, next); g.gain.exponentialRampToValueAtTime(0.001, next + 0.05);
+          b.connect(g); g.connect(this.musicGain); b.start(next);
+        }
+        next += step; i++;
+      }
+    }, 100);
+  }
+  stopMusic() {
+    if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
+    if (this.musicGain) { const g = this.musicGain; g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1); setTimeout(() => g.disconnect(), 800); this.musicGain = null; }
+  }
+  toggleMusic() {
+    this.muted = !this.muted;
+    if (this.muted) this.stopMusic(); else if (this.wantMusic) this.playMusic(this.wantMusic);
+    return !this.muted;
   }
   update(speed01, skid, offroad, boost) {
     if (!this.ctx) return;
