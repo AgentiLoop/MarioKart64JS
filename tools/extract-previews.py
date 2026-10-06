@@ -2,15 +2,21 @@
 """Extract MK64 course preview thumbnails from a local US ROM (standard library only).
 
 Usage: python3 tools/extract-previews.py ROM --metadata /path/to/mk64/assets/course_previews.json
-The 16 race previews + 4 battle previews are raw rgba16 (no compression) and map to
-the web front end's TRACKS ids via --ids. Output: public/mk64/menu/previews/<id>.png
+The 16 race previews + 4 battle previews are MIO0-compressed rgba16 blocks (the metadata
+rom_offset points at the 'MIO0' header; see assets/include/course_previews.mk) and map to
+the web front end's TRACKS ids. Output: public/mk64/menu/previews/<id>.png
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import struct
 import zlib
+
+spec = importlib.util.spec_from_file_location('karts', Path(__file__).with_name('extract-karts.py'))
+karts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(karts)
 
 US_SHA1 = '579c48e211ae952530ffc8738709f078d5dd215e'
 
@@ -74,7 +80,10 @@ def extract(rom_path, metadata, output):
             raise ValueError(f'Unsupported preview format: {symbol}')
         offset = int(asset['rom_offset'], 16)
         size = asset['width'] * asset['height'] * 2
-        rgba = rgba16_to_rgba8888(rom[offset:offset + size])
+        pixels = karts.mio0(rom[offset:])
+        if len(pixels) != size:
+            raise ValueError(f'{symbol}: MIO0 block decodes to {len(pixels)} bytes, expected {size}')
+        rgba = rgba16_to_rgba8888(pixels)
         encoded = png(asset['width'], asset['height'], rgba)
         (output / f'{track_id}.png').write_bytes(encoded)
         manifest['previews'][track_id] = {'symbol': symbol, 'width': asset['width'], 'height': asset['height'],
