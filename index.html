@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Kart Racer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Trebuchet MS", system-ui, sans-serif; }
+  canvas#game { display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 2px 0 #000, 0 0 6px #000; font-weight: 800; }
+  #pos { position: absolute; left: 24px; bottom: 20px; font-size: 96px; font-style: italic; line-height: 1; }
+  #pos small { font-size: 36px; }
+  #lap { position: absolute; right: 24px; top: 16px; font-size: 34px; text-align: right; }
+  #time { font-size: 22px; opacity: .9; }
+  #speed { position: absolute; right: 24px; bottom: 20px; font-size: 54px; font-style: italic; }
+  #speed small { font-size: 22px; }
+  #banner { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-size: 140px; font-style: italic; color: #ffd23a; }
+  #mini { position: absolute; left: 20px; top: 20px; width: 170px; height: 170px; background: rgba(0,0,0,.35); border-radius: 12px; }
+  #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 600; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <canvas id="mini" width="340" height="340"></canvas>
+  <div id="lap"><div id="lapText">LAP 1/3</div><div id="time">0:00.00</div></div>
+  <div id="pos">1<small>st</small></div>
+  <div id="speed">0<small> km/h</small></div>
+  <div id="banner"></div>
+  <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · R restart</div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
