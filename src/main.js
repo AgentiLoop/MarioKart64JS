@@ -93,13 +93,36 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
+// gamepad: A/RT gas, B/LT brake, LB/RB drift, X/Y item, Start restart, stick or d-pad steers
+let padItemHeld = false, padStartHeld = false;
+function pollPad() {
+  const pad = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find(p => p && p.connected);
+  if (!pad) return null;
+  const b = i => !!(pad.buttons[i] && pad.buttons[i].pressed);
+  const item = b(2) || b(3), start = b(9);
+  if (item && !padItemHeld && state !== 'countdown' && player) items.use(player);
+  if (start && !padStartHeld) setup();
+  padItemHeld = item; padStartHeld = start;
+  let sx = pad.axes[0] || 0;
+  if (Math.abs(sx) < 0.15) sx = 0;
+  if (b(14)) sx = -1; else if (b(15)) sx = 1;
+  return { throttle: (b(0) || b(7)) ? 1 : 0, brake: (b(1) || b(6)) ? 1 : 0, steer: sx, drift: b(4) || b(5) };
+}
 function playerInput() {
   const l = keys.ArrowLeft || keys.KeyA, r = keys.ArrowRight || keys.KeyD;
-  return {
+  const kb = {
     throttle: (keys.ArrowUp || keys.KeyW) ? 1 : 0,
     brake: (keys.ArrowDown || keys.KeyS) ? 1 : 0,
     steer: (r ? 1 : 0) - (l ? 1 : 0),
     drift: !!keys.Space,
+  };
+  const p = pollPad();
+  if (!p) return kb;
+  return {
+    throttle: Math.max(kb.throttle, p.throttle),
+    brake: Math.max(kb.brake, p.brake),
+    steer: kb.steer || p.steer,
+    drift: kb.drift || p.drift,
   };
 }
 
