@@ -48,6 +48,20 @@ export const TRACKS = [
       trunk: 0x5a3a1c, leaf: 0x4f7a2a, snowCap: false, trees: 90,
     },
   },
+  {
+    id: 'moonlit', name: 'Moonlit Raceway', blurb: 'Night circuit under a purple sky. Wide sweepers and a tight S-bend.',
+    control: [
+      [0, 0, 0], [120, 0, 0], [230, 0, -30], [300, 4, -100], [310, 8, -200],
+      [260, 12, -280], [170, 14, -320], [110, 10, -380], [20, 6, -400], [-70, 2, -370],
+      [-110, -2, -300], [-200, -4, -270], [-280, 0, -210], [-290, 4, -120], [-230, 2, -50], [-130, 0, -20],
+    ],
+    padSpots: [[0.10, 0], [0.30, -4], [0.30, 4], [0.50, 0], [0.70, -5], [0.70, 5], [0.90, 0]],
+    theme: {
+      road: '#2e2f3a', grass: '#2a3f5c', curbA: '#e23fd0', curbB: '#e8f4ff', wallA: '#8a7fd0', wallB: '#2a2160',
+      skyTop: 0x0b0a2e, skyBot: 0x4a3a8c, hemiSky: 0x8a8cff, hemiGround: 0x1b2540, sun: 0xb8c4ff,
+      trunk: 0x2b1d33, leaf: 0x2a5a58, snowCap: false, trees: 240,
+    },
+  },
 ];
 
 export const HALF_WIDTH = 11;   // drivable asphalt half-width
