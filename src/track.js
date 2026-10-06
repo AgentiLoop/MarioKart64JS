@@ -1,9 +1,19 @@
 import * as THREE from 'three';
+import luigiCourse from '../public/mk64/luigi-raceway/course.json';
+
+export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
 
 // Track defined as a closed 3D spline (x, y=elevation, z). Banking is derived
 // automatically from horizontal curvature so hills, dips and camber all fall out
 // of the control points.
 export const TRACKS = [
+  {
+    id: 'luigi', name: 'Luigi Raceway', blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
+    native: luigiCourse,
+    control: luigiCourse.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE)),
+    padSpots: [],
+    theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
+  },
   {
     id: 'meadow', name: 'Meadow Circuit', blurb: 'Rolling green hills, gentle banking. Good for learning.',
     control: [
@@ -93,13 +103,15 @@ export class Track {
     this.def = def; this.theme = def.theme;
     const pts = def.control.map(p => new THREE.Vector3(...p));
     this.curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+    if (def.native) this.curve.arcLengthDivisions = pts.length * 8;
     this.length = this.curve.getLength();
     this.n = SAMPLES;
     this.ds = this.length / SAMPLES;
     this.pos = []; this.T = []; this.U = []; this.R = []; this.kU = [];
     this._build();
     this.group = new THREE.Group();
-    this._buildMeshes();
+    if (def.native) this._buildNativeMeshes();
+    else this._buildMeshes();
   }
 
   _build() {
@@ -113,7 +125,7 @@ export class Track {
     for (let i = 0; i < n; i++) {
       const a = this.T[(i + n - 3) % n], b = this.T[(i + 3) % n];
       const kappa = new THREE.Vector3().crossVectors(a, b).y / (6 * this.ds);
-      bank[i] = THREE.MathUtils.clamp(kappa * 55, -0.4, 0.4);
+      bank[i] = this.def.native ? 0 : THREE.MathUtils.clamp(kappa * 55, -0.4, 0.4);
     }
     for (let pass = 0; pass < 4; pass++) {
       const nb = bank.slice();
@@ -173,6 +185,47 @@ export class Track {
     const m = new THREE.Mesh(g, mat);
     m.receiveShadow = true;
     return m;
+  }
+
+  // Static course batches converted by tools/extract-course.py. Render state follows
+  // render_luigi_raceway: unlit shade colour * texture, opaque except alpha-edged flags.
+  _buildNativeMeshes() {
+    const course = this.def.native;
+    const loader = new THREE.TextureLoader();
+    const wrap = { repeat: THREE.RepeatWrapping, mirror: THREE.MirroredRepeatWrapping, clamp: THREE.ClampToEdgeWrapping };
+    const color = new THREE.Color();
+    this.boostPads = [];
+    this.textures = [];
+    for (const batch of course.batches) {
+      const positions = [], colors = [], uvs = [];
+      for (const index of batch.indices) {
+        const [x, y, z, s, t, r, g, b] = course.vertices[index];
+        positions.push(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
+        color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
+        colors.push(color.r, color.g, color.b);
+        uvs.push(s / 32 / batch.width, t / 32 / batch.height);   // S10.5 texels; PNG rows stay top-down
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      let map = null;
+      if (batch.texture) {
+        map = loader.load(`${import.meta.env?.BASE_URL ?? '/'}mk64/luigi-raceway/${course.textures[batch.texture].image}`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.flipY = false;
+        map.wrapS = wrap[batch.wrapS]; map.wrapT = wrap[batch.wrapT];
+        map.magFilter = map.minFilter = THREE.NearestFilter;
+        map.generateMipmaps = false;
+        this.textures.push(map);
+      }
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        map, vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false,
+        alphaTest: batch.texture === 'gLRTextureFlagRed' ? 0.5 : 0,
+      }));
+      mesh.name = batch.texture || 'shade';
+      this.group.add(mesh);
+    }
   }
 
   _buildMeshes() {
