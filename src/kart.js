@@ -4,66 +4,65 @@ import { HALF_WIDTH, WALL_D } from './track.js';
 const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
 
-export function buildKartMesh(color) {
+// View tables: n64decomp/mk64 src/kart_dma.c (neutral slope group 4).
+// Angle quantization: src/player_controller.c, func_8002934C.
+export function kartSpriteFrame(angle, spinning = false) {
+  const turn = Math.PI * 2;
+  const units = Math.floor(((angle % turn + turn) % turn) / turn * 65536);
+  const mirrored = Math.floor(units / 128) >= 257;
+  const folded = units >= 0x7ff9 ? (65536 - units) & 0xffff : units;
+  let frame;
+  if (spinning) {
+    frame = Math.floor(folded / 1638);
+    if (units >= 0x7ff9 && frame === 0) frame = 1;
+    if (frame >= 20) frame = 0;
+    frame = frame === 0 ? 84 : 229 + frame;
+  } else {
+    const coarse = mirrored ? 513 - Math.floor(units / 128) : Math.floor(units / 128);
+    const selector = Math.min(34, Math.floor(folded / (coarse < 81 ? 520 : 1638)) + (coarse < 81 ? 0 : 15));
+    frame = selector <= 20 ? 84 + selector : 235 + selector - 21;
+  }
+  return { frame, mirrored };
+}
+
+export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
-  const L = (c) => new THREE.MeshLambertMaterial({ color: c });
-  const body = L(color), dark = L(0x222226), chrome = L(0xcfd3d8), skin = L(0xf2c9a0), white = L(0xffffff), blue = L(0x2a63c8);
-  const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
-    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); g.add(m); return m;
+  const map = new THREE.TextureLoader().load(`${import.meta.env?.BASE_URL ?? '/'}mk64/karts/${character}.png`);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.magFilter = map.minFilter = THREE.NearestFilter;
+  map.generateMipmaps = false;
+  const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.center.set(0.5, 0);
+  sprite.scale.set(4.5, 4.5, 1);
+  g.add(sprite);
+  const cameraPosition = new THREE.Vector3(), local = new THREE.Vector3(), inverse = new THREE.Quaternion();
+  sprite.onBeforeRender = (_renderer, _scene, camera) => {
+    camera.getWorldPosition(cameraPosition);
+    g.getWorldQuaternion(inverse).invert();
+    local.copy(cameraPosition).sub(g.position).applyQuaternion(inverse);
+    const view = kartSpriteFrame(Math.atan2(local.x, local.z), g.userData.spinning);
+    const column = view.frame % 21, row = Math.floor(view.frame / 21);
+    map.repeat.set((view.mirrored ? -1 : 1) / 21, 1 / 16);
+    map.offset.set((column + (view.mirrored ? 1 : 0)) / 21, 1 - (row + 1) / 16);
+    material.rotation = g.userData.lean || 0;
+    sprite.userData.frame = view.frame;
+    sprite.userData.mirrored = view.mirrored;
   };
-  // model faces -Z, +Y up
-  // floor pan + tapered hull
-  add(new THREE.BoxGeometry(1.9, 0.25, 3.4), dark, 0, 0.35, 0);
-  add(new THREE.BoxGeometry(1.6, 0.45, 2.2), body, 0, 0.7, 0.5);
-  const nose = add(new THREE.CylinderGeometry(0.35, 0.75, 2.0, 8), body, 0, 0.62, -1.7, Math.PI / 2, 0, 0);
-  nose.scale.set(1, 1, 0.55);
-  // front bumper + headlights
-  add(new THREE.BoxGeometry(2.2, 0.22, 0.3), chrome, 0, 0.45, -2.75);
-  for (const x of [-0.45, 0.45]) add(new THREE.SphereGeometry(0.17, 6, 5), L(0xfff3a0), x, 0.78, -2.6);
-  // side pods with stripe
-  for (const x of [-1, 1]) {
-    add(new THREE.BoxGeometry(0.5, 0.4, 1.6), body, x * 0.95, 0.6, 0.4);
-    add(new THREE.BoxGeometry(0.52, 0.08, 1.2), white, x * 0.95, 0.82, 0.4);
-  }
-  // seat and steering
-  add(new THREE.BoxGeometry(1.0, 0.9, 0.3), L(0x333340), 0, 1.2, 1.0, -0.2, 0, 0);
-  add(new THREE.CylinderGeometry(0.28, 0.28, 0.06, 10), dark, 0, 1.2, -0.45, -1.0, 0, 0);
-  add(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 5), dark, 0, 0.95, -0.2, -1.0, 0, 0);
-  // rear spoiler + twin exhausts
-  add(new THREE.BoxGeometry(2.1, 0.12, 0.6), dark, 0, 1.55, 1.75);
-  for (const x of [-0.85, 0.85]) add(new THREE.BoxGeometry(0.1, 0.9, 0.1), dark, x, 1.05, 1.75);
-  for (const x of [-0.4, 0.4]) add(new THREE.CylinderGeometry(0.13, 0.17, 0.6, 7), chrome, x, 0.75, 1.9, Math.PI / 2, 0, 0);
-  // wheels with hubcaps
-  const wheelG = new THREE.CylinderGeometry(0.5, 0.5, 0.5, 10); wheelG.rotateZ(Math.PI / 2);
-  const capG = new THREE.CylinderGeometry(0.22, 0.22, 0.54, 8); capG.rotateZ(Math.PI / 2);
-  for (const [x, z, r] of [[-1.15, -1.5, 0.5], [1.15, -1.5, 0.5], [-1.2, 1.3, 0.65], [1.2, 1.3, 0.65]]) {
-    const w = add(wheelG, dark, x, r, z); w.scale.setScalar(r / 0.5);
-    const c = add(capG, chrome, x, r, z); c.scale.setScalar(r / 0.5);
-  }
-  // driver: torso, arms, head, cap with brim and emblem
-  add(new THREE.BoxGeometry(0.85, 0.75, 0.55), blue, 0, 1.25, 0.6);
-  for (const x of [-1, 1]) {
-    add(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 6), white, x * 0.5, 1.3, 0.25, -1.1, 0, x * 0.2);
-    add(new THREE.SphereGeometry(0.13, 6, 5), white, x * 0.32, 1.2, -0.1);
-  }
-  add(new THREE.SphereGeometry(0.5, 10, 8), skin, 0, 2.0, 0.55);
-  add(new THREE.SphereGeometry(0.1, 6, 5), L(0xd98a7a), 0, 1.95, 0.08);
-  add(new THREE.SphereGeometry(0.54, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), body, 0, 2.08, 0.55);
-  add(new THREE.BoxGeometry(0.7, 0.07, 0.45), body, 0, 2.1, 0.12);
-  add(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 8), white, 0, 2.35, 0.2, Math.PI / 2 - 0.5, 0, 0);
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.userData.character = character;
+  g.userData.dispose = () => { map.dispose(); material.dispose(); };
   return g;
 }
 
 export class Kart {
-  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer' }) {
+  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario' }) {
     this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name;
     this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
     this.crossings = 0; this.prevS = s;
     this.drift = 0;            // -1 left, +1 right, 0 none
     this.driftTime = 0; this.boost = 0;
     this.aiOffset = d; this.finished = false; this.finishTime = 0;
-    this.mesh = buildKartMesh(color);
+    this.mesh = buildKartMesh(character);
     this.color = color;
     this.frame = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
     this.world = new THREE.Vector3(); this.fwd = new THREE.Vector3(); this.up = new THREE.Vector3();
@@ -189,8 +188,8 @@ export class Kart {
     const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
     this.mesh.quaternion.setFromRotationMatrix(m);
     // body-roll when drifting / steering
-    const lean = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, -1), -this.steerVis * 0.08 + (this.drift ? this.drift * -0.12 : 0));
-    this.mesh.quaternion.multiply(lean);
+    this.mesh.userData.lean = this.steerVis * 0.08 + (this.drift ? this.drift * 0.12 : 0);
+    this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
   }
