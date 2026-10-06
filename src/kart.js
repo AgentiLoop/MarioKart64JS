@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HALF_WIDTH, WALL_D } from './track.js';
+import { HALF_WIDTH } from './track.js';
 
 const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
@@ -41,7 +41,8 @@ export function buildKartMesh(character = 'mario') {
     camera.getWorldPosition(cameraPosition);
     g.getWorldQuaternion(inverse).invert();
     local.copy(cameraPosition).sub(g.position).applyQuaternion(inverse);
-    const view = kartSpriteFrame(Math.atan2(local.x, local.z), g.userData.spinning);
+    // unmirrored MK64 frames show the kart's left flank (nose to screen-left), i.e. camera on local -x
+    const view = kartSpriteFrame(Math.atan2(-local.x, local.z), g.userData.spinning);
     const column = view.frame % 21, row = Math.floor(view.frame / 21);
     map.repeat.set((view.mirrored ? -1 : 1) / 21, 1 / 16);
     map.offset.set((column + (view.mirrored ? 1 : 0)) / 21, 1 - (row + 1) / 16);
@@ -82,7 +83,7 @@ export class Kart {
       let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
       if (ds > 0 && ds < 18 && Math.abs(o.d - this.d) < 3.5) target = this.d + (o.d >= this.d ? -4 : 4);
     }
-    target = THREE.MathUtils.clamp(target, -HALF_WIDTH + 2.5, HALF_WIDTH - 2.5);
+    target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, t.wallAt(this.s, -1)) + 2.5, Math.min(HALF_WIDTH, t.wallAt(this.s, 1)) - 2.5);
     const want = Math.atan2(target - this.d, 14) ;
     const steer = THREE.MathUtils.clamp((want - this.psi) * 3.5, -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
@@ -149,9 +150,9 @@ export class Kart {
     this.psi -= yaw; this.phi -= yaw;
 
     // walls
-    if (Math.abs(this.d) > WALL_D - 1.2) {
-      const sgn = Math.sign(this.d);
-      this.d = sgn * (WALL_D - 1.2);
+    const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2;
+    if (Math.abs(this.d) > wall) {
+      this.d = sgn * wall;
       const into = sgn * Math.sin(this.phi) * this.v;
       if (into > 0) { this.v *= 0.82; this.hitWall = 0.25; }
       if (sgn * this.psi > 0) this.psi *= 0.4;

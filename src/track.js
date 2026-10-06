@@ -261,8 +261,69 @@ export class Track {
     this.pos = []; this.T = []; this.U = []; this.R = []; this.kU = [];
     this._build();
     this.group = new THREE.Group();
-    if (def.native) this._buildNativeMeshes();
+    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); }
     else this._buildMeshes();
+  }
+
+  // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).
+  wallAt(s, sgn) {
+    const b = sgn > 0 ? this.wallR : this.wallL;
+    if (!b) return WALL_D;
+    const n = this.n, f = (((s % this.length) + this.length) % this.length) / this.ds;
+    const i = Math.floor(f) % n, t = f - Math.floor(f);
+    return b[i] * (1 - t) + b[(i + 1) % n] * t;
+  }
+
+  // Native courses have no guard-wall tunnel: probe the course surface sideways from the
+  // route at every sample and stop where it ends or steps sharply (walls, cliffs, drops).
+  // Assumption: approximates MK64's surface collision (translucent batches count: Rainbow Road, ice).
+  _nativeBounds() {
+    const course = this.def.native, S = NATIVE_SCALE, CELL = 4, grid = new Map(), tris = [];
+    for (const batch of course.batches) {
+      for (let i = 0; i + 2 < batch.indices.length; i += 3) {
+        const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
+        const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
+        if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
+        const t = tris.push([a, b, c, area]) - 1;
+        const x0 = Math.floor(Math.min(a[0], b[0], c[0]) / CELL), x1 = Math.floor(Math.max(a[0], b[0], c[0]) / CELL);
+        const z0 = Math.floor(Math.min(a[2], b[2], c[2]) / CELL), z1 = Math.floor(Math.max(a[2], b[2], c[2]) / CELL);
+        for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+          const key = x * 65536 + z;
+          if (!grid.has(key)) grid.set(key, []);
+          grid.get(key).push(t);
+        }
+      }
+    }
+    const height = (x, z, yRef) => {
+      let best = null;
+      for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
+        const [a, b, c, area] = tris[t];
+        const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
+        const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
+        const w = 1 - u - v;
+        if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
+        const y = u * a[1] + v * b[1] + w * c[1];
+        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) best = y;
+      }
+      return best;
+    };
+    const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
+    for (let i = 0; i < this.n; i++) {
+      const p = this.pos[i], R = this.R[i];
+      const y0 = height(p.x, p.z, p.y) ?? p.y;
+      for (const sgn of [-1, 1]) {
+        let prev = y0, d = STEP;
+        for (; d <= MAX; d += STEP) {
+          const y = height(p.x + R.x * d * sgn, p.z + R.z * d * sgn, prev);
+          if (y === null || Math.abs(y - prev) > 0.8) break;
+          prev = y;
+        }
+        raw[sgn].push(Math.max(2.5, d - STEP));
+      }
+    }
+    // a wall is only as open as its narrowest neighbour (no slipping through single-sample gaps)
+    const tighten = b => b.map((_, i) => Math.min(...[-2, -1, 0, 1, 2].map(k => b[(i + k + this.n) % this.n])));
+    this.wallL = tighten(raw[-1]); this.wallR = tighten(raw[1]);
   }
 
   _build() {
