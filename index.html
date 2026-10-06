@@ -18,6 +18,13 @@
   #mini { position: absolute; left: 20px; top: 20px; width: 170px; height: 170px; background: rgba(0,0,0,.35); border-radius: 12px; }
   #item { position: absolute; left: 210px; top: 20px; min-width: 150px; padding: 14px 18px; font-size: 26px; background: rgba(0,0,0,.35); border-radius: 12px; border: 3px solid #fff8; text-align: center; }
   #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 600; }
+  #menu { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(8,16,40,.55); color: #fff; }
+  #menu h1 { margin: 0 0 10px; font-size: 64px; font-style: italic; color: #ffd23a; text-shadow: 0 4px 0 #000; }
+  #menu button { width: 520px; padding: 16px 22px; font: inherit; text-align: left; color: #fff; background: rgba(0,0,0,.55); border: 3px solid #fff8; border-radius: 14px; cursor: pointer; }
+  #menu button:hover { background: rgba(42,99,200,.7); border-color: #fff; }
+  #menu button b { display: block; font-size: 26px; }
+  #menu button span { font-size: 15px; opacity: .85; }
+  #menu p { opacity: .7; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -29,8 +36,9 @@
   <div id="pos">1<small>st</small></div>
   <div id="speed">0<small> km/h</small></div>
   <div id="banner"></div>
-  <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart</div>
+  <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · M course menu</div>
 </div>
+<div id="menu"><h1>KART RACER</h1><div id="menuList" style="display:flex;flex-direction:column;gap:14px"></div><p>Click a course or press its number</p></div>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

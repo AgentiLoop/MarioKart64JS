@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track } from './track.js';
+import { Track, TRACKS } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -12,13 +12,16 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-const skyTop = new THREE.Color(0x3b8ee8), skyBot = new THREE.Color(0xbfe3ff);
+const trackId = new URLSearchParams(location.search).get('track');
+const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show the track menu
+const th = (trackDef || TRACKS[0]).theme;
+const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
-scene.fog = new THREE.Fog(0xbfe3ff, 200, 900);
+scene.fog = new THREE.Fog(th.skyBot, 200, 900);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2500);
 
-scene.add(new THREE.HemisphereLight(0xdff0ff, 0x4a6b3a, 1.6));
-const sun = new THREE.DirectionalLight(0xfff2d6, 2.2);
+scene.add(new THREE.HemisphereLight(th.hemiSky, th.hemiGround, 1.6));
+const sun = new THREE.DirectionalLight(th.sun, 2.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 300 });
@@ -33,7 +36,7 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 24, 12), new THREE.Sha
 }));
 scene.add(sky);
 
-const track = new Track();
+const track = new Track(trackDef || TRACKS[0]);
 scene.add(track.group);
 
 const PALETTE = [0xe63946, 0x2a9d8f, 0xf4a261, 0x9b5de5, 0x3a86ff];
@@ -62,11 +65,29 @@ function setup() {
   items.reset();
 }
 
+// track menu (shown until a track is picked; picking reloads with ?track=id)
+const menuEl = document.getElementById('menu');
+if (!trackDef) {
+  menuEl.style.display = 'flex';
+  const list = document.getElementById('menuList');
+  TRACKS.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<b>${i + 1}. ${t.name}</b><span>${t.blurb}</span>`;
+    b.onclick = () => { location.search = `?track=${t.id}`; };
+    list.appendChild(b);
+  });
+  addEventListener('keydown', e => {
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= TRACKS.length) location.search = `?track=${TRACKS[n - 1].id}`;
+  });
+}
+
 // input
 const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true; audio.start();
   if (e.code === 'KeyR') setup();
+  if (e.code === 'KeyM') location.search = '';
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) items.use(player);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -163,6 +184,12 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const steps = 2, h = dt / steps;
 
+  if (!trackDef) {   // menu open: orbit the camera over the default course, no race
+    const t = now / 4000, p = track.pos[Math.floor(t * 40) % track.n];
+    camera.position.set(p.x + Math.cos(t * 3) * 40, p.y + 25, p.z + Math.sin(t * 3) * 40); camera.lookAt(p);
+    renderer.render(scene, camera);
+    return;
+  }
   if (state === 'countdown') {
     countdown -= dt;
     const c = Math.ceil(countdown - 0.4);
@@ -201,6 +228,6 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 let lastTick = 4;
-setup();
+if (trackDef) setup();
 requestAnimationFrame(frame);
 window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys };

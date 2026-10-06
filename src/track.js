@@ -3,11 +3,36 @@ import * as THREE from 'three';
 // Track defined as a closed 3D spline (x, y=elevation, z). Banking is derived
 // automatically from horizontal curvature so hills, dips and camber all fall out
 // of the control points.
-const CONTROL = [
-  [0, 0, 0], [100, 0, 10], [200, 4, -20], [290, 14, -80], [330, 26, -170],
-  [300, 30, -260], [220, 22, -320], [130, 8, -340], [40, 0, -310],
-  [-30, -6, -250], [-120, -8, -230], [-210, 0, -250], [-290, 12, -200],
-  [-320, 20, -110], [-280, 12, -30], [-190, 4, 20], [-100, 0, 30],
+export const TRACKS = [
+  {
+    id: 'meadow', name: 'Meadow Circuit', blurb: 'Rolling green hills, gentle banking. Good for learning.',
+    control: [
+      [0, 0, 0], [100, 0, 10], [200, 4, -20], [290, 14, -80], [330, 26, -170],
+      [300, 30, -260], [220, 22, -320], [130, 8, -340], [40, 0, -310],
+      [-30, -6, -250], [-120, -8, -230], [-210, 0, -250], [-290, 12, -200],
+      [-320, 20, -110], [-280, 12, -30], [-190, 4, 20], [-100, 0, 30],
+    ],
+    padSpots: [[0.12, 0], [0.33, -4], [0.33, 4], [0.58, 0], [0.82, -5], [0.82, 5]],
+    theme: {
+      road: '#3b3d44', grass: '#3f8f3a', curbA: '#d8222b', curbB: '#fafafa', wallA: '#e9e9ee', wallB: '#2a63c8',
+      skyTop: 0x3b8ee8, skyBot: 0xbfe3ff, hemiSky: 0xdff0ff, hemiGround: 0x4a6b3a, sun: 0xfff2d6,
+      trunk: 0x6b4423, leaf: 0x1f6b2d, snowCap: false, trees: 380,
+    },
+  },
+  {
+    id: 'frost', name: 'Frost Ridge', blurb: 'Long climb to a snowy summit, then a fast plunge. Sweeping bends.',
+    control: [
+      [0, 0, 0], [120, 0, -15], [240, -6, -60], [320, -14, -150], [320, -8, -250],
+      [250, 6, -330], [150, 22, -360], [60, 34, -410], [-30, 44, -450], [-140, 46, -430],
+      [-235, 38, -360], [-275, 24, -260], [-285, 10, -150], [-235, 2, -60], [-130, 0, -10],
+    ],
+    padSpots: [[0.08, 0], [0.30, -4], [0.30, 4], [0.52, 0], [0.74, -5], [0.74, 5], [0.92, 0]],
+    theme: {
+      road: '#454a58', grass: '#e8f1fa', curbA: '#2a63c8', curbB: '#fafafa', wallA: '#cfe3f5', wallB: '#e0482f',
+      skyTop: 0x5a7fb5, skyBot: 0xdce8f4, hemiSky: 0xe8f1ff, hemiGround: 0x8fa0b8, sun: 0xfff8ec,
+      trunk: 0x4a3322, leaf: 0x2c6b52, snowCap: true, trees: 300,
+    },
+  },
 ];
 
 export const HALF_WIDTH = 11;   // drivable asphalt half-width
@@ -35,8 +60,9 @@ function noise(ctx, w, h, n, alpha) {
 }
 
 export class Track {
-  constructor() {
-    const pts = CONTROL.map(p => new THREE.Vector3(...p));
+  constructor(def = TRACKS[0]) {
+    this.def = def; this.theme = def.theme;
+    const pts = def.control.map(p => new THREE.Vector3(...p));
     this.curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
     this.length = this.curve.getLength();
     this.n = SAMPLES;
@@ -121,8 +147,9 @@ export class Track {
   }
 
   _buildMeshes() {
+    const th = this.theme;
     const roadTex = canvasTex(256, 256, (c, w, h) => {
-      c.fillStyle = '#3b3d44'; c.fillRect(0, 0, w, h);
+      c.fillStyle = th.road; c.fillRect(0, 0, w, h);
       noise(c, w, h, 5000, 0.08);
       c.fillStyle = '#f2f2f2';
       c.fillRect(6, 0, 6, h); c.fillRect(w - 12, 0, 6, h);
@@ -134,15 +161,15 @@ export class Track {
     this.group.add(road);
 
     const curbTex = canvasTex(64, 64, (c, w, h) => {
-      c.fillStyle = '#d8222b'; c.fillRect(0, 0, w, h / 2);
-      c.fillStyle = '#fafafa'; c.fillRect(0, h / 2, w, h / 2);
+      c.fillStyle = th.curbA; c.fillRect(0, 0, w, h / 2);
+      c.fillStyle = th.curbB; c.fillRect(0, h / 2, w, h / 2);
     });
     const curbMat = new THREE.MeshLambertMaterial({ map: curbTex });
     this.group.add(this._strip(-HALF_WIDTH - 1.5, -HALF_WIDTH, 0.05, 0.05, curbMat, 4));
     this.group.add(this._strip(HALF_WIDTH, HALF_WIDTH + 1.5, 0.05, 0.05, curbMat, 4));
 
     const grassTex = canvasTex(256, 256, (c, w, h) => {
-      c.fillStyle = '#3f8f3a'; c.fillRect(0, 0, w, h);
+      c.fillStyle = th.grass; c.fillRect(0, 0, w, h);
       noise(c, w, h, 6000, 0.12);
     });
     const grassMat = new THREE.MeshLambertMaterial({ map: grassTex });
@@ -173,8 +200,8 @@ export class Track {
 
     // guard walls
     const wallTex = canvasTex(128, 64, (c, w, h) => {
-      c.fillStyle = '#e9e9ee'; c.fillRect(0, 0, w, h);
-      c.fillStyle = '#2a63c8'; c.fillRect(0, 0, w / 2, h);
+      c.fillStyle = th.wallA; c.fillRect(0, 0, w, h);
+      c.fillStyle = th.wallB; c.fillRect(0, 0, w / 2, h);
     }, 1, 1);
     const wallMat = new THREE.MeshLambertMaterial({ map: wallTex, side: THREE.DoubleSide });
     for (const side of [-1, 1]) {
@@ -225,7 +252,7 @@ export class Track {
       }
     });
     const padMat = new THREE.MeshBasicMaterial({ map: padTex });
-    const padSpots = [[0.12, 0], [0.33, -4], [0.33, 4], [0.58, 0], [0.82, -5], [0.82, 5]];
+    const padSpots = this.def.padSpots;
     for (const [u, d] of padSpots) {
       const s = u * this.length;
       const fr = this.frameAt(s, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3() });
@@ -238,9 +265,10 @@ export class Track {
 
     // trees on the skirt
     const trunkG = new THREE.CylinderGeometry(0.5, 0.7, 3, 6), leafG = new THREE.ConeGeometry(3, 8, 7);
-    const trunkM = new THREE.MeshLambertMaterial({ color: 0x6b4423 }), leafM = new THREE.MeshLambertMaterial({ color: 0x1f6b2d });
+    const trunkM = new THREE.MeshLambertMaterial({ color: th.trunk }), leafM = new THREE.MeshLambertMaterial({ color: th.leaf });
+    const capG = new THREE.ConeGeometry(2.1, 3.4, 7), capM = new THREE.MeshLambertMaterial({ color: 0xffffff });
     const rng = mulberry(7);
-    for (let i = 0; i < 380; i++) {
+    for (let i = 0; i < th.trees; i++) {
       const k = Math.floor(rng() * this.n), side = rng() < 0.5 ? -1 : 1;
       const out = WALL_D + 5 + rng() * 45;
       const p = this.pos[k], R = this.R[k];
@@ -252,6 +280,7 @@ export class Track {
       const tr = new THREE.Mesh(trunkG, trunkM); tr.position.set(x, yy + 1.5 * sc, z); tr.scale.setScalar(sc);
       const lf = new THREE.Mesh(leafG, leafM); lf.position.set(x, yy + 3 * sc + 4 * sc, z); lf.scale.setScalar(sc);
       this.group.add(tr, lf);
+      if (th.snowCap) { const cp = new THREE.Mesh(capG, capM); cp.position.set(x, yy + 3 * sc + 4 * sc + 2.1 * sc, z); cp.scale.setScalar(sc); this.group.add(cp); }
     }
   }
 }
