@@ -39,21 +39,22 @@ scene.add(sky);
 const track = new Track(trackDef || TRACKS[0]);
 scene.add(track.group);
 
-const PALETTE = [0xe63946, 0x2a9d8f, 0xf4a261, 0x9b5de5, 0x3a86ff];
-const names = ['You', 'Rex', 'Pip', 'Vega', 'Juno'];
+const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf4cd30, 0xe78d32];
+const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario', 'Bowser'];
+const characters = ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'];
 let karts = [], player, raceTime = 0, state = 'countdown', countdown = 3.4, finishOrder = [];
 
 function setup() {
-  for (const k of karts) scene.remove(k.mesh);
+  for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
   karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4;
-  const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [0, 34]];
+  const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];
   // start line is at s=0; grid sits behind it so lap 1 begins on crossing
-  const order = [4, 0, 1, 2, 3];
+  const order = [7, 0, 1, 2, 3, 4, 5, 6];
   order.forEach((ci, i) => {
     const [d, back] = slots[i];
     const k = new Kart(track, {
       color: PALETTE[ci], s: track.length - back, d, isPlayer: ci === 0,
-      skill: 0.6 + 0.4 * Math.random(), name: names[ci],
+      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: characters[ci],
     });
     k.aiOffset = d * 0.8;
     k.prevS = k.s; k.crossings = 0;
@@ -135,7 +136,7 @@ const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
 const items = new Items(track, scene, audio);
 const itemEl = $('item');
-const ordinal = n => ['st', 'nd', 'rd', 'th', 'th'][n - 1];
+const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
 // minimap
