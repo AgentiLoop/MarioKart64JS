@@ -6,31 +6,51 @@ const BOOST_SPEED = 62;
 
 export function buildKartMesh(color) {
   const g = new THREE.Group();
-  const body = new THREE.MeshLambertMaterial({ color });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x222226 });
+  const L = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const body = L(color), dark = L(0x222226), chrome = L(0xcfd3d8), skin = L(0xf2c9a0), white = L(0xffffff), blue = L(0x2a63c8);
+  const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); g.add(m); return m;
+  };
   // model faces -Z, +Y up
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 3.2), body);
-  chassis.position.y = 0.55; g.add(chassis);
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 1.2), body);
-  nose.position.set(0, 0.5, -2.0); g.add(nose);
-  const spoiler = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, 0.6), dark);
-  spoiler.position.set(0, 1.35, 1.6); g.add(spoiler);
-  for (const x of [-0.8, 0.8]) {
-    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.1), dark);
-    strut.position.set(x, 0.95, 1.6); g.add(strut);
+  // floor pan + tapered hull
+  add(new THREE.BoxGeometry(1.9, 0.25, 3.4), dark, 0, 0.35, 0);
+  add(new THREE.BoxGeometry(1.6, 0.45, 2.2), body, 0, 0.7, 0.5);
+  const nose = add(new THREE.CylinderGeometry(0.35, 0.75, 2.0, 8), body, 0, 0.62, -1.7, Math.PI / 2, 0, 0);
+  nose.scale.set(1, 1, 0.55);
+  // front bumper + headlights
+  add(new THREE.BoxGeometry(2.2, 0.22, 0.3), chrome, 0, 0.45, -2.75);
+  for (const x of [-0.45, 0.45]) add(new THREE.SphereGeometry(0.17, 6, 5), L(0xfff3a0), x, 0.78, -2.6);
+  // side pods with stripe
+  for (const x of [-1, 1]) {
+    add(new THREE.BoxGeometry(0.5, 0.4, 1.6), body, x * 0.95, 0.6, 0.4);
+    add(new THREE.BoxGeometry(0.52, 0.08, 1.2), white, x * 0.95, 0.82, 0.4);
   }
-  const wheelG = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 8);
-  wheelG.rotateZ(Math.PI / 2);
-  for (const [x, z, r] of [[-1.05, -1.2, 0.5], [1.05, -1.2, 0.5], [-1.1, 1.2, 0.6], [1.1, 1.2, 0.6]]) {
-    const w = new THREE.Mesh(wheelG, dark);
-    w.position.set(x, r, z); w.scale.setScalar(r / 0.5); g.add(w);
+  // seat and steering
+  add(new THREE.BoxGeometry(1.0, 0.9, 0.3), L(0x333340), 0, 1.2, 1.0, -0.2, 0, 0);
+  add(new THREE.CylinderGeometry(0.28, 0.28, 0.06, 10), dark, 0, 1.2, -0.45, -1.0, 0, 0);
+  add(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 5), dark, 0, 0.95, -0.2, -1.0, 0, 0);
+  // rear spoiler + twin exhausts
+  add(new THREE.BoxGeometry(2.1, 0.12, 0.6), dark, 0, 1.55, 1.75);
+  for (const x of [-0.85, 0.85]) add(new THREE.BoxGeometry(0.1, 0.9, 0.1), dark, x, 1.05, 1.75);
+  for (const x of [-0.4, 0.4]) add(new THREE.CylinderGeometry(0.13, 0.17, 0.6, 7), chrome, x, 0.75, 1.9, Math.PI / 2, 0, 0);
+  // wheels with hubcaps
+  const wheelG = new THREE.CylinderGeometry(0.5, 0.5, 0.5, 10); wheelG.rotateZ(Math.PI / 2);
+  const capG = new THREE.CylinderGeometry(0.22, 0.22, 0.54, 8); capG.rotateZ(Math.PI / 2);
+  for (const [x, z, r] of [[-1.15, -1.5, 0.5], [1.15, -1.5, 0.5], [-1.2, 1.3, 0.65], [1.2, 1.3, 0.65]]) {
+    const w = add(wheelG, dark, x, r, z); w.scale.setScalar(r / 0.5);
+    const c = add(capG, chrome, x, r, z); c.scale.setScalar(r / 0.5);
   }
-  const driver = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6), new THREE.MeshLambertMaterial({ color: 0xf2c9a0 }));
-  driver.position.set(0, 1.35, 0.2); g.add(driver);
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-  helmet.position.set(0, 1.4, 0.2); g.add(helmet);
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.6), new THREE.MeshLambertMaterial({ color: 0x2a63c8 }));
-  torso.position.set(0, 0.95, 0.4); g.add(torso);
+  // driver: torso, arms, head, cap with brim and emblem
+  add(new THREE.BoxGeometry(0.85, 0.75, 0.55), blue, 0, 1.25, 0.6);
+  for (const x of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 6), white, x * 0.5, 1.3, 0.25, -1.1, 0, x * 0.2);
+    add(new THREE.SphereGeometry(0.13, 6, 5), white, x * 0.32, 1.2, -0.1);
+  }
+  add(new THREE.SphereGeometry(0.5, 10, 8), skin, 0, 2.0, 0.55);
+  add(new THREE.SphereGeometry(0.1, 6, 5), L(0xd98a7a), 0, 1.95, 0.08);
+  add(new THREE.SphereGeometry(0.54, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), body, 0, 2.08, 0.55);
+  add(new THREE.BoxGeometry(0.7, 0.07, 0.45), body, 0, 2.1, 0.12);
+  add(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 8), white, 0, 2.35, 0.2, Math.PI / 2 - 0.5, 0, 0);
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
