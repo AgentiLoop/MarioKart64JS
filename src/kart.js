@@ -182,10 +182,20 @@ export class Kart {
     t.frameAt(this.s, this.frame);
     const f = this.frame;
     this.fwd.copy(f.T).multiplyScalar(Math.cos(this.psi)).addScaledVector(f.R, Math.sin(this.psi)).normalize();
-    this.up.copy(f.U);
+    this.world.copy(f.pos).addScaledVector(f.R, this.d).addScaledVector(f.U, 0.0);
+    // native courses: sit on the real surface (embankments, banked turns) instead of the route plane
+    const g = t.groundAt && t.groundAt(this.world.x, this.world.z, this.groundY ?? this.world.y);
+    if (g) {
+      this.groundY = g.y; this.world.y = g.y;
+      this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
+      this.up.copy(this.groundN);
+      this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope
+    } else {
+      this.groundY = this.world.y; this.groundN = null;
+      this.up.copy(f.U);
+    }
     const right = new THREE.Vector3().crossVectors(this.fwd, this.up).normalize();
     this.up.crossVectors(right, this.fwd).normalize();
-    this.world.copy(f.pos).addScaledVector(f.R, this.d).addScaledVector(f.U, 0.0);
     const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
     this.mesh.quaternion.setFromRotationMatrix(m);
     // body-roll when drifting / steering

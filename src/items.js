@@ -121,11 +121,13 @@ export class Items {
       this.place(b.mesh, b.s, b.d, 1.6 + Math.sin(this.time * 2 + b.s) * 0.2, b.spin);
       if (b.cd > 0) continue;
       for (const k of karts) {
-        if (k.item || k.spin > 0) continue;
-        if (Math.abs(this.delta(k.s, b.s)) < 2.5 && Math.abs(k.d - b.d) < 2.5) {
-          k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2;
+        // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item
+        if (Math.abs(this.delta(k.s, b.s)) < 3 && Math.abs(k.d - b.d) < 3) {
+          if (!k.item) {
+            k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2;
+            if (k.isPlayer) this.audio.sfx('pickup');
+          }
           b.cd = BOX_RESPAWN; b.mesh.visible = false;
-          if (k.isPlayer) this.audio.sfx('pickup');
           break;
         }
       }

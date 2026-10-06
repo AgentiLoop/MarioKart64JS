@@ -237,25 +237,34 @@ export class Track {
         const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
         const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
         const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
-        if (Math.abs(area) < 0.5 * Math.hypot(nx, area, nz)) {
+        // only near-vertical faces (> 75 deg from up) block; embankments and banked turns are drivable
+        if (Math.abs(area) < 0.26 * Math.hypot(nx, area, nz)) {
           bucket(wallGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), walls.push([a, b, c]) - 1);
         }
         if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
-        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area]) - 1);
+        const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
+        const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
+        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal]) - 1);
       }
     }
+    let hitNormal = null;
     const height = (x, z, yRef) => {
       let best = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area] = tris[t];
+        const [a, b, c, area, normal] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) best = y;
+        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; }
       }
       return best;
+    };
+    // Ground under (x, z) nearest to yRef: { y, normal } or null. Used by karts to ride slopes.
+    this.groundAt = (x, z, yRef) => {
+      const y = height(x, z, yRef);
+      return y === null ? null : { y, normal: hitNormal };
     };
     // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face?
     const blocked = (x0, z0, x1, z1, y) => {
@@ -291,7 +300,7 @@ export class Track {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn;
           if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev)) break;   // the route itself may graze ramp sides
           const y = height(x, z, prev);
-          if (y === null || Math.abs(y - prev) > 0.8) break;
+          if (y === null || Math.abs(y - prev) > 1.2) break;   // > ~67 deg per step = cliff/drop
           prev = y;
         }
         raw[sgn].push(Math.max(2.5, d - STEP));
