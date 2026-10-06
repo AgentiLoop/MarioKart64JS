@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Track } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
+import { Items, ITEM_LABELS } from './items.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -58,6 +59,7 @@ function setup() {
   });
   camPos.copy(player.world); camInit = false;
   banner.textContent = '';
+  items.reset();
 }
 
 // input
@@ -65,6 +67,7 @@ const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true; audio.start();
   if (e.code === 'KeyR') setup();
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) items.use(player);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -83,6 +86,8 @@ const $ = id => document.getElementById(id);
 const banner = $('banner'), posEl = $('pos'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
 const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
+const items = new Items(track, scene, audio);
+const itemEl = $('item');
 const ordinal = n => ['st', 'nd', 'rd', 'th', 'th'][n - 1];
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
@@ -170,6 +175,7 @@ function frame(now) {
     raceTime += dt;
     for (let s = 0; s < steps; s++) {
       for (const k of karts) {
+        if (!k.isPlayer) items.aiUse(k, karts, h);
         const inp = k.isPlayer ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
@@ -179,8 +185,10 @@ function frame(now) {
         }
       }
       collide();
+      items.update(h, karts);
     }
   }
+  itemEl.textContent = player.item ? ITEM_LABELS[player.item] : 'NO ITEM';
   const order = rank();
   const place = order.indexOf(player) + 1;
   posEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
@@ -195,4 +203,4 @@ function frame(now) {
 let lastTick = 4;
 setup();
 requestAnimationFrame(frame);
-window.__game = { track, get karts() { return karts; }, get player() { return player; }, keys };
+window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys };

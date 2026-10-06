@@ -31,6 +31,18 @@ export class AudioSys {
     const n = skid ? 0.5 : offroad ? 0.25 * s : 0;
     this.noiseGain.gain.setTargetAtTime(n, t, 0.05);
   }
+  sfx(kind) {
+    if (!this.ctx) return;
+    const [type, f0, f1, dur, vol] = {
+      pickup: ['triangle', 600, 1200, 0.18, 0.3], turbo: ['sawtooth', 200, 700, 0.5, 0.3],
+      drop: ['square', 300, 120, 0.15, 0.25], launch: ['sine', 500, 1400, 0.3, 0.3],
+      hit: ['sawtooth', 500, 60, 0.6, 0.4],
+    }[kind];
+    const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
+  }
   beep(go) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();

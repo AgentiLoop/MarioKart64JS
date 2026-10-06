@@ -48,6 +48,7 @@ export class Kart {
     this.frame = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
     this.world = new THREE.Vector3(); this.fwd = new THREE.Vector3(); this.up = new THREE.Vector3();
     this.steerVis = 0; this.sparks = 0; this.offroad = false; this.hitWall = 0;
+    this.item = null; this.itemTimer = 0; this.spin = 0; this.spinAngle = 0; this.invuln = 0;
     this.syncMesh();
   }
 
@@ -76,6 +77,11 @@ export class Kart {
     let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
     if (this.offroad && this.boost <= 0) max *= 0.45;
     if (this.finished) input = { throttle: 0.3, brake: 0, steer: 0, drift: false };
+    if (this.spin > 0) {
+      this.spin -= dt; this.spinAngle += dt * 11;
+      input = { throttle: 0, brake: 0, steer: 0, drift: false };
+      if (this.spin <= 0) this.spinAngle = 0;
+    }
 
     // longitudinal
     if (input.throttle > 0) {
@@ -165,6 +171,7 @@ export class Kart {
     // body-roll when drifting / steering
     const lean = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, -1), -this.steerVis * 0.08 + (this.drift ? this.drift * -0.12 : 0));
     this.mesh.quaternion.multiply(lean);
+    if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
   }
 }
