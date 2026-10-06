@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from 'node:fs';
 // road: textures the decomp draws for the asphalt (route waypoints must sit on them).
 const COURSES = [
   { dir: 'luigi-raceway', tris: 3022, road: /^gLRTextureRoad/ },
-  { dir: 'mario-raceway', tris: 2549, road: /^gMRTexture(RoadFinish0|674354)$/ },
+  { dir: 'mario-raceway', tris: 2549, road: /^gMRTexture(Road0|RoadFinish0|674354)$/ },
 ];
 for (const { dir: name, tris: expectedTris, road: roadName } of COURSES) {
 const dir = new URL(`../public/mk64/${name}/`, import.meta.url);
