@@ -7,70 +7,70 @@
       "width": 220,
       "height": 32,
       "romOffset": "0x7fa3c0",
-      "pngSha256": "1d77c7bb185cf56585c6e021dabb16825863ffa7c9f96f3af6cdc1f6e0c26f8d"
+      "pngSha256": "2575ad8b4b0806c5dd191a4c73dc8724d126f193ef263fcc031d3d3f0eab092b"
     },
     "name_mario": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fc0c0",
-      "pngSha256": "9937ec53984b3ab3275cbae359191e121e963ab282b511eb9f99646b65e8493a"
+      "pngSha256": "0a1237fab8ca10dade3c56bd6f3f72ed016a6918a37ff7bae93ac6f26910ebad"
     },
     "name_luigi": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fbec0",
-      "pngSha256": "d3b93946623ef04fddd5b211f187de414fc41ef36442c22a88122f466dbd9792"
+      "pngSha256": "930c6e1271b4aea7420731b9afb6ac0373fcf54171a4825b63a3b77b6e2f385b"
     },
     "name_peach": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fc2c0",
-      "pngSha256": "1c0705639e6c42ae318865e7b50c3401025849a707554da720b0d3fcb0792bf0"
+      "pngSha256": "93b132d5fb8b8315364e6e20b7be0e5d489aaaf78e82f55cbf013e1c8374c702"
     },
     "name_toad": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fbac0",
-      "pngSha256": "4b5d9bdc67273ca23b60e56b388847214eb808adb90f5110d811ef26865daee1"
+      "pngSha256": "200e1b82b8efc1e539069fb9238acaeeffce60f2ea15a95d5055308a299f9e28"
     },
     "name_yoshi": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fc6c0",
-      "pngSha256": "763c99c90bc797ea9d537e89be514e031beede9f1eef6a68f046240caaa3f13d"
+      "pngSha256": "ece55d8a366cac029f0140ec0d580cb78dcea1b8d5a7df9614fd2e6de07a58e5"
     },
     "name_donkeykong": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fb8c0",
-      "pngSha256": "c5b9f69fbb8c52790cf4493447c02501e0212de48e0ea4053fff9392e297b321"
+      "pngSha256": "d427925a11452d83b03f6b84ffed44a74592544feb063d149ef697e04e123be5"
     },
     "name_wario": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fc4c0",
-      "pngSha256": "e8607aa62b778a4dc3aa953a1c38476553732e610e7489d8d87f8e284f5e6974"
+      "pngSha256": "8519fa11699f8c465eb7d4770ef31f73a6bb4ae7911024cac6f0bf30e072e70a"
     },
     "name_bowser": {
       "format": "tkmk00",
       "width": 64,
       "height": 12,
       "romOffset": "0x7fbcc0",
-      "pngSha256": "93e997a36de7f49b0313e5ae6b88ad40cd25972f940ad756d2ad1efe360f06fe"
+      "pngSha256": "5ae9de344bf615739be7e832af4a865bb76f87393db7de3603278c119f722f36"
     },
     "ok": {
       "format": "tkmk00",
       "width": 31,
       "height": 19,
       "romOffset": "0x8092c0",
-      "pngSha256": "398ed763f5dd375106a7719f3245885d46e85666f3adee9fe6270b4c3c6f1535"
+      "pngSha256": "1f080548804c7d6b0cd85fccf1a0fcb4cd7703899abc30a8a21a563862061c87"
     },
     "p1_border_blue": {
       "format": "rgba16",

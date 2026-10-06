@@ -5,21 +5,21 @@
     "background_blue_sky": {
       "width": 320,
       "height": 240,
-      "pngSha256": "c90da5f830d8e068ff43420f7cc65e5da090acb050020d675c4b689e7f56d79c",
+      "pngSha256": "f8179485b9f14be575d618922ac7ade054c7bf48455d62e5c3226fe432cca88e",
       "format": "tkmk00",
       "romOffset": "0x8094c0"
     },
     "background_sunset": {
       "width": 320,
       "height": 240,
-      "pngSha256": "51830ac650aa21cf74e52ea7d2605f420a2433ab85641dd4c084d6ee708159ab",
+      "pngSha256": "97c27ea4a9f8ae6a7343f83dae99bc274e704cade4afdd4b55aed56d5673eaae",
       "format": "tkmk00",
       "romOffset": "0x8162c0"
     },
     "background_main_menu": {
       "width": 320,
       "height": 240,
-      "pngSha256": "2686faab0b34569bd50f36f41b0549d4457bc2801e2105aaceb2fc5c083297b2",
+      "pngSha256": "4104b2d7e2a3e303d9b66c6204e38c07cd18a66fdd00e7f8c545bb56e93bbcc9",
       "format": "tkmk00+greyscale(0x19)+tint",
       "romOffset": "0x8094c0",
       "tint": [
@@ -31,7 +31,7 @@
     "background_player_select": {
       "width": 320,
       "height": 240,
-      "pngSha256": "1fcd7174e0cb43d28f6adfbc46257192226c26b58bc89dc9ebbb2a5b9b688d23",
+      "pngSha256": "5c76e5387fcd1f207f4ea98b1d0a5ba963b53972142305347f21fa084656db8e",
       "format": "tkmk00+greyscale(0x19)+tint",
       "romOffset": "0x8094c0",
       "tint": [
@@ -43,7 +43,7 @@
     "background_course_select": {
       "width": 320,
       "height": 240,
-      "pngSha256": "fe2bbbb7653d2cee2441d0cb887770a281a1236f1689419bff4a58f60908b52c",
+      "pngSha256": "5dd9e7bdb46420a45a68cf8e324af9bc2faa2cdc093d3e593e325cd021efe5ac",
       "format": "tkmk00+greyscale(0x19)+tint",
       "romOffset": "0x8094c0",
       "tint": [

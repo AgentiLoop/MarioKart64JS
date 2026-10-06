@@ -59,16 +59,14 @@ class Tkmk00:
             s6ptr = self.some_ptrs[self.v1]
             if s7 == 0:
                 s7 = self.tkmk[s6ptr]
-                v0 = 0x100 << self.v1
+                # header6 bit (8 + stream) flags "refill byte_buffer after every 8 bits"
                 if (s7 & 0x80) == 0:
-                    v0 = ~v0 & 0xFFFFFFFFFFFFFFFF
-                    mask = ~(1 << self.v1) & 0xFF
-                    self.header6 &= mask
+                    self.header6 &= ~(0x100 << self.v1)
                     s7 += 3
                 else:
                     s7 &= 0x7F
                     s7 += 1
-                    self.header6 |= (1 << self.v1)
+                    self.header6 |= (0x100 << self.v1)
                 v0 = self.tkmk[s6ptr + 1]
                 s6ptr += 2
                 s7 <<= 3
@@ -242,6 +240,10 @@ class Tkmk00:
                             blue0 = (rgba0 & 0x3E) >> 1
                             blue1 = (rgba1 & 0x3E) >> 1
                             self.t8 = v1 + (blue0 + blue1) // 2
+                            if self.t8 >= 0x20:
+                                self.t8 = 0x1F
+                            elif self.t8 < 0:
+                                self.t8 = 0
                             self.t9 = self.s4
                             self._c94()
 
