@@ -7,21 +7,21 @@
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Trebuchet MS", system-ui, sans-serif; }
   canvas#game { display: block; width: 100%; height: 100%; }
-  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 2px 0 #000, 0 0 6px #000; font-weight: 800; }
-  #pos { position: absolute; left: 24px; bottom: 20px; font-size: 96px; font-style: italic; line-height: 1; }
-  #pos small { font-size: 36px; }
-  #lap { position: absolute; right: 24px; top: 16px; font-size: 34px; text-align: right; }
-  #time { font-size: 22px; opacity: .9; }
-  #speed { position: absolute; right: 24px; bottom: 20px; font-size: 54px; font-style: italic; }
-  #speed small { font-size: 22px; }
-  #banner { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-size: 140px; font-style: italic; color: #ffd23a; }
-  #mini { position: absolute; left: 20px; top: 20px; width: 170px; height: 170px; background: rgba(0,0,0,.35); border-radius: 12px; }
-  #item { position: absolute; left: 210px; top: 20px; min-width: 150px; padding: 14px 18px; font-size: 26px; background: rgba(0,0,0,.35); border-radius: 12px; border: 3px solid #fff8; text-align: center; }
-  #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 600; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; }
+  #pos { position: absolute; left: 24px; bottom: 20px; font-size: 128px; font-style: italic; line-height: 1; color: #ffe033; background: linear-gradient(#fff36b, #ff9d00); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; -webkit-text-stroke: 5px #1a1a6e; paint-order: stroke fill; text-shadow: none; filter: drop-shadow(0 4px 0 #000); }
+  #pos small { font-size: 44px; }
+  #lap { position: absolute; right: 24px; top: 16px; font-size: 34px; text-align: right; color: #ffe033; }
+  #time { font-size: 24px; color: #fff; font-family: "Courier New", monospace; letter-spacing: 1px; }
+  #speed { position: absolute; right: 24px; bottom: 20px; font-size: 56px; font-style: italic; color: #7dff6a; }
+  #speed small { font-size: 22px; color: #fff; }
+  #banner { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-size: 150px; font-style: italic; color: #ffd23a; -webkit-text-stroke: 6px #b3200f; paint-order: stroke fill; text-shadow: 0 8px 0 #000; }
+  #mini { position: absolute; left: 20px; top: 20px; width: 170px; height: 170px; background: rgba(0,0,40,.45); border-radius: 12px; border: 4px solid #fff; box-shadow: 0 0 0 3px #1a1a6e, 0 4px 0 3px #000; }
+  #item { position: absolute; left: 218px; top: 20px; min-width: 150px; padding: 14px 18px; font-size: 26px; background: linear-gradient(#3b4fd8, #1a1a6e); border-radius: 14px; border: 4px solid #fff; box-shadow: 0 0 0 3px #e0301e, 0 4px 0 3px #000; text-align: center; }
+  #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
   #menu { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(8,16,40,.55); color: #fff; }
-  #menu h1 { margin: 0 0 10px; font-size: 64px; font-style: italic; color: #ffd23a; text-shadow: 0 4px 0 #000; }
-  #menu button { width: 520px; padding: 16px 22px; font: inherit; text-align: left; color: #fff; background: rgba(0,0,0,.55); border: 3px solid #fff8; border-radius: 14px; cursor: pointer; }
-  #menu button:hover { background: rgba(42,99,200,.7); border-color: #fff; }
+  #menu h1 { margin: 0 0 10px; font-size: 76px; font-style: italic; font-family: "Arial Black", system-ui, sans-serif; color: #ffd23a; -webkit-text-stroke: 6px #b3200f; paint-order: stroke fill; text-shadow: 0 6px 0 #000; }
+  #menu button { width: 520px; padding: 16px 22px; font: inherit; text-align: left; color: #fff; background: linear-gradient(rgba(26,26,110,.85), rgba(0,0,40,.85)); border: 4px solid #fff; box-shadow: 0 0 0 3px #e0301e, 0 4px 0 3px #000; border-radius: 14px; cursor: pointer; }
+  #menu button:hover { background: linear-gradient(#4a63f0, #2438b0); transform: scale(1.03); }
   #menu button b { display: block; font-size: 26px; }
   #menu button span { font-size: 15px; opacity: .85; }
   #menu p { opacity: .7; font-size: 14px; }
