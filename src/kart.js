@@ -19,15 +19,15 @@ export function buildKartMesh(color) {
     const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.1), dark);
     strut.position.set(x, 0.95, 1.6); g.add(strut);
   }
-  const wheelG = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 14);
+  const wheelG = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 8);
   wheelG.rotateZ(Math.PI / 2);
   for (const [x, z, r] of [[-1.05, -1.2, 0.5], [1.05, -1.2, 0.5], [-1.1, 1.2, 0.6], [1.1, 1.2, 0.6]]) {
     const w = new THREE.Mesh(wheelG, dark);
     w.position.set(x, r, z); w.scale.setScalar(r / 0.5); g.add(w);
   }
-  const driver = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10), new THREE.MeshLambertMaterial({ color: 0xf2c9a0 }));
+  const driver = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6), new THREE.MeshLambertMaterial({ color: 0xf2c9a0 }));
   driver.position.set(0, 1.35, 0.2); g.add(driver);
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.6, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xffffff }));
   helmet.position.set(0, 1.4, 0.2); g.add(helmet);
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.6), new THREE.MeshLambertMaterial({ color: 0x2a63c8 }));
   torso.position.set(0, 0.95, 0.4); g.add(torso);

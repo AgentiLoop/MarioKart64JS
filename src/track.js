@@ -46,7 +46,7 @@ function canvasTex(w, h, draw, repeatX = 1, repeatY = 1) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(repeatX, repeatY);
-  t.anisotropy = 8;
+  t.anisotropy = 1; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;   // N64-ish: no mipmaps
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }

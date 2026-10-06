@@ -6,8 +6,8 @@ import { Items, ITEM_LABELS } from './items.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(1);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -88,6 +88,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true; audio.start();
   if (e.code === 'KeyR') setup();
   if (e.code === 'KeyM') location.search = '';
+  if (e.code === 'KeyG') { retro = !retro; resize(); }
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) items.use(player);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -151,8 +152,13 @@ function updateCamera(dt) {
   sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world);
 }
 
+// N64-style presentation: low internal resolution (240 lines) upscaled with hard pixels. G toggles full-res.
+let retro = true;
 function resize() {
-  renderer.setSize(innerWidth, innerHeight, false);
+  const h = retro ? 240 : innerHeight * Math.min(devicePixelRatio, 2);
+  const w = Math.round(h * innerWidth / innerHeight);
+  renderer.setSize(w, Math.round(h), false);
+  canvas.style.imageRendering = retro ? 'pixelated' : 'auto';
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
