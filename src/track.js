@@ -33,6 +33,21 @@ export const TRACKS = [
       trunk: 0x4a3322, leaf: 0x2c6b52, snowCap: true, trees: 300,
     },
   },
+  {
+    id: 'dunes', name: 'Sunset Dunes', blurb: 'Hot desert sprint with tight hairpins and rolling dune jumps.',
+    control: [
+      [0, 0, 0], [110, 2, 20], [210, 8, 10], [290, 14, -40], [310, 10, -120],
+      [260, 4, -180], [180, 0, -200], [120, 6, -250], [130, 16, -330], [200, 22, -390],
+      [120, 20, -450], [10, 12, -430], [-70, 6, -370], [-60, 0, -290], [-150, -4, -250],
+      [-250, 2, -270], [-320, 10, -210], [-300, 8, -110], [-220, 2, -50], [-110, 0, -20],
+    ],
+    padSpots: [[0.10, 0], [0.28, -4], [0.28, 4], [0.47, 0], [0.66, -5], [0.66, 5], [0.88, 0]],
+    theme: {
+      road: '#4a443f', grass: '#d9a55b', curbA: '#e8731c', curbB: '#fff1d6', wallA: '#f0d9a8', wallB: '#b8452a',
+      skyTop: 0xe0703a, skyBot: 0xffd9a0, hemiSky: 0xffe2b8, hemiGround: 0xa87a40, sun: 0xffc27a,
+      trunk: 0x5a3a1c, leaf: 0x4f7a2a, snowCap: false, trees: 90,
+    },
+  },
 ];
 
 export const HALF_WIDTH = 11;   // drivable asphalt half-width
