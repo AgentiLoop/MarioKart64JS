@@ -2,10 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 
-const dir = new URL('../public/mk64/luigi-raceway/', import.meta.url);
+// road: textures the decomp draws for the asphalt (route waypoints must sit on them).
+const COURSES = [
+  { dir: 'luigi-raceway', tris: 3022, road: /^gLRTextureRoad/ },
+  { dir: 'mario-raceway', tris: 2549, road: /^gMRTexture(RoadFinish0|674354)$/ },
+];
+for (const { dir: name, tris: expectedTris, road: roadName } of COURSES) {
+const dir = new URL(`../public/mk64/${name}/`, import.meta.url);
 const course = JSON.parse(readFileSync(new URL('course.json', dir)));
 
-test('course batches reference valid vertices and extracted textures', () => {
+test(`${name}: course batches reference valid vertices and extracted textures`, () => {
   assert.equal(course.provenance.romSha1, '579c48e211ae952530ffc8738709f078d5dd215e');
   let tris = 0;
   for (const b of course.batches) {
@@ -17,11 +23,11 @@ test('course batches reference valid vertices and extracted textures', () => {
       assert.ok(existsSync(new URL(course.textures[b.texture].image, dir)), b.texture);
     }
   }
-  assert.equal(tris, 3022);
+  assert.equal(tris, expectedTris);
 });
 
-test('every route waypoint lies on native road surface', () => {
-  const road = course.batches.filter(b => /^gLRTextureRoad/.test(b.texture ?? ''));
+test(`${name}: every route waypoint lies on native road surface`, () => {
+  const road = course.batches.filter(b => roadName.test(b.texture ?? ''));
   assert.ok(road.length >= 2);
   const v = course.vertices;
   const surfaceY = (x, z) => {
@@ -49,7 +55,8 @@ test('every route waypoint lies on native road surface', () => {
   assert.ok(maxDy <= 12, `max waypoint/road height gap ${maxDy}`);
 });
 
-test('route is a closed loop', () => {
+test(`${name}: route is a closed loop`, () => {
   const p = course.path, a = p[0], b = p[p.length - 1];
   assert.ok(Math.hypot(a[0] - b[0], a[2] - b[2]) < 60);
 });
+}
