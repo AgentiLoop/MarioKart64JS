@@ -180,6 +180,16 @@ export class Track {
     const roadTex = canvasTex(256, 256, (c, w, h) => {
       c.fillStyle = th.road; c.fillRect(0, 0, w, h);
       noise(c, w, h, 5000, 0.08);
+      // worn tire tracks and cracks
+      c.fillStyle = 'rgba(0,0,0,0.12)';
+      c.fillRect(w * 0.28, 0, 14, h); c.fillRect(w * 0.64, 0, 14, h);
+      c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        let x = 30 + Math.random() * (w - 60), y = Math.random() * h;
+        c.beginPath(); c.moveTo(x, y);
+        for (let k = 0; k < 4; k++) { x += (Math.random() - 0.5) * 18; y += 6 + Math.random() * 10; c.lineTo(x, y); }
+        c.stroke();
+      }
       c.fillStyle = '#f2f2f2';
       c.fillRect(6, 0, 6, h); c.fillRect(w - 12, 0, 6, h);
       c.fillStyle = '#e8d34a';
@@ -200,6 +210,19 @@ export class Track {
     const grassTex = canvasTex(256, 256, (c, w, h) => {
       c.fillStyle = th.grass; c.fillRect(0, 0, w, h);
       noise(c, w, h, 6000, 0.12);
+      // N64-style blotchy patches and tufts (wrapped so the tile repeats seamlessly)
+      for (let i = 0; i < 70; i++) {
+        const x = Math.random() * w, y = Math.random() * h, r = 6 + Math.random() * 16;
+        c.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.07)';
+        for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) {
+          c.beginPath(); c.ellipse(x + dx, y + dy, r, r * 0.7, 0, 0, 7); c.fill();
+        }
+      }
+      for (let i = 0; i < 700; i++) {
+        const x = Math.random() * w, y = Math.random() * h;
+        c.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.14)';
+        c.fillRect(x, y, 1, 3);
+      }
     });
     const grassMat = new THREE.MeshLambertMaterial({ map: grassTex });
     this.group.add(this._strip(-WALL_D, -HALF_WIDTH - 1.5, -0.05, -0.05, grassMat, 12));
