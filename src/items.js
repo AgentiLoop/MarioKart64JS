@@ -7,14 +7,23 @@ const BOX_SPOTS = [0.06, 0.22, 0.40, 0.55, 0.72, 0.90];   // fractions of track 
 const BOX_D = [-6, 0, 6];
 const BOX_RESPAWN = 4;
 
-function questionTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
+// 16x16 pixel-art item crystal, drawn procedurally and shown as a nearest-filtered billboard sprite.
+function boxTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 16;
   const g = c.getContext('2d');
-  g.fillStyle = '#ffd23a'; g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = '#fff'; g.lineWidth = 8; g.strokeRect(4, 4, 120, 120);
-  g.fillStyle = '#2a63c8'; g.font = 'bold 96px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('?', 64, 70);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  px(2, 1, 12, 14, '#0b2a6b');          // outline
+  px(3, 2, 10, 12, '#ffd23a');          // body
+  px(3, 2, 10, 2, '#fff3a8');           // top light
+  px(3, 12, 10, 2, '#e08a12');          // bottom shade
+  px(1, 3, 1, 10, '#0b2a6b'); px(14, 3, 1, 10, '#0b2a6b');
+  px(3, 2, 1, 10, '#fff3a8');           // left highlight
+  // "?" glyph
+  const q = ['..XXXX..', '.XX..XX.', '.....XX.', '....XX..', '...XX...', '........', '...XX...', '...XX...'];
+  q.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === 'X') px(4 + x, 4 + y, 1, 1, '#2a63c8'); }));
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return t;
 }
 
 export class Items {
@@ -22,12 +31,11 @@ export class Items {
     this.track = track; this.scene = scene; this.audio = audio;
     this.group = new THREE.Group(); scene.add(this.group);
     this.fr = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
-    const boxMat = new THREE.MeshLambertMaterial({ map: questionTex(), emissive: 0x332200 });
-    const boxGeo = new THREE.BoxGeometry(1.8, 1.8, 1.8);
+    const boxMat = new THREE.SpriteMaterial({ map: boxTex(), alphaTest: 0.5 });
     this.boxes = [];
     for (const u of BOX_SPOTS) for (const d of BOX_D) {
-      const mesh = new THREE.Mesh(boxGeo, boxMat);
-      mesh.castShadow = true;
+      const mesh = new THREE.Sprite(boxMat);
+      mesh.scale.set(2.4, 2.4, 1);
       this.group.add(mesh);
       this.boxes.push({ s: u * track.length, d, mesh, cd: 0, spin: 0 });
     }
