@@ -263,10 +263,9 @@ export class Track {
       this.boostPads.push({ s, d, hw: 2.5, hl: 4.5 });
     }
 
-    // trees on the skirt
-    const trunkG = new THREE.CylinderGeometry(0.5, 0.7, 3, 6), leafG = new THREE.ConeGeometry(3, 8, 7);
-    const trunkM = new THREE.MeshLambertMaterial({ color: th.trunk }), leafM = new THREE.MeshLambertMaterial({ color: th.leaf });
-    const capG = new THREE.ConeGeometry(2.1, 3.4, 7), capM = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    // trees on the skirt: pixel-art billboard sprites (always face the camera)
+    const treeTex = pixelTreeTexture(th);
+    const treeMat = new THREE.SpriteMaterial({ map: treeTex, alphaTest: 0.5 });
     const rng = mulberry(7);
     for (let i = 0; i < th.trees; i++) {
       const k = Math.floor(rng() * this.n), side = rng() < 0.5 ? -1 : 1;
@@ -277,12 +276,45 @@ export class Track {
       const t = (out - WALL_D) / (this.skirtOut - WALL_D);
       const yy = p.y + (this.minY - this.skirtDrop - 4 - p.y) * t - 0.1 * (1 - t);
       const sc = 0.8 + rng() * 0.9;
-      const tr = new THREE.Mesh(trunkG, trunkM); tr.position.set(x, yy + 1.5 * sc, z); tr.scale.setScalar(sc);
-      const lf = new THREE.Mesh(leafG, leafM); lf.position.set(x, yy + 3 * sc + 4 * sc, z); lf.scale.setScalar(sc);
-      this.group.add(tr, lf);
-      if (th.snowCap) { const cp = new THREE.Mesh(capG, capM); cp.position.set(x, yy + 3 * sc + 4 * sc + 2.1 * sc, z); cp.scale.setScalar(sc); this.group.add(cp); }
+      const sp = new THREE.Sprite(treeMat);
+      sp.center.set(0.5, 0);
+      sp.scale.set(8 * sc, 12 * sc, 1);
+      sp.position.set(x, yy, z);
+      this.group.add(sp);
     }
   }
+}
+
+function pixelTreeTexture(th) {
+  const W = 32, H = 48;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+  const shade = (n, f) => `rgb(${Math.min(255, (n >> 16 & 255) * f) | 0},${Math.min(255, (n >> 8 & 255) * f) | 0},${Math.min(255, (n & 255) * f) | 0})`;
+  g.fillStyle = hex(th.trunk); g.fillRect(14, 38, 4, 10);
+  g.fillStyle = shade(th.trunk, 0.7); g.fillRect(16, 38, 2, 10);
+  // three stacked tiers of pixel foliage, lit from the left
+  for (const [top, wid] of [[2, 12], [12, 20], [24, 28]]) {
+    const hgt = 16;
+    for (let y = 0; y < hgt; y++) {
+      const w = Math.max(2, Math.round(wid * (y + 1) / hgt));
+      const x0 = 16 - (w >> 1);
+      for (let x = 0; x < w; x++) {
+        const f = x < w * 0.35 ? 1.25 : x > w * 0.7 ? 0.7 : 1.0;
+        const dither = ((x + y) & 1) && f !== 1.0 ? 0.92 : 1;
+        g.fillStyle = shade(th.leaf, f * dither);
+        g.fillRect(x0 + x, top + y, 1, 1);
+      }
+    }
+    if (th.snowCap) {
+      g.fillStyle = '#f4f8ff';
+      for (let y = 0; y < 5; y++) { const w = Math.max(2, Math.round(wid * (y + 1) / hgt)); g.fillRect(16 - (w >> 1), top + y, w, 1); }
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 function mulberry(a) {
