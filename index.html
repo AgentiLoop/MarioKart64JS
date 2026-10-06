@@ -21,12 +21,13 @@
   #mini { position: absolute; left: 20px; top: 20px; width: 170px; height: 170px; background: rgba(0,0,40,.45); border-radius: 12px; border: 4px solid #fff; box-shadow: 0 0 0 3px #1a1a6e, 0 4px 0 3px #000; }
   #item { position: absolute; left: 218px; top: 20px; min-width: 150px; padding: 14px 18px; font-size: 26px; background: linear-gradient(#3b4fd8, #1a1a6e); border-radius: 14px; border: 4px solid #fff; box-shadow: 0 0 0 3px #e0301e, 0 4px 0 3px #000; text-align: center; }
   #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
-  #menu { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(8,16,40,.55); color: #fff; }
+  #menu { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: safe center; gap: 14px; padding: 20px 0; box-sizing: border-box; overflow-y: auto; background: rgba(8,16,40,.55); color: #fff; }
   #menu h1 { margin: 0 0 10px; font-size: 76px; font-style: italic; font-family: "Arial Black", system-ui, sans-serif; color: #ffd23a; -webkit-text-stroke: 6px #b3200f; paint-order: stroke fill; text-shadow: 0 6px 0 #000; }
-  #menu button { width: 520px; padding: 16px 22px; font: inherit; text-align: left; color: #fff; background: linear-gradient(rgba(26,26,110,.85), rgba(0,0,40,.85)); border: 4px solid #fff; box-shadow: 0 0 0 3px #e0301e, 0 4px 0 3px #000; border-radius: 14px; cursor: pointer; }
-  #menu button:hover { background: linear-gradient(#4a63f0, #2438b0); transform: scale(1.03); }
-  #menu button b { display: block; font-size: 26px; }
-  #menu button span { font-size: 15px; opacity: .85; }
+  #menuList { display: grid; grid-template-columns: repeat(2, 440px); gap: 12px; }
+  #menu button { padding: 10px 18px; font: inherit; text-align: left; color: #fff; background: linear-gradient(rgba(26,26,110,.85), rgba(0,0,40,.85)); border: 4px solid #fff; box-shadow: 0 0 0 3px #e0301e, 0 4px 0 3px #000; border-radius: 14px; cursor: pointer; }
+  #menu button:hover, #menu button:focus { outline: none; background: linear-gradient(#4a63f0, #2438b0); transform: scale(1.03); }
+  #menu button b { display: block; font-size: 22px; }
+  #menu button span { font-size: 13px; opacity: .85; }
   #menu p { opacity: .7; font-size: 14px; }
 </style>
 </head>
@@ -42,7 +43,7 @@
   <div id="banner"></div>
   <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · Gamepad: A gas, B brake, LB/RB drift, X item, Start restart · M course menu · N music on/off · G retro/HD</div>
 </div>
-<div id="menu"><h1>KART RACER</h1><div id="menuList" style="display:flex;flex-direction:column;gap:14px"></div><p>Click a course or press its number</p></div>
+<div id="menu"><h1>KART RACER</h1><div id="menuList"></div><p>Click a course, or use the arrow keys and Enter</p></div>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

@@ -174,16 +174,22 @@ if (!trackDef) {
     b.onclick = () => { location.search = `?track=${t.id}`; };
     list.appendChild(b);
   });
+  // arrows move focus around the 2-column grid (Enter clicks the focused button); digits 1-9 still jump
+  const btns = [...list.children];
+  btns[0].focus();
   addEventListener('keydown', e => {
+    const i = btns.indexOf(document.activeElement), step = { ArrowUp: -2, ArrowDown: 2, ArrowLeft: -1, ArrowRight: 1 }[e.code];
+    if (step) { e.preventDefault(); const j = i < 0 ? 0 : i + step; if (j >= 0 && j < btns.length) btns[j].focus({ preventScroll: false }); return; }
     const n = parseInt(e.key, 10);
-    if (n >= 1 && n <= TRACKS.length) location.search = `?track=${TRACKS[n - 1].id}`;
+    if (n >= 1 && n <= 9 && n <= TRACKS.length) location.search = `?track=${TRACKS[n - 1].id}`;
   });
 }
 
 // input
 const keys = {};
 addEventListener('keydown', e => {
-  keys[e.code] = true; audio.start();
+  keys[e.code] = true;
+  if (trackDef) audio.start();   // menu: no engine hum (audio.update never runs there, so it droned)
   if (e.code === 'KeyR') setup();
   if (e.code === 'KeyM') location.search = '';
   if (e.code === 'KeyN') audio.toggleMusic();
@@ -308,14 +314,22 @@ function rank() {
 }
 
 let last = performance.now();
+const mkFrame = () => ({ pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+const flyA = mkFrame(), flyB = mkFrame(), flyLook = new THREE.Vector3();
+let flyS = 0, flyInit = false;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const steps = 2, h = dt / steps;
 
-  if (!trackDef) {   // menu open: orbit the camera over the default course, no race
-    const t = now / 4000, p = track.pos[Math.floor(t * 40) % track.n];
-    camera.position.set(p.x + Math.cos(t * 3) * 40, p.y + 25, p.z + Math.sin(t * 3) * 40); camera.lookAt(p);
+  if (!trackDef) {   // menu open: fly along the road (like ../GoKart attract.gd), no race
+    flyS += 20 * dt;
+    track.frameAt(flyS, flyA); track.frameAt(flyS + 40, flyB);
+    const target = flyA.pos.clone().addScaledVector(flyA.R, 10).addScaledVector(flyA.U, 12);
+    const look = flyB.pos.clone().addScaledVector(flyB.U, 1);
+    if (!flyInit) { camera.position.copy(target); flyLook.copy(look); flyInit = true; }
+    const a = 1 - Math.exp(-3 * dt);
+    camera.position.lerp(target, a); flyLook.lerp(look, a); camera.lookAt(flyLook);
     updateSky();
     renderer.render(scene, camera);
     return;
