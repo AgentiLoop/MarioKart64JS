@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Extract Luigi Raceway static geometry/path and ROM textures (no downloads).
+"""Extract native MK64 course static geometry/path and ROM textures (no downloads).
 
-Usage: python3 tools/extract-course.py ROM --source /path/to/n64decomp/mk64
+Usage: python3 tools/extract-course.py ROM --source /path/to/n64decomp/mk64 [--course mario_raceway]
 Display-list topology comes from the decompilation. Every CourseVtx and path
 point is verified against the supplied US ROM before writing any output.
 This is a static mesh conversion, not an RSP/RDP emulator or actor exporter.
@@ -17,17 +17,24 @@ import struct
 spec = importlib.util.spec_from_file_location('karts', Path(__file__).with_name('extract-karts.py'))
 karts = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(karts)
-ROOT = 'd_course_luigi_raceway_packed_dl_C730'
+# Root = full static course list; edge = lists the race renderer submits separately with
+# G_RM_AA_ZB_TEX_EDGE (alpha-tested), per src/racing/render_courses.c.
+COURSES = {
+    'luigi_raceway': dict(name='Luigi Raceway', prefix='gLRTexture', root='C730', edge=['E0', '68']),
+    'mario_raceway': dict(name='Mario Raceway', prefix='gMRTexture', root='6928', edge=['450', '240', 'E0', '160']),
+}
 
 
 def numbers(text):
     return [int(n, 0) for n in re.findall(r'-?0x[0-9a-fA-F]+|-?\d+', text)]
 
 
-def convert(source, rom):
-    inputs = ['courses/luigi_raceway/course_vertices.inc.c',
-              'courses/luigi_raceway/course_displaylists.inc.c',
-              'courses/luigi_raceway/course_data.c', 'assets.json', 'data/other_textures.s']
+def convert(source, rom, course_id):
+    cfg = COURSES[course_id]
+    dl = f'd_course_{course_id}_packed_dl_'
+    inputs = [f'courses/{course_id}/course_vertices.inc.c',
+              f'courses/{course_id}/course_displaylists.inc.c',
+              f'courses/{course_id}/course_data.c', 'assets.json', 'data/other_textures.s']
     texts = {name: (source / name).read_text() for name in inputs}
     vertices = []
     packed = bytearray()
@@ -48,18 +55,26 @@ def convert(source, rom):
                 break
     if vertex_offset is None:
         raise ValueError('Course vertices do not match the ROM')
-    path_body = re.search(r'TrackPathPoint d_course_luigi_raceway_track_path\[\] = \{(.*?)\};',
+    path_body = re.search(rf'TrackPathPoint d_course_{course_id}_track_path\[\] = \{{(.*?)\}};',
                           texts[inputs[2]], re.S).group(1)
     route = [numbers(row) for row in re.findall(r'\{([^{}]+)\}', path_body)]
     path_bytes = b''.join(struct.pack('>4h', *point) for point in route)
-    course_block = karts.mio0(rom[0x84E8E0:])
-    path_offset = course_block.find(path_bytes)
-    if path_offset < 0 or route[-1][0] != -32768:
+    # The course data segment is a MIO0 block; locate the one that holds this exact path.
+    path_block = path_offset = None
+    for match in re.finditer(b'MIO0', rom):
+        try:
+            found = karts.mio0(rom[match.start():]).find(path_bytes)
+        except Exception:
+            continue
+        if found >= 0:
+            path_block, path_offset = match.start(), found
+            break
+    if path_block is None or route[-1][0] != -32768:
         raise ValueError('Course path does not match the ROM')
     lists = dict(re.findall(r'Gfx (\w+)\[\] = \{(.*?)\};', texts[inputs[1]], re.S))
     batches = {}
     state = {'texture': None, 'enabled': True, 'wrapS': 'repeat', 'wrapT': 'repeat',
-             'width': 32, 'height': 32}
+             'width': 32, 'height': 32, 'edge': False}
     cache = {}
     visited = set()
 
@@ -101,18 +116,20 @@ def convert(source, rom):
                     cache[start + i] = first + i
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
                 texture = state['texture'] if state['enabled'] else None
-                key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'])
+                key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'], state['edge'])
                 batch = batches.setdefault(key, dict(texture=texture, width=key[1], height=key[2],
-                                                     wrapS=key[3], wrapT=key[4], indices=[]))
+                                                     wrapS=key[3], wrapT=key[4], alphaTest=key[5], indices=[]))
                 for j in range(0, len(a), 4):
                     batch['indices'].extend(cache[int(v, 0)] for v in a[j:j + 3])
             elif command not in ('gsDPTileSync', 'gsDPLoadSync', 'gsDPLoadBlock', 'gsDPSetTile',
                                  'gsSPEndDisplayList', 'gsDPSetCombineMode'):
                 raise ValueError(f'Unsupported display-list command: {command}')
-    walk(ROOT)
-    # The race renderer submits the alpha-edged flags separately (render_courses.c:883–886).
-    walk('d_course_luigi_raceway_packed_dl_E0')
-    walk('d_course_luigi_raceway_packed_dl_68')
+    walk(dl + cfg['root'])
+    state['edge'] = True
+    for name in cfg['edge']:
+        if dl + name in visited:
+            raise ValueError(f'Edge list {name} already drawn by root')
+        walk(dl + name)
     triangle_lists = {name for name, body in lists.items() if 'gsSP1Triangle' in body or 'gsSP2Triangles' in body}
     if triangle_lists - visited:
         raise ValueError(f'Unvisited geometry lists: {triangle_lists - visited}')
@@ -121,9 +138,9 @@ def convert(source, rom):
     textures, images = {}, {}
     for batch in batches.values():
         name = batch['texture']
-        if name is None:
+        if name is None or name in textures:
             continue
-        path = symbols[name.replace('gLRTexture', 'gTexture')].replace('.mio0', '.png')
+        path = symbols[name.replace(cfg['prefix'], 'gTexture')].replace('.mio0', '.png')
         meta = assets[path]
         width, height = meta['meta']['dims']
         if (width, height) != (batch['width'], batch['height']):
@@ -137,10 +154,11 @@ def convert(source, rom):
         textures[name] = dict(image=name + '.png', width=width, height=height, romOffset=offset,
                               rgbaSha256=hashlib.sha256(rgba).hexdigest(),
                               pngSha256=hashlib.sha256(encoded).hexdigest())
-    course = dict(name='Luigi Raceway', vertices=vertices, path=route[:-1], batches=list(batches.values()),
-                  textures=textures, provenance=dict(romSha1=karts.US_SHA1, displayListRoot=ROOT,
+    course = dict(name=cfg['name'], vertices=vertices, path=route[:-1], batches=list(batches.values()),
+                  textures=textures, provenance=dict(romSha1=karts.US_SHA1, displayListRoot=dl + cfg['root'],
+                  edgeLists=[dl + name for name in cfg['edge']],
                   vertexRomOffset=vertex_offset, vertexBytesSha256=hashlib.sha256(packed).hexdigest(),
-                  pathBlockRomOffset=0x84E8E0, pathBlockOffset=path_offset,
+                  pathBlockRomOffset=path_block, pathBlockOffset=path_offset,
                   pathBytesSha256=hashlib.sha256(path_bytes).hexdigest(),
                   sources={name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}))
     return course, images
@@ -150,12 +168,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('rom', type=Path)
     parser.add_argument('--source', type=Path, required=True)
-    parser.add_argument('--output', type=Path, default=Path('public/mk64/luigi-raceway'))
+    parser.add_argument('--course', choices=sorted(COURSES), default='luigi_raceway')
+    parser.add_argument('--output', type=Path, help='default: public/mk64/<course-with-dashes>')
     args = parser.parse_args()
+    args.output = args.output or Path('public/mk64') / args.course.replace('_', '-')
     rom = args.rom.read_bytes()
     if hashlib.sha1(rom).hexdigest() != karts.US_SHA1:
         raise ValueError('Expected supported big-endian US ROM')
-    course, images = convert(args.source, rom)
+    course, images = convert(args.source, rom, args.course)
     args.output.mkdir(parents=True, exist_ok=True)
     for name, data in images.items():
         (args.output / name).write_bytes(data)
