@@ -21,27 +21,33 @@
   #copyright { left: 98px; top: 199px; width: 124px; height: 17px; }
   #pushStart { left: 81px; top: 179px; width: 159px; height: 16px; }
 
-  /* ---------- course select (not yet native; HTML grid inside the 320x240 frame) ---------- */
-  #menu { flex-direction: column; align-items: center; }
-  #menu.scr { display: none; }
-  #menu .inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 4px; width: 100%; height: 100%; box-sizing: border-box; overflow-y: auto; }
-  #menu h1 { margin: 0; font-size: 18px; font-style: italic; font-family: "Arial Black", system-ui, sans-serif; color: #ffd23a; -webkit-text-stroke: 1.5px #b3200f; paint-order: stroke fill; text-shadow: 0 2px 0 #000; }
-  #menuList { display: grid; grid-template-columns: repeat(2, 150px); gap: 3px; }
-  #menu button { display: grid; grid-template-columns: 32px 1fr; align-items: center; gap: 4px; padding: 0 3px; height: 22px; font: inherit; text-align: left; color: #fff; background: rgba(0,0,40,.8); border: 1px solid #fff; box-shadow: 0 0 0 1px #e0301e; border-radius: 3px; cursor: pointer; }
-  #menu button img { position: static; width: 32px; height: 20px; background: #000; }
-  #menu button:hover, #menu button:focus { outline: none; background: #2438b0; }
-  #menu button b { display: block; font-size: 7px; line-height: 1; }
-  #menu button br, #menu button span span { display: none; }
+  /* ---------- course select: COURSE_SELECT_MENU at ROM positions (gMenuTexturesTrackSelection, D_800E7148/7168/7208) ---------- */
+  #mapSelect { left: 65px; top: 18px; width: 190px; height: 32px; }
+  #menu button { position: absolute; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .cup { width: 65px; height: 40px; top: 59px; }
+  .cup .box { position: absolute; left: 0; top: 0; width: 64px; height: 39px; background: rgb(1,1,1); }    /* func_800A890C */
+  .cup img { left: 0; top: 0; width: 65px; height: 40px; }
+  .prev { width: 64px; height: 39px; }
+  .prev img, #prevBig img { left: 0; top: 0; width: 100%; height: 100%; }
+  #prevBig { position: absolute; left: 23px; top: 112px; width: 128px; height: 78px; }
+  .cname { left: 157px; width: 140px; height: 18px; }
+  .cname .box { position: absolute; left: 0; top: 0; width: 139px; height: 17px; background: rgb(1,1,1); }  /* func_800A8A98, D_800E7208 */
+  .cname img { left: 0; top: 0; width: 140px; height: 18px; }
+  #courseOk { left: 265px; top: 208px; width: 31px; height: 19px; }
+  #courseOk .box { position: absolute; left: 0; top: 0; width: 30px; height: 18px; background: rgb(1,1,1); }
+  #courseOk img { left: 0; top: 0; width: 31px; height: 19px; }
 
   /* ---------- character select: CHARACTER_SELECT_MENU at ROM positions (D_800E7108, D_02004B4C, D_02004B74) ---------- */
   #charBanner { left: 51px; top: 16px; width: 220px; height: 32px; }
-  .char { position: absolute; width: 64px; height: 76px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .char { position: absolute; width: 64px; height: 76px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; transition: left .25s, top .25s, transform .2s; }
+  .char.closed { transform: scaleX(0); pointer-events: none; }   /* func_8009BC9C param1 -> 0x20: portrait closes from both sides */
   .char .holder { position: absolute; left: 0; top: 0; width: 64px; height: 64px; overflow: hidden; }
   .char .face { left: 0; width: 64px; height: 1088px; }           /* 17 stacked 64x64 frames */
   .char .name { left: 0; top: 64px; width: 64px; height: 12px; }
   .char .border { left: 0; top: 0; width: 64px; height: 64px; display: none; pointer-events: none; }
   .char.cursor .border { display: block; }
-  #charOk { position: absolute; left: 264px; top: 202px; width: 31px; height: 19px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  #charOk { position: absolute; left: 264px; top: 202px; width: 31px; height: 19px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; transition: transform .2s; }
+  #charOk.closed { transform: scaleX(0); pointer-events: none; }   /* collapsed (param1 = 0x20) until a driver is picked */
   #charOk .box { position: absolute; left: 0; top: 0; width: 30px; height: 18px; background: rgb(1,1,1); }   /* func_800A8564 box */
   #charOk img { left: 0; top: 0; width: 31px; height: 19px; }
 
@@ -75,13 +81,15 @@
     <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" />
   </div>
 
-  <!-- course select: MK64 course preview thumbnails from the ROM (tinted COURSE_SELECT_BACKGROUND) -->
+  <!-- COURSE_SELECT_MENU: tinted background, MAP SELECT banner, cup icons, course previews, title plates, OK -->
   <div id="menu" class="scr">
     <img id="menuBg" class="bg" alt="" src="/mk64/menu/background_course_select.png" />
-    <div class="inner">
-      <h1>SELECT COURSE</h1>
-      <div id="menuList"></div>
-    </div>
+    <img id="mapSelect" alt="Map select" src="/mk64/courseselect/map_select.png" />
+    <div id="cups"></div>
+    <div id="prevs"></div>
+    <div id="prevBig"><img alt="" src="" /></div>
+    <div id="cnames"></div>
+    <button id="courseOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" /></button>
   </div>
 
   <!-- CHARACTER_SELECT_MENU: tinted background, PLAYER SELECT banner, 8 portraits + names, P1 border cursor, OK -->

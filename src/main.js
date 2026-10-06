@@ -206,14 +206,81 @@ function titleStep(now) {
 }
 function enterMenus() {
   if (!atTitle()) return;
-  showScreen(menuEl, 'Click a course, or use the arrow keys and Enter · Esc goes back to the title');
-  menuBtns[0]?.focus();
+  showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
+  cupMode('cup');
 }
 function backToTitle() {
   showScreen(titleEl, 'Press Enter / Start / click anywhere to continue');
 }
-const menuBtns = [];
-const menuElDiv = $('menuList');
+
+// ------- course select: COURSE_SELECT_MENU at the ROM's pixel positions (single-course / VS style) -------
+// Cup icons 65x40 at D_800E7148 (x 23/93/162/232, y 59); the chosen cup slides to x 128 once a cup is
+// picked and the others collapse (func_800AB164 / func_800AB098). Course title plates 140x18 at
+// (157, 112 + 24*i) over 139x17 boxes (D_800E7208); previews 128x78 at (23,112), or four half-size
+// ones at D_800E7168 while picking a cup. OK 31x19 at (265,208). Box colours: black (1,1,1),
+// chosen (255,249,220), or the grey flash of draw_flash_select_case_slow while the cursor is on it.
+const CUPS = [
+  { id: 'mushroom', name: 'Mushroom Cup' }, { id: 'flower', name: 'Flower Cup' },
+  { id: 'star', name: 'Star Cup' }, { id: 'special', name: 'Special Cup' },
+];
+const CUP_X = [23, 93, 162, 232];
+const PREV_SMALL = [[23, 112], [87, 112], [23, 151], [87, 151]];
+const cupCourses = c => TRACKS.slice(c * 4, c * 4 + 4);   // TRACKS is in gCupCourseOrder order
+let cupSel = 0, courseIdx = 0, courseMode = 'cup';          // 'cup' | 'course' | 'ok'  (SUB_MENU_MAP_SELECT_*)
+const flashGrey = () => { let g = ((menuTick % 64) << 9) / 64; if (g > 0x100) g = 0x200 - g; return Math.min(g, 255) | 0; };
+const boxColour = (on, confirmed) => !on ? 'rgb(1,1,1)' : confirmed ? 'rgb(255,249,220)' : `rgb(${flashGrey()},${flashGrey()},${flashGrey()})`;
+function buildCourseMenu() {
+  const cups = $('cups'), prevs = $('prevs'), names = $('cnames');
+  CUPS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'cup'; b.setAttribute('aria-label', c.name);
+    b.innerHTML = `<div class="box"></div><img alt="" src="${BASE}mk64/courseselect/cup_${c.id}.png" />`;
+    b.onclick = () => { cupSel = i; cupMode('course'); };
+    cups.appendChild(b);
+  });
+  for (let i = 0; i < 4; i++) {
+    const d = document.createElement('div');
+    d.className = 'prev'; d.style.position = 'absolute';
+    d.style.left = `${PREV_SMALL[i][0]}px`; d.style.top = `${PREV_SMALL[i][1]}px`;
+    d.innerHTML = '<img alt="" src="" />';
+    prevs.appendChild(d);
+    const b = document.createElement('button');
+    b.className = 'cname'; b.style.top = `${112 + 24 * i}px`;
+    b.innerHTML = '<div class="box"></div><img alt="" src="" />';
+    b.onclick = () => { if (courseMode === 'cup') cupMode('course'); courseIdx = i; cupMode('ok'); };
+    names.appendChild(b);
+  }
+  $('courseOk').onclick = () => { if (courseMode === 'ok') enterChar(cupCourses(cupSel)[courseIdx].id); };
+}
+function cupMode(mode) {
+  courseMode = mode;
+  if (mode === 'cup') courseIdx = 0;
+  const courses = cupCourses(cupSel);
+  [...$('cups').children].forEach((b, i) => {
+    const on = i === cupSel;
+    b.style.display = mode === 'cup' || on ? 'block' : 'none';
+    b.style.left = `${mode === 'cup' ? CUP_X[i] : 128}px`;
+    b.setAttribute('aria-pressed', on);
+  });
+  [...$('prevs').children].forEach((d, i) => {
+    d.style.display = mode === 'cup' ? 'block' : 'none';
+    d.querySelector('img').src = `${BASE}mk64/menu/previews/${courses[i].id}.png`;
+  });
+  $('prevBig').style.display = mode === 'cup' ? 'none' : 'block';
+  $('prevBig').querySelector('img').src = `${BASE}mk64/menu/previews/${courses[courseIdx].id}.png`;
+  [...$('cnames').children].forEach((b, i) => {
+    b.querySelector('img').src = `${BASE}mk64/courseselect/title_${courses[i].id}.png`;
+    b.setAttribute('aria-label', courses[i].name);
+    b.setAttribute('aria-pressed', mode !== 'cup' && i === courseIdx);
+  });
+}
+function courseStep(now) {
+  if (curScreen !== menuEl) return;
+  menuTick = Math.floor(now / 1000 * 30);
+  [...$('cups').children].forEach((b, i) => { b.querySelector('.box').style.background = boxColour(i === cupSel, courseMode !== 'cup'); });
+  [...$('cnames').children].forEach((b, i) => { b.querySelector('.box').style.background = boxColour(courseMode !== 'cup' && i === courseIdx, courseMode === 'ok'); });
+  $('courseOk').querySelector('.box').style.background = boxColour(courseMode === 'ok', false);
+}
 
 // ------- character select: CHARACTER_SELECT_MENU laid out at the ROM's pixel positions -------
 // Grid ids 1..8 run left to right, top row then bottom (menus.c player_select_menu_act: R_JPAD = id+1,
@@ -297,9 +364,8 @@ function charStep(now) {
     let t = menuTick % 16; t = t >= 8 ? 128 - t * 8 : t * 8;
     cell.querySelector('.border').style.filter = charSel !== null ? `brightness(${(t + 191) / 255})` : '';
   }
-  // OK box: solid near-black until selected, then the grey flash of draw_flash_select_case_slow (speed 64)
-  let g = ((menuTick % 64) << 9) / 64; if (g > 0x100) g = 0x200 - g; g = Math.min(g, 255) | 0;
-  $('charOk').querySelector('.box').style.background = okMode ? `rgb(${g},${g},${g})` : 'rgb(1,1,1)';
+  // OK box flashes grey (draw_flash_select_case_slow, speed 64) while PLAYER_SELECT_MENU_OK
+  $('charOk').querySelector('.box').style.background = boxColour(okMode, false);
 }
 function enterChar(trackId) {
   selCourse = trackId;
@@ -334,11 +400,17 @@ function enterChar(trackId) {
   updateCharClasses();
 }
 function updateCharClasses() {
+  // PLAYER_SELECT_MENU_OK (1P): the chosen portrait slides to D_800E7188[0] = (128,88) and the other seven
+  // close up (func_800AAA9C / func_800AAC18); OK opens at (264,202). Going back restores the grid.
   [...$('charGrid').children].forEach((b, i) => {
     const on = i === (charSel ?? charCursor);
     b.classList.toggle('cursor', on);
+    b.classList.toggle('closed', okMode && !on);
+    const [x, y] = okMode && on ? [128, 88] : CHAR_POS[i];
+    b.style.left = `${x}px`; b.style.top = `${y}px`;
     if (!on) b.querySelector('.border').style.filter = '';
   });
+  $('charOk').classList.toggle('closed', !okMode);
 }
 function pickChar(slot) {
   charSel = slot;
@@ -354,8 +426,8 @@ function confirmChar() {
 }
 function backFromChar() {
   if (okMode) { okMode = false; charSel = null; updateCharClasses(); return; }   // B on OK goes back (menus.c:1651)
-  showScreen(menuEl, 'Click a course, or use the arrow keys and Enter · Esc goes back to the title');
-  menuBtns[0]?.focus();
+  showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
+  cupMode('ok');
 }
 $('charOk').onclick = confirmChar;
 
@@ -364,14 +436,8 @@ if (!trackDef) {
   screenEl.style.display = 'block';
   hintEl.style.display = 'block';
   fitScreen();
+  buildCourseMenu();
   backToTitle();
-  TRACKS.forEach((t, i) => {
-    const b = document.createElement('button');
-    b.innerHTML = `<img alt="" src="${BASE}mk64/menu/previews/${t.id}.png" loading="lazy" /><span><b>${i + 1}. ${t.name}</b><br><span>${t.blurb}</span></span>`;
-    b.onclick = () => enterChar(t.id);
-    menuElDiv.appendChild(b);
-    menuBtns.push(b);
-  });
 } else {
   $('hud').style.display = 'block';
 }
@@ -396,20 +462,27 @@ addEventListener('keydown', e => {
       if (e.code === 'Escape' || e.code === 'Backspace') { e.preventDefault(); backFromChar(); return; }
       return;
     }
-    if (!atTitle() && e.code === 'Escape') { backToTitle(); return; }
-    if (curScreen === menuEl && (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
-      e.preventDefault();
-      const i = menuBtns.indexOf(document.activeElement), step = { ArrowUp: -2, ArrowDown: 2, ArrowLeft: -1, ArrowRight: 1 }[e.code];
-      const j = i < 0 ? 0 : i + step;
-      if (j >= 0 && j < menuBtns.length) menuBtns[j].focus({ preventScroll: false });
+    if (curScreen === menuEl) {
+      // SUB_MENU_MAP_SELECT_CUP: left/right cup; _COURSE: up/down course; _OK: A starts, B steps back
+      const enter = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space';
+      const back = e.code === 'Escape' || e.code === 'Backspace';
+      if (e.code.startsWith('Arrow') || enter || back) e.preventDefault();
+      if (courseMode === 'cup') {
+        if (e.code === 'ArrowLeft' && cupSel > 0) { cupSel--; cupMode('cup'); }
+        else if (e.code === 'ArrowRight' && cupSel < 3) { cupSel++; cupMode('cup'); }
+        else if (enter) cupMode('course');
+        else if (back) backToTitle();
+      } else if (courseMode === 'course') {
+        if (e.code === 'ArrowUp' && courseIdx > 0) { courseIdx--; cupMode('course'); }
+        else if (e.code === 'ArrowDown' && courseIdx < 3) { courseIdx++; cupMode('course'); }
+        else if (enter) cupMode('ok');
+        else if (back) cupMode('cup');
+      } else {
+        if (enter) enterChar(cupCourses(cupSel)[courseIdx].id);
+        else if (back) cupMode('course');
+      }
       return;
     }
-    if (curScreen === menuEl && (e.code === 'Enter' || e.code === 'NumpadEnter')) {
-      const b = menuBtns[menuBtns.indexOf(document.activeElement)];
-      if (b) { e.preventDefault(); b.click(); }
-      return;
-    }
-    if (!atTitle() && e.code === 'Space') e.preventDefault();
   }
 });
 
@@ -549,6 +622,7 @@ function frame(now) {
     camera.position.lerp(target, a); flyLook.lerp(look, a); camera.lookAt(flyLook);
     titleStep(now);   // blink PUSH START while the attract fly-along runs behind the title overlay
     charStep(now);    // animate the character-select faces when that screen is open
+    courseStep(now);  // cup / course / OK flash boxes on the course-select screen
     updateSky();
     renderer.render(scene, camera);
     return;
