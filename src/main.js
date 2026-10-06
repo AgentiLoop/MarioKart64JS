@@ -3,6 +3,7 @@ import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudSc
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
+import { createTitleFlag } from './flag.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -197,13 +198,16 @@ function fitScreen() {
 addEventListener('resize', fitScreen);
 const atTitle = () => curScreen === titleEl;
 let blinkTick = 0;
+const titleFlag = trackDef ? null : createTitleFlag($('titleFlag'));   // START_MENU_FLAG waving behind the logo
 function titleStep(now) {
   // MK64 start menu: ((gGlobalTimer / 8) % 3) != 0 draws the PUSH START button (menu_items.c:5905)
   if (atTitle()) {
     blinkTick = Math.floor(now / 1000 * 60 / 8);
     pushStart.style.visibility = blinkTick % 3 !== 0 ? 'visible' : 'hidden';
+    titleFlag.step(now);
   }
 }
+window.__flag = titleFlag;
 function enterMenus() {
   if (!atTitle()) return;
   showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');

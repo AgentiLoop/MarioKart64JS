@@ -17,6 +17,7 @@
   #hint { position: fixed; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 13px; color: #fff; opacity: .75; font-weight: 700; text-shadow: 0 1px 0 #000, 0 0 4px #000; z-index: 6; display: none; pointer-events: none; }
 
   /* ---------- title: START_MENU items at their ROM positions (menu_items.c / textures.c dX,dY) ---------- */
+  #titleFlag { position: absolute; left: 0; top: 0; width: 320px; height: 240px; }   /* render_checkered_flag, drawn after the background, under PUSH START and the logo */
   #titleLogo { left: 32px; top: 7px; width: 256px; height: 128px; }      /* render_game_logo centred at (160,71) */
   #copyright { left: 98px; top: 199px; width: 124px; height: 17px; }
   #pushStart { left: 81px; top: 179px; width: 159px; height: 16px; }
@@ -73,9 +74,10 @@
 
 <!-- 320x240 native menu frame: title / course select / character select, all at ROM pixel positions -->
 <div id="screen">
-  <!-- START_MENU: blue-sky background, logo, copyright, flashing PUSH START -->
+  <!-- START_MENU: blue-sky background, waving checkered flag (START_MENU_FLAG), logo, copyright, flashing PUSH START -->
   <div id="title" class="scr">
     <img id="titleBg" class="bg" alt="" src="/mk64/menu/background_blue_sky.png" />
+    <canvas id="titleFlag" width="320" height="240"></canvas>
     <img id="titleLogo" alt="TarioKart 64" src="/mk64/menu/logo_mario_kart_64.png" />
     <img id="copyright" alt="" src="/mk64/menu/copyright_1996.png" />
     <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" />
