@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track, TRACKS, loadNativeCourse, nativeSkyColors, NATIVE_SCALE } from './track.js';
+import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -60,15 +60,78 @@ scene.add(sky);
 // point along the camera's horizontal heading (assumption: avoids the original's
 // fixed +Z point flipping when facing away).
 const _hp = new THREE.Vector3();
+let cameraYaw = 0;   // camera->rot[1]: u16 binary angle, atan2s(dx, dz)
 function updateSky() {
   if (!nativeSky) return;
   camera.updateMatrixWorld();
   camera.getWorldDirection(_hp); _hp.y = 0;
   if (_hp.lengthSq() < 1e-8) _hp.set(0, 0, -1);
+  cameraYaw = Math.round(Math.atan2(_hp.x, _hp.z) * 32768 / Math.PI) & 0xffff;
   _hp.normalize().multiplyScalar(30000 * NATIVE_SCALE).add(camera.position); _hp.y = 0;
   sky.material.uniforms.horizon.value = _hp.project(camera).y;
+  updateClouds();
 }
 window.__sky = nativeSky && { colors: nativeSky, get horizon() { return sky.material.uniforms.horizon.value; } };
+
+// Clouds / stars: screen-space quads in MK64's 320x240 frame (func_80051ABC via
+// func_80051EBC, 1P). x from func_800788F8, y = horizon row - posY. Drawn after the upper
+// sky quad and before func_802A487C's lower quad, so they vanish below the horizon,
+// except on Rainbow Road where both sky quads come first. Combine: colour = white
+// PRIMITIVE, alpha = TEXEL0 (x star twinkle); G_RM_XLU_SURF, bilinear, clamped.
+// Assumption: no ±50° cull (func_800788F8) so widescreen edges don't pop.
+const cloudSet = nativeSky && nativeClouds((trackDef || TRACKS[0]).id);
+let clouds = null;
+if (cloudSet) {
+  const n = cloudSet.objects.length;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 12), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 8), 2));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(n * 4).fill(1), 1));
+  const idx = [];
+  for (let i = 0; i < n; i++) idx.push(4 * i, 4 * i + 3, 4 * i + 1, 4 * i + 1, 4 * i + 3, 4 * i + 2);
+  geo.setIndex(idx);
+  const map = new THREE.TextureLoader().load(`${import.meta.env?.BASE_URL ?? '/'}mk64/sky/${cloudSet.texture}.png`, t => {
+    // per-quad UVs need the frame count (image height / 32); N64 samples texel i at s = i
+    const w = cloudSet.stars ? 16 : 64, h = cloudSet.stars ? 16 : 32, rows = t.image.height;
+    const uv = geo.attributes.uv;
+    cloudSet.objects.forEach((o, i) => {
+      const [s0, s1, t0] = [0.5 / w, (w - 0.5) / w, o.frame * h];
+      const v0 = (t0 + 0.5) / rows, v1 = (t0 + h - 0.5) / rows;
+      uv.array.set([s0, v0, s1, v0, s1, v1, s0, v1], i * 8);
+    });
+    uv.needsUpdate = true;
+  });
+  map.flipY = false; map.generateMipmaps = false;
+  map.minFilter = map.magFilter = THREE.LinearFilter;
+  map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
+  clouds = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    depthTest: false, depthWrite: false, fog: false,
+    blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    uniforms: { map: { value: map }, horizon: sky.material.uniforms.horizon, clipBelow: { value: (trackDef || TRACKS[0]).id === 'rainbow' ? 0 : 1 } },
+    vertexShader: 'attribute float alpha; varying vec2 vUv; varying float a, y; void main(){ vUv = uv; a = alpha; y = position.y; gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: `uniform sampler2D map; uniform float horizon, clipBelow; varying vec2 vUv; varying float a, y;
+      void main(){ if (clipBelow > .5 && y < horizon) discard; gl_FragColor = vec4(1., 1., 1., texture2D(map, vUv).a * a); }`,
+  }));
+  clouds.frustumCulled = false; clouds.renderOrder = -999;
+  scene.add(clouds);
+}
+function updateClouds() {
+  if (!clouds) return;
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const kx = (size.y / 240) * 2 / size.x;   // native px -> NDC x, height-matched scaling
+  const row = (1 - sky.material.uniforms.horizon.value) * 120;
+  const tick = Math.floor(performance.now() * 0.03);   // object updates at 30 Hz (assumption)
+  const pos = clouds.geometry.attributes.position, al = clouds.geometry.attributes.alpha;
+  const [hw, hh] = cloudSet.stars ? [8, 8] : [32, 16];
+  cloudSet.objects.forEach((o, i) => {
+    const x = Math.trunc(cloudScreenX(cameraYaw, o.rotY)), y = row - o.posY;
+    const X = d => (x - 160 + d * o.scale) * kx, Y = d => 1 - (y + d * o.scale) / 120;
+    pos.array.set([X(-hw), Y(-hh), 0, X(hw - 1), Y(-hh), 0, X(hw - 1), Y(hh - 1), 0, X(-hw), Y(hh - 1), 0], i * 12);
+    if (cloudSet.stars) al.array.fill(STAR_TWINKLE[i % 5][tick & 1] / 255, i * 4, i * 4 + 4);
+  });
+  pos.needsUpdate = al.needsUpdate = true;
+}
+window.__clouds = clouds && { set: cloudSet, get yaw() { return cameraYaw; }, mesh: clouds };
 
 const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]));
 scene.add(track.group);
