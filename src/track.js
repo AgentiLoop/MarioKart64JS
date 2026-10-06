@@ -275,23 +275,31 @@ export class Track {
   }
 
   // Native courses have no guard-wall tunnel: probe the course surface sideways from the
-  // route at every sample and stop where it ends or steps sharply (walls, cliffs, drops).
+  // route at every sample and stop where it ends, steps sharply (cliffs, drops) or crosses a
+  // steep face (rock walls, tree lines, fences) standing at kart height.
   // Assumption: approximates MK64's surface collision (translucent batches count: Rainbow Road, ice).
   _nativeBounds() {
     const course = this.def.native, S = NATIVE_SCALE, CELL = 4, grid = new Map(), tris = [];
+    const wallGrid = new Map(), walls = [];   // steep faces (normal > 60 deg from up): [a, b, c]
+    const bucket = (map, x0, x1, z0, z1, t) => {
+      for (let x = Math.floor(x0 / CELL); x <= Math.floor(x1 / CELL); x++) for (let z = Math.floor(z0 / CELL); z <= Math.floor(z1 / CELL); z++) {
+        const key = x * 65536 + z;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(t);
+      }
+    };
     for (const batch of course.batches) {
       for (let i = 0; i + 2 < batch.indices.length; i += 3) {
         const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
         const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
-        if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
-        const t = tris.push([a, b, c, area]) - 1;
-        const x0 = Math.floor(Math.min(a[0], b[0], c[0]) / CELL), x1 = Math.floor(Math.max(a[0], b[0], c[0]) / CELL);
-        const z0 = Math.floor(Math.min(a[2], b[2], c[2]) / CELL), z1 = Math.floor(Math.max(a[2], b[2], c[2]) / CELL);
-        for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
-          const key = x * 65536 + z;
-          if (!grid.has(key)) grid.set(key, []);
-          grid.get(key).push(t);
+        const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+        const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
+        if (Math.abs(area) < 0.5 * Math.hypot(nx, area, nz)) {
+          bucket(wallGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), walls.push([a, b, c]) - 1);
         }
+        if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
+        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area]) - 1);
       }
     }
     const height = (x, z, yRef) => {
@@ -307,6 +315,30 @@ export class Track {
       }
       return best;
     };
+    // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face?
+    const blocked = (x0, z0, x1, z1, y) => {
+      const dx = x1 - x0, dz = z1 - z0;
+      for (const [x, z] of [[x0, z0], [x1, z1]]) {
+        for (const t of wallGrid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
+          const [a, b, c] = walls[t];
+          const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+          for (const lift of [0.6, 2]) {   // Moller-Trumbore, segment (x0,y+lift,z0)->(x1,y+lift,z1)
+            const h = [-dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1]];
+            const det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+            if (Math.abs(det) < 1e-9) continue;
+            const s = [x0 - a[0], y + lift - a[1], z0 - a[2]];
+            const u = (s[0] * h[0] + s[1] * h[1] + s[2] * h[2]) / det;
+            if (u < 0 || u > 1) continue;
+            const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]];
+            const v = (dx * q[0] + dz * q[2]) / det;
+            if (v < 0 || u + v > 1) continue;
+            const k = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det;
+            if (k >= 0 && k <= 1) return true;
+          }
+        }
+      }
+      return false;
+    };
     const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
     for (let i = 0; i < this.n; i++) {
       const p = this.pos[i], R = this.R[i];
@@ -314,7 +346,9 @@ export class Track {
       for (const sgn of [-1, 1]) {
         let prev = y0, d = STEP;
         for (; d <= MAX; d += STEP) {
-          const y = height(p.x + R.x * d * sgn, p.z + R.z * d * sgn, prev);
+          const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn;
+          if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev)) break;   // the route itself may graze ramp sides
+          const y = height(x, z, prev);
           if (y === null || Math.abs(y - prev) > 0.8) break;
           prev = y;
         }
