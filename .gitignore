@@ -4,3 +4,5 @@ public/mk64-hd/
 
 # Agent! local state
 .agent/
+node_modules/
+dist/
