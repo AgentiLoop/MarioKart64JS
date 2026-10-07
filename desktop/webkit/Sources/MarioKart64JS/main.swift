@@ -39,6 +39,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentView = web
         window.center()
         window.makeKeyAndOrderFront(nil)
+        // WKWebView reports devicePixelRatio = 1 on Retina for custom-scheme (app://) pages, so the canvas
+        // renders at half resolution. Force the real backing scale (SPI used by Electron/Playwright); redo
+        // it when the window moves to a screen with a different scale.
+        let setScale = { [weak web, weak window] in
+            let sel = NSSelectorFromString("_setOverrideDeviceScaleFactor:")
+            guard let web, let scale = window?.backingScaleFactor, web.responds(to: sel) else { return }
+            typealias Fn = @convention(c) (AnyObject, Selector, CGFloat) -> Void
+            unsafeBitCast(web.method(for: sel), to: Fn.self)(web, sel, scale)
+        }
+        setScale()
+        NotificationCenter.default.addObserver(forName: NSWindow.didChangeBackingPropertiesNotification,
+                                               object: window, queue: .main) { _ in setScale() }
         web.load(URLRequest(url: URL(string: "app://game/index.html")!))
         NSApp.activate(ignoringOtherApps: true)
     }
