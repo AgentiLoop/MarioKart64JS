@@ -7,7 +7,7 @@
   "main": "main.cjs",
   "private": true,
   "scripts": {
-    "game": "cd .. && npm run build && rm -rf desktop/game && rsync -a --exclude mk64-hd dist/ desktop/game/",
+    "game": "cd .. && npm run build && rm -rf desktop/game && rsync -a dist/ desktop/game/",
     "start": "electron .",
     "dist": "electron-builder --mac --win --linux --publish never"
   },
