@@ -15,6 +15,7 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - **Items** — item boxes give MK64 items (shell, banana, mushroom…).
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars.
 - **HUD** — position, lap, race timer, speedometer, minimap.
+- **Sound** — the ROM's "Welcome to Mario Kart" voice on the title screen, and the ROM's own music: `src/m64.js` ports the decomp's sequence player (seqplayer.c / playback.c / effects.c), decodes the VADPCM instruments and plays the .m64 sequences in an AudioWorklet — title, menu and per-course race themes.
 
 ## Asset extraction
 
@@ -25,6 +26,7 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - `extract-previews.py` — course preview thumbnails (16 race + 4 battle)
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
+- `extract-sounds.py` — "Welcome to Mario Kart" voice WAV plus the raw audio banks, sample tables, sequences and bank sets that `src/m64.js` plays
 
 ROM SHA-1: `579c48e211ae952530ffc8738709f078d5dd215e`
 

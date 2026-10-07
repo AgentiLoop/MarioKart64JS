@@ -226,9 +226,11 @@ function enterMenus() {
   if (!atTitle()) return;
   showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
   cupMode('cup');
+  audio.playMusic(2);   // SEQ_MENU_MAIN_MENU (menus.c:1861)
 }
 function backToTitle() {
   showScreen(titleEl, 'Press Enter / Start / click anywhere to continue');
+  audio.playMusic(1);   // SEQ_MENU_TITLE_SCREEN (menus.c:1844)
 }
 
 // ------- course select: COURSE_SELECT_MENU at the ROM's pixel positions (single-course / VS style) -------

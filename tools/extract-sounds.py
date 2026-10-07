@@ -5,7 +5,7 @@ Usage: python3 tools/extract-sounds.py ROM [--out public/mk64/audio]
 Layout follows n64decomp/mk64 assets.json and src/audio/load.c: the ctl (audio banks) at 0x966260,
 the tbl (VADPCM sample data) at 0x979AA0. Instrument/sound ids come from the sequence 0 sound scripts.
 Writes welcome.wav: "Welcome to Mario Kart" (SOUND_INTRO_WELCOME, seq 0 bank 4 sound 9 ->
-bank 0 instrument 0x7C, key 39).
+bank 0 instrument 0x7C, key 39), plus the raw ctl/tbl/seq/bank-set data that src/m64.js plays.
 """
 import argparse
 import hashlib
@@ -16,6 +16,12 @@ import wave
 US_SHA1 = '579c48e211ae952530ffc8738709f078d5dd215e'
 CTL, TBL = 0x966260, 0x979AA0
 OUTPUT_RATE = 26800   # gAudioSessionPresets[].frequency (0x68B0)
+BLOBS = (
+    ('ctl.bin', CTL, 0x13840),             # audio_banks: instruments, drums, envelopes, ADPCM books
+    ('tbl.bin', TBL, 0x24C4C0),            # audio_tables: VADPCM sample data
+    ('seq.bin', 0xBC5F60, 0x23170),        # sequences: ALSeqFile header + 30 .m64 sequences
+    ('banksets.bin', 0xBE90E0, 0x100),     # instrument_sets: seq id -> bank ids (ALIGN(0x40) after sequences)
+)
 
 
 def table(rom, base):
@@ -105,6 +111,10 @@ def main():
     pcm = bank.sample(sample_ptr)
     write_wav(out / 'welcome.wav', pcm, OUTPUT_RATE * tuning)
     print(f'welcome.wav: {len(pcm)} samples @ {OUTPUT_RATE * tuning:.0f} Hz')
+    # Raw sound data for the browser sequencer (src/m64.js), cut at the mk64.ld segments
+    for name, start, size in BLOBS:
+        (out / name).write_bytes(rom[start:start + size])
+        print(f'{name}: {size:#x} bytes')
 
 
 if __name__ == '__main__':
