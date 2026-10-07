@@ -1,10 +1,10 @@
-# TarioKart 64
+# MarioKart64JS
 
 A browser clone of **Mario Kart 64** (built for testing purposes — to see how far AI/LLM tech can duplicate the game). Three.js + Vite, no emulator: the original N64 ROM's assets are extracted and re-used directly.
 
 - `npm install && npm run dev` → http://localhost:5173
 - Title screen → SELECT COURSE → race (Enter / click / arrows)
-- Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · G resolution (1× 240p / 2× 480p / 3× 720p / 4× 960p / Native) · N music · M course menu. Gamepad supported.
+- Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · M course menu. Gamepad supported.
 
 ## What's implemented
 
@@ -13,7 +13,7 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - **Native courses** — all 16 MK64 tracks reconstructed from the ROM's course geometry + textures (MIO0/CI8/RGBA16 decoders in `tools/`).
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls.
 - **Items** — item boxes give MK64 items (shell, banana, mushroom…).
-- **Presentation** — N64-style 240-line upscaled render, or 2×/3×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars.
+- **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars.
 - **HUD** — position, lap, race timer, speedometer, minimap.
 
 ## Asset extraction
@@ -38,11 +38,11 @@ camera jitter, and pixels inside a surface that change batch are counted as flic
 
 ### HD textures (optional)
 
-`python3 tools/build-hd-textures.py /path/to/MK64-Reloaded-master` (needs Pillow) builds 2×/3×/4×
+`python3 tools/build-hd-textures.py /path/to/MK64-Reloaded-master` (needs Pillow) builds 2×/4×
 versions of every matching image into `public/mk64-hd/` (git-ignored) from the
 [MK64 Reloaded](https://github.com/GhostlyDark/MK64-Reloaded) pack. Course textures are matched by their
-Rice/GLideN64 CRC, menus/faces/karts/sky by decomp name via the pack's SpaghettiKart port. The 2×/3×/4×
-presets use the matching tier (Native uses round(lines / 240), max 4); kart atlases stop at 2× to keep
+Rice/GLideN64 CRC, menus/faces/karts/sky by decomp name via the pack's SpaghettiKart port. The 2×/4×
+presets use the matching tier (Native uses 2× below 720 lines, else 4×); kart atlases stop at 2× to keep
 VRAM sane. Missing images fall back to the ROM originals.
 
 ## Roadmap
@@ -52,5 +52,7 @@ VRAM sane. Missing images fall back to the ROM originals.
 - More gameplay parity (CC classes, AI personalities, Lakitu)
 
 Reference: [n64decomp/mk64](https://github.com/n64decomp/mk64).
+
+Hi-res graphics from [MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
 
 *This is a fan research project for AI-duplication testing. Mario Kart 64 is © Nintendo; assets belong to Nintendo and this repo is not affiliated with or endorsed by Nintendo.*

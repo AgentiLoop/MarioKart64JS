@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build 2x/3x/4x texture tiers from the MK64 Reloaded HD pack (requires Pillow).
+"""Build 2x/4x texture tiers from the MK64 Reloaded HD pack (requires Pillow).
 
 Usage: python3 tools/build-hd-textures.py /path/to/MK64-Reloaded-master [--output public/mk64-hd]
 
 Every native image under public/mk64 is matched to an HD replacement and Lanczos-resampled to
-exactly native size x 2, 3 and 4, so each tier is shared by the 480p / 720p / 960p+ presets:
+exactly native size x 2 and 4, so each tier is shared by the 480p / 960p+ presets:
   - course textures: Rice/GLideN64 texture CRC (MARIOKART64#CRC#fmt#siz) computed from the native
     rgba16 / ia16 texels, which are recovered losslessly from our PNGs (no ROM needed);
   - menus, faces, karts, sky: by decomp asset name, using the pack's SpaghettiKart port
@@ -25,7 +25,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 NATIVE = ROOT / 'public' / 'mk64'
-TIERS = (2, 3, 4)
+TIERS = (2, 4)
 KART_MAX_TIER = 2   # 8 driver atlases of 1344x1024 frames: 4x would be ~1 GB of VRAM with mipmaps
 SKIP_DIRS = ('/Ports/', '/Hacks/', '/iQue/', '/rt64/', '/Widescreen/')
 

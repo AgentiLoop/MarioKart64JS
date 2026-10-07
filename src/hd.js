@@ -1,8 +1,8 @@
 // Resolution presets + HD texture tiers.
-// G cycles 1x (240p, N64) / 2x (480p, Wii VC) / 3x (720p) / 4x (960p) / Native (window x devicePixelRatio).
-// Every image under public/mk64 may have 2x/3x/4x versions in public/mk64-hd/<N>x/ (built from the
+// G cycles 1x (240p, N64) / 2x (480p, Wii VC) / 4x (960p) / Native (window x devicePixelRatio).
+// Every image under public/mk64 may have 2x/4x versions in public/mk64-hd/<N>x/ (built from the
 // MK64 Reloaded pack by tools/build-hd-textures.py); the tier follows the preset (native picks
-// round(lines / 240), max 4) and falls back to the highest tier that exists, or the ROM image.
+// 2x below 720 lines, else 4x) and falls back to the highest tier that exists, or the ROM image.
 // 1x keeps hard N64 pixels; HD tiers use smooth filtering with mipmaps + anisotropy.
 import * as THREE from 'three';
 
@@ -10,7 +10,6 @@ const BASE = import.meta.env?.BASE_URL ?? '/';
 export const PRESETS = [
   { id: '1x', label: '1× 240p', lines: 240 },
   { id: '2x', label: '2× 480p', lines: 480 },
-  { id: '3x', label: '3× 720p', lines: 720 },
   { id: '4x', label: '4× 960p', lines: 960 },
   { id: 'native', label: 'Native', lines: 0 },
 ];
@@ -22,7 +21,7 @@ const listeners = [];
 
 export const presetLabel = () => PRESETS[preset].label;
 export const renderLines = () => PRESETS[preset].lines || Math.round(innerHeight * devicePixelRatio);
-export const tier = () => preset === 0 ? 1 : Math.min(4, Math.max(1, Math.round(renderLines() / 240)));
+export const tier = () => { if (preset === 0) return 1; const t = Math.round(renderLines() / 240); return t <= 1 ? 1 : t === 2 ? 2 : 4; };
 export const smooth = () => tier() > 1;
 export function onChange(fn) { listeners.push(fn); }
 export function setRenderer(renderer) { maxAniso = renderer.capabilities.getMaxAnisotropy(); textures.forEach(applyFilter); }

@@ -58,7 +58,7 @@ try {
       const { track, items, renderer, scene, camera } = window.__game;
       const out = { textures: [], flicker: {}, flickerPx: 0, surfacePx: 0 };
       // texture tiers
-      const tier = { '1x': 1, '2x': 2, '3x': 3, '4x': 4 }[localStorage.getItem('mk64res')] ?? 4;
+      const tier = { '1x': 1, '2x': 2, '4x': 4 }[localStorage.getItem('mk64res')] ?? 4;
       scene.traverse(o => {
         const t = o.material?.map, hd = t?.userData?.hd;
         if (!hd) return;
