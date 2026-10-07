@@ -57,7 +57,7 @@ VRAM sane. Missing images fall back to the ROM originals.
 
 ## References:
 
-- lo-res graphics and sound distilled from [n64decomp/mk64](https://github.com/n64decomp/mk64).
+- lo-res graphics and sound in note form distilled from [n64decomp/mk64](https://github.com/n64decomp/mk64).
 - hi-res graphics distilled from [GhostlyDark/MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
 
 *This is a fan research project for AI-duplication testing. Mario Kart 64 is © Nintendo; assets belong to Nintendo and this repo is not affiliated with or endorsed by Nintendo.*
