@@ -28,7 +28,7 @@ export function kartSpriteFrame(angle, spinning = false) {
 
 export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
-  const map = HD.loadTexture(`karts/${character}.png`);   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
+  const map = HD.loadTexture(`karts/${character}.png`);   // mipmapped; HD tiers swap in the 2x atlas
   map.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
   const sprite = new THREE.Sprite(material);
