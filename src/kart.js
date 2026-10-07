@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HALF_WIDTH } from './track.js';
+import * as HD from './hd.js';
 
 const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
@@ -27,10 +28,8 @@ export function kartSpriteFrame(angle, spinning = false) {
 
 export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
-  const map = new THREE.TextureLoader().load(`${import.meta.env?.BASE_URL ?? '/'}mk64/karts/${character}.png`);
+  const map = HD.loadTexture(`karts/${character}.png`);   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
   map.colorSpace = THREE.SRGBColorSpace;
-  map.magFilter = map.minFilter = THREE.NearestFilter;
-  map.generateMipmaps = false;
   const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
   const sprite = new THREE.Sprite(material);
   sprite.center.set(0.5, 0);

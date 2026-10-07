@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as HD from './hd.js';
 
 export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
 
@@ -388,7 +389,6 @@ export class Track {
   // render_<course>: unlit shade colour * texture, opaque except alpha-edged flags.
   _buildNativeMeshes() {
     const course = this.def.native;
-    const loader = new THREE.TextureLoader();
     const wrap = { repeat: THREE.RepeatWrapping, mirror: THREE.MirroredRepeatWrapping, clamp: THREE.ClampToEdgeWrapping };
     const color = new THREE.Color();
     this.boostPads = [];
@@ -409,12 +409,10 @@ export class Track {
       geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
       let map = null;
       if (batch.texture) {
-        map = loader.load(`${import.meta.env?.BASE_URL ?? '/'}mk64/${this.def.dir}/${course.textures[batch.texture].image}`);
+        map = HD.loadTexture(`${this.def.dir}/${course.textures[batch.texture].image}`);   // 1x nearest, HD tiers mipmapped
         map.colorSpace = THREE.SRGBColorSpace;
         map.flipY = false;
         map.wrapS = wrap[batch.wrapS]; map.wrapT = wrap[batch.wrapT];
-        map.magFilter = map.minFilter = THREE.NearestFilter;
-        map.generateMipmaps = false;
         this.textures.push(map);
       }
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({

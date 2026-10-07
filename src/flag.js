@@ -102,6 +102,7 @@ export function createTitleFlag(canvas) {
   const draw = () => renderer.render(scene, camera);
   return {
     mesh, camera, draw,
+    setScale(s) { renderer.setPixelRatio(s); renderer.setSize(320, 240, false); draw(); },   // HD presets
     get phase() { return phase; },
     step(now) {
       const f = Math.floor(now / 1000 * 30);

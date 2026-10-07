@@ -4,11 +4,13 @@ import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
+import * as HD from './hd.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(1);
+HD.setRenderer(renderer);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -92,9 +94,9 @@ if (cloudSet) {
   const idx = [];
   for (let i = 0; i < n; i++) idx.push(4 * i, 4 * i + 3, 4 * i + 1, 4 * i + 1, 4 * i + 3, 4 * i + 2);
   geo.setIndex(idx);
-  const map = new THREE.TextureLoader().load(`${import.meta.env?.BASE_URL ?? '/'}mk64/sky/${cloudSet.texture}.png`, t => {
-    // per-quad UVs need the frame count (image height / 32); N64 samples texel i at s = i
-    const w = cloudSet.stars ? 16 : 64, h = cloudSet.stars ? 16 : 32, rows = t.image.height;
+  const map = HD.loadTexture(`sky/${cloudSet.texture}.png`, { mipmaps: false, retroFilter: THREE.LinearFilter, onLoad: (t, scale) => {
+    // per-quad UVs need the frame count (native image height / 32); N64 samples texel i at s = i
+    const w = cloudSet.stars ? 16 : 64, h = cloudSet.stars ? 16 : 32, rows = t.image.height / scale;
     const uv = geo.attributes.uv;
     cloudSet.objects.forEach((o, i) => {
       const [s0, s1, t0] = [0.5 / w, (w - 0.5) / w, o.frame * h];
@@ -102,9 +104,8 @@ if (cloudSet) {
       uv.array.set([s0, v0, s1, v0, s1, v1, s0, v1], i * 8);
     });
     uv.needsUpdate = true;
-  });
-  map.flipY = false; map.generateMipmaps = false;
-  map.minFilter = map.magFilter = THREE.LinearFilter;
+  } });
+  map.flipY = false;
   map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
   clouds = new THREE.Mesh(geo, new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, fog: false,
@@ -184,7 +185,6 @@ const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`
 // All three live inside #screen, a 320x240 frame scaled uniformly to the viewport (N64 4:3 output).
 const screenEl = $('screen'), hintEl = $('hint');
 const titleEl = $('title'), pushStart = $('pushStart'), menuEl = $('menu'), charEl = $('char');
-const BASE = import.meta.env?.BASE_URL ?? '/';
 let curScreen = null;
 function showScreen(el, hint) {
   for (const s of [titleEl, menuEl, charEl]) s.style.display = s === el ? 'block' : 'none';
@@ -199,6 +199,7 @@ addEventListener('resize', fitScreen);
 const atTitle = () => curScreen === titleEl;
 let blinkTick = 0;
 const titleFlag = trackDef ? null : createTitleFlag($('titleFlag'));   // START_MENU_FLAG waving behind the logo
+if (titleFlag) { titleFlag.setScale(HD.tier()); HD.onChange(() => titleFlag.setScale(HD.tier())); }
 function titleStep(now) {
   // MK64 start menu: ((gGlobalTimer / 8) % 3) != 0 draws the PUSH START button (menu_items.c:5905)
   if (atTitle()) {
@@ -238,7 +239,8 @@ function buildCourseMenu() {
   CUPS.forEach((c, i) => {
     const b = document.createElement('button');
     b.className = 'cup'; b.setAttribute('aria-label', c.name);
-    b.innerHTML = `<div class="box"></div><img alt="" src="${BASE}mk64/courseselect/cup_${c.id}.png" />`;
+    b.innerHTML = '<div class="box"></div><img alt="" />';
+    HD.setImg(b.querySelector('img'), `courseselect/cup_${c.id}.png`);
     b.onclick = () => { cupSel = i; cupMode('course'); };
     cups.appendChild(b);
   });
@@ -268,12 +270,12 @@ function cupMode(mode) {
   });
   [...$('prevs').children].forEach((d, i) => {
     d.style.display = mode === 'cup' ? 'block' : 'none';
-    d.querySelector('img').src = `${BASE}mk64/menu/previews/${courses[i].id}.png`;
+    HD.setImg(d.querySelector('img'), `menu/previews/${courses[i].id}.png`);
   });
   $('prevBig').style.display = mode === 'cup' ? 'none' : 'block';
-  $('prevBig').querySelector('img').src = `${BASE}mk64/menu/previews/${courses[courseIdx].id}.png`;
+  HD.setImg($('prevBig').querySelector('img'), `menu/previews/${courses[courseIdx].id}.png`);
   [...$('cnames').children].forEach((b, i) => {
-    b.querySelector('img').src = `${BASE}mk64/courseselect/title_${courses[i].id}.png`;
+    HD.setImg(b.querySelector('img'), `courseselect/title_${courses[i].id}.png`);
     b.setAttribute('aria-label', courses[i].name);
     b.setAttribute('aria-pressed', mode !== 'cup' && i === courseIdx);
   });
@@ -387,16 +389,16 @@ function enterChar(trackId) {
     holder.className = 'holder';
     const img = document.createElement('img');
     img.className = 'face'; img.alt = '';
-    img.src = `${BASE}mk64/faces/${c}.png`;
+    HD.setImg(img, `faces/${c}.png`);
     holder.appendChild(img);
     faceImgs.push(img);
     faceState.push({ sub: 0, idx: 0, t: ANIM.base.rate });
     const name = document.createElement('img');
     name.className = 'name'; name.alt = '';
-    name.src = `${BASE}mk64/charselect/name_${c}.png`;
+    HD.setImg(name, `charselect/name_${c}.png`);
     const border = document.createElement('img');
     border.className = 'border'; border.alt = '';
-    border.src = `${BASE}mk64/charselect/p1_border_blue.png`;
+    HD.setImg(border, 'charselect/p1_border_blue.png');
     b.append(holder, name, border);
     b.onclick = () => { charCursor = i; pickChar(i); };
     grid.appendChild(b);
@@ -498,7 +500,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') setup();
   if (e.code === 'KeyM') location.search = '';
   if (e.code === 'KeyN') audio.toggleMusic();
-  if (e.code === 'KeyG') { retro = !retro; resize(); }
+  if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) items.use(player);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -575,16 +577,23 @@ function updateCamera(dt) {
   sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world);
 }
 
-// N64-style presentation: low internal resolution (240 lines) upscaled with hard pixels. G toggles full-res.
-let retro = true;
+// Presentation: render HD.renderLines() lines (1x = N64 240p, upscaled with hard pixels). G cycles presets.
 function resize() {
-  const h = retro ? 240 : innerHeight * Math.min(devicePixelRatio, 2);
+  const h = HD.renderLines();
   const w = Math.round(h * innerWidth / innerHeight);
   renderer.setSize(w, Math.round(h), false);
-  canvas.style.imageRendering = retro ? 'pixelated' : 'auto';
+  canvas.style.imageRendering = HD.smooth() ? 'auto' : 'pixelated';
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
+HD.onChange(resize);
+let resTimer = 0;
+function showRes() {
+  const el = $('res');
+  el.textContent = `${HD.presetLabel()} · textures ${HD.tier()}×`;
+  el.style.display = 'block';
+  clearTimeout(resTimer); resTimer = setTimeout(() => { el.style.display = 'none'; }, 1500);
+}
 
 function collide() {
   const L = track.length;

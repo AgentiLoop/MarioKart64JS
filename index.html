@@ -11,6 +11,8 @@
   /* ---------- native 320x240 menu screen, scaled uniformly to fit (4:3 letterbox like the N64 frame) ---------- */
   #screen { position: fixed; left: 50%; top: 50%; width: 320px; height: 240px; transform: translate(-50%, -50%) scale(3); transform-origin: center; z-index: 5; display: none; background: #000; }
   #screen img, #screen canvas { image-rendering: pixelated; }
+  .hd #screen img, .hd #screen canvas { image-rendering: auto; }   /* HD presets: smooth 2D scaling */
+  #res { position: fixed; top: 10px; left: 0; right: 0; text-align: center; font-size: 20px; font-weight: 700; color: #fff; text-shadow: 0 1px 0 #000, 0 0 4px #000; z-index: 7; display: none; pointer-events: none; }
   #screen .scr { position: absolute; inset: 0; display: none; overflow: hidden; }
   #screen .scr img { position: absolute; display: block; }
   #screen .bg { left: 0; top: 0; width: 320px; height: 240px; }
@@ -76,33 +78,34 @@
 <div id="screen">
   <!-- START_MENU: blue-sky background, waving checkered flag (START_MENU_FLAG), logo, copyright, flashing PUSH START -->
   <div id="title" class="scr">
-    <img id="titleBg" class="bg" alt="" src="/mk64/menu/background_blue_sky.png" />
+    <img id="titleBg" class="bg" alt="" src="/mk64/menu/background_blue_sky.png" data-hd="menu/background_blue_sky.png" />
     <canvas id="titleFlag" width="320" height="240"></canvas>
-    <img id="titleLogo" alt="TarioKart 64" src="/mk64/menu/logo_mario_kart_64.png" />
-    <img id="copyright" alt="" src="/mk64/menu/copyright_1996.png" />
-    <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" />
+    <img id="titleLogo" alt="TarioKart 64" src="/mk64/menu/logo_mario_kart_64.png" data-hd="menu/logo_mario_kart_64.png" />
+    <img id="copyright" alt="" src="/mk64/menu/copyright_1996.png" data-hd="menu/copyright_1996.png" />
+    <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" data-hd="menu/push_start_button.png" />
   </div>
 
   <!-- COURSE_SELECT_MENU: tinted background, MAP SELECT banner, cup icons, course previews, title plates, OK -->
   <div id="menu" class="scr">
-    <img id="menuBg" class="bg" alt="" src="/mk64/menu/background_course_select.png" />
-    <img id="mapSelect" alt="Map select" src="/mk64/courseselect/map_select.png" />
+    <img id="menuBg" class="bg" alt="" src="/mk64/menu/background_course_select.png" data-hd="menu/background_course_select.png" />
+    <img id="mapSelect" alt="Map select" src="/mk64/courseselect/map_select.png" data-hd="courseselect/map_select.png" />
     <div id="cups"></div>
     <div id="prevs"></div>
     <div id="prevBig"><img alt="" src="" /></div>
     <div id="cnames"></div>
-    <button id="courseOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" /></button>
+    <button id="courseOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" data-hd="charselect/ok.png" /></button>
   </div>
 
   <!-- CHARACTER_SELECT_MENU: tinted background, PLAYER SELECT banner, 8 portraits + names, P1 border cursor, OK -->
   <div id="char" class="scr">
-    <img id="charBg" class="bg" alt="" src="/mk64/menu/background_player_select.png" />
-    <img id="charBanner" alt="" src="/mk64/charselect/player_select_banner.png" />
+    <img id="charBg" class="bg" alt="" src="/mk64/menu/background_player_select.png" data-hd="menu/background_player_select.png" />
+    <img id="charBanner" alt="" src="/mk64/charselect/player_select_banner.png" data-hd="charselect/player_select_banner.png" />
     <div id="charGrid"></div>
-    <button id="charOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" /></button>
+    <button id="charOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" data-hd="charselect/ok.png" /></button>
   </div>
 </div>
 <div id="hint"></div>
+<div id="res"></div>
 
 <div id="hud">
   <canvas id="mini" width="340" height="340"></canvas>
@@ -112,7 +115,7 @@
   <div id="pos">1<small>st</small></div>
   <div id="speed">0<small> km/h</small></div>
   <div id="banner"></div>
-  <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · Gamepad: A gas, B brake, LB/RB drift, X item, Start restart · M course menu · N music on/off · G retro/HD</div>
+  <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · Gamepad: A gas, B brake, LB/RB drift, X item, Start restart · M course menu · N music on/off · G resolution 1×/2×/3×/4×/Native</div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>
