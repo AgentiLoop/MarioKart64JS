@@ -8,6 +8,20 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - Title screen → SELECT COURSE → race (Enter / click / arrows)
 - Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · M course menu. Gamepad supported.
 
+## Screenshots
+
+Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to the [v0.0.1 pre-release](https://github.com/AgentiLoop/MarioKart64JS/releases/tag/v0.0.1)).
+
+| | |
+|---|---|
+| ![Title](docs/screenshots/hires/title.jpg) | ![Course select](docs/screenshots/hires/course-select.jpg) |
+| ![Character select](docs/screenshots/hires/character-select.jpg) | ![Mario Raceway](docs/screenshots/hires/race-mario.jpg) |
+| ![Royal Raceway](docs/screenshots/hires/race-royal.jpg) | ![Koopa Troopa Beach](docs/screenshots/hires/race-koopa.jpg) |
+| ![Sherbet Land](docs/screenshots/hires/race-sherbet.jpg) | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race-dk.jpg) |
+| ![Yoshi Valley](docs/screenshots/hires/race-yoshi.jpg) | ![Bowser's Castle](docs/screenshots/hires/race-bowser.jpg) |
+| ![Banshee Boardwalk](docs/screenshots/hires/race-banshee.jpg) | ![Toad's Turnpike](docs/screenshots/hires/race-toad.jpg) |
+| ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) | |
+
 ## What's implemented
 
 - **Title screen** — ROM-extracted Mario Kart 64 logo, "©1996 Nintendo" copyright, flashing PUSH START button (blink at the native `(gGlobalTimer / 8) % 3` cadence) over the TKMK00-decoded blue-sky background.
