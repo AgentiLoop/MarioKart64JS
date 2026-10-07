@@ -1,7 +1,5 @@
 # MarioKart64JS
 
-<img width="800" height="661" alt="MarioKart64CloneTitle" src="https://github.com/user-attachments/assets/d0b1c1ef-5d04-4c61-b5e4-c3b3750ceeb7" />
-
 A browser clone of **Mario Kart 64** (built for testing purposes — to see how far AI/LLM tech can duplicate the game). Three.js + Vite, no emulator: the original N64 ROM's assets are extracted and re-used directly.
 
 - `npm install && npm run dev` → http://localhost:5173
