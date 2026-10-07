@@ -5,6 +5,7 @@ import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
 import * as HD from './hd.js';
+import { Exhaust } from './smoke.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -190,6 +191,7 @@ const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
 const items = new Items(track, scene, audio);
+const exhaust = new Exhaust(scene);
 const itemEl = $('item');
 const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
@@ -704,6 +706,7 @@ function frame(now) {
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
   updateCamera(dt);
+  exhaust.update(dt, karts, camera);
   drawMini();
   updateSky();
   renderer.render(scene, camera);

@@ -102,6 +102,7 @@ export class Kart {
       if (this.spin <= 0) this.spinAngle = 0;
     }
 
+    this.throttle = input.throttle > 0;   // kartProps THROTTLE (exhaust smoke rate)
     // longitudinal
     if (input.throttle > 0) {
       this.v += (14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2;
