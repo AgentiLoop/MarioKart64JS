@@ -88,7 +88,7 @@ def overlap_area(p, q):
 
 
 def decal_layers(vertices, drawn, batches):
-    """Depth layer per triangle (by draw order) drawn over earlier coplanar scenery.
+    """Depth layer per triangle (by draw order) drawn over coplanar scenery of other batches.
 
     The RDP's opaque z compare lets a surface pass at the depth already stored (within its dz), so
     where two coplanar triangles overlap the one drawn later shows. A depth buffer without that
@@ -116,13 +116,13 @@ def decal_layers(vertices, drawn, batches):
         for x in range(int(t['lo'][0] // cell), int(t['hi'][0] // cell) + 1):
             for z in range(int(t['lo'][2] // cell), int(t['hi'][2] // cell) + 1):
                 grid.setdefault((x, z), []).append(t)
-    over = {}   # triangle draw order -> earlier coplanar triangles it covers
+    over = {}   # triangle draw order -> earlier coplanar triangles (other batches) it covers
     checked = set()
     for bucket in grid.values():
         for a in range(len(bucket)):
             for b in range(a + 1, len(bucket)):
                 s, t = bucket[a], bucket[b]
-                if (s['order'], t['order']) in checked:   # same batch too: shaded copies of grass overlay it
+                if s['key'] == t['key'] or (s['order'], t['order']) in checked:
                     continue
                 checked.add((s['order'], t['order']))
                 if any(s['hi'][k] < t['lo'][k] - 0.5 or t['hi'][k] < s['lo'][k] - 0.5 for k in range(3)):

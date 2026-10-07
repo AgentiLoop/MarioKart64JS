@@ -409,7 +409,7 @@ export class Track {
       geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
       let map = null;
       if (batch.texture) {
-        map = HD.loadTexture(`${this.def.dir}/${course.textures[batch.texture].image}`);   // mipmapped, HD tiers swap images
+        map = HD.loadTexture(`${this.def.dir}/${course.textures[batch.texture].image}`);   // 1x nearest, HD tiers mipmapped
         map.colorSpace = THREE.SRGBColorSpace;
         map.flipY = false;
         map.wrapS = wrap[batch.wrapS]; map.wrapT = wrap[batch.wrapT];

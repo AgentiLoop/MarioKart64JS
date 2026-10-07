@@ -3,7 +3,7 @@
 // Every image under public/mk64 may have 2x/3x/4x versions in public/mk64-hd/<N>x/ (built from the
 // MK64 Reloaded pack by tools/build-hd-textures.py); the tier follows the preset (native picks
 // round(lines / 240), max 4) and falls back to the highest tier that exists, or the ROM image.
-// All tiers use bilinear + mipmaps; HD tiers add anisotropy.
+// 1x keeps hard N64 pixels; HD tiers use smooth filtering with mipmaps + anisotropy.
 import * as THREE from 'three';
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
@@ -40,10 +40,10 @@ export function hdSource(rel) {
 }
 
 // THREE.Texture that swaps its image when the tier changes. onLoad(texture, scale) runs after
-// every (re)load; scale = image size / native size.
-export function loadTexture(rel, { mipmaps = true, onLoad } = {}) {
+// every (re)load; scale = image size / native size. Linear filtering in retro (1x) via retroFilter.
+export function loadTexture(rel, { mipmaps = true, retroFilter = THREE.NearestFilter, onLoad } = {}) {
   const tex = new THREE.Texture();
-  tex.userData.hd = { rel, mipmaps, onLoad, url: null, scale: 1 };
+  tex.userData.hd = { rel, mipmaps, retroFilter, onLoad, url: null, scale: 1 };
   textures.add(tex);
   tex.addEventListener('dispose', () => textures.delete(tex));
   applyFilter(tex);
@@ -65,14 +65,12 @@ function loadImage(tex) {
   img.src = url;
 }
 
-// Every tier filters bilinear with mipmaps (as the N64 RDP does); nearest sampling without
-// mipmaps turned distant textures into shimmering noise at 1x. HD tiers add anisotropy.
 function applyFilter(tex) {
-  const hd = tex.userData.hd;
-  tex.magFilter = THREE.LinearFilter;
-  tex.minFilter = hd.mipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
-  tex.generateMipmaps = hd.mipmaps;
-  tex.anisotropy = smooth() && hd.mipmaps ? maxAniso : 1;
+  const hd = tex.userData.hd, on = smooth();
+  tex.magFilter = on ? THREE.LinearFilter : hd.retroFilter;
+  tex.minFilter = on ? (hd.mipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter) : hd.retroFilter;
+  tex.generateMipmaps = on && hd.mipmaps;
+  tex.anisotropy = on && hd.mipmaps ? maxAniso : 1;
   if (tex.image) tex.needsUpdate = true;
 }
 

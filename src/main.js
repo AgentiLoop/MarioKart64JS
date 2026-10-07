@@ -94,7 +94,7 @@ if (cloudSet) {
   const idx = [];
   for (let i = 0; i < n; i++) idx.push(4 * i, 4 * i + 3, 4 * i + 1, 4 * i + 1, 4 * i + 3, 4 * i + 2);
   geo.setIndex(idx);
-  const map = HD.loadTexture(`sky/${cloudSet.texture}.png`, { mipmaps: false, onLoad: (t, scale) => {
+  const map = HD.loadTexture(`sky/${cloudSet.texture}.png`, { mipmaps: false, retroFilter: THREE.LinearFilter, onLoad: (t, scale) => {
     // per-quad UVs need the frame count (native image height / 32); N64 samples texel i at s = i
     const w = cloudSet.stars ? 16 : 64, h = cloudSet.stars ? 16 : 32, rows = t.image.height / scale;
     const uv = geo.attributes.uv;
