@@ -457,6 +457,7 @@ if (!trackDef) {
   fitScreen();
   buildCourseMenu();
   backToTitle();
+  audio.welcome();   // menu_items.c:2618 plays SOUND_INTRO_WELCOME as the title screen comes up
 } else {
   $('hud').style.display = 'block';
 }

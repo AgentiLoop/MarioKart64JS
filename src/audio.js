@@ -1,12 +1,46 @@
 // Tiny procedural WebAudio: engine hum, skid noise, countdown beeps, original chiptune race music.
 export class AudioSys {
-  constructor() { this.ctx = null; }
-  start() {
-    if (this.ctx) return;
+  constructor() { this.ctx = null; this.samples = {}; }
+  init() {
+    if (this.ctx) return this.ctx;
     const C = window.AudioContext || window.webkitAudioContext;
-    if (!C) return;
+    if (!C) return null;
     const ctx = this.ctx = new C();
     this.master = ctx.createGain(); this.master.gain.value = 0.25; this.master.connect(ctx.destination);
+    return ctx;
+  }
+  // ROM sample from tools/extract-sounds.py, played once the browser allows audio (first gesture if autoplay is blocked)
+  playSample(name, hits) {
+    const ctx = this.init();
+    if (!ctx) return;
+    const buf = this.samples[name] || (this.samples[name] =
+      fetch(`mk64/audio/${name}.wav`).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)));
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      buf.then(b => {
+        const t = ctx.currentTime;
+        for (const [delay, gain] of hits) {
+          const s = ctx.createBufferSource(), g = ctx.createGain();
+          s.buffer = b; g.gain.value = gain; s.connect(g); g.connect(ctx.destination); s.start(t + delay);
+        }
+      });
+    };
+    if (ctx.state === 'running') return go();
+    const unlock = () => {
+      removeEventListener('pointerdown', unlock); removeEventListener('keydown', unlock);
+      ctx.resume().then(go);
+    };
+    addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
+    ctx.resume().then(() => { if (ctx.state === 'running') unlock(); });
+  }
+  // SOUND_INTRO_WELCOME (seq 0 bank 4 sound 9, script 0x1AEC): bank 0 instrument 0x7C on two layers,
+  // delay 100 tatums at vel 100 and 112 tatums at vel 80 (120 BPM x 48 tatums = 96/s) for a short echo
+  welcome() { this.playSample('welcome', [[100 / 96, (100 / 127) ** 2 * 0.8], [112 / 96, (80 / 127) ** 2 * 0.8]]); }
+  start() {
+    if (this.eng || !this.init()) return;
+    const ctx = this.ctx;
     this.eng = ctx.createOscillator(); this.eng.type = 'sawtooth';
     this.eng2 = ctx.createOscillator(); this.eng2.type = 'square';
     this.engGain = ctx.createGain(); this.engGain.gain.value = 0.18;
