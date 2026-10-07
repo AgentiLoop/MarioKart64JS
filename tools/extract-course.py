@@ -299,19 +299,19 @@ def convert(source, rom, course_id):
         elif 'GeometryMode' in line and 'G_CULL_B' in line:
             culled = 'gSPSetGeometryMode' in line
         elif not culled:
-            no_cull.update(re.findall(rf'{dl}\w+|d_course_{course_id}_dl_\w+', line))
+            no_cull.update(re.findall(rf'{dl}\w+|d_course_{course_id}_\w*dl_\w+', line))
     sections = cfg.get('sections', [])
     passes = ([s for s in sections if s[1] != 'xlu'] + [(n, 'edge') for n in cfg['edge']] +
               [(n, 'xlu') for n in cfg.get('xlu', [])] + [s for s in sections if s[1] == 'xlu'] +
               [(cfg['root'], 'opaque')])
     for name, mode in passes:
         state['mode'] = mode
-        state['cull'] = resolve(name) not in no_cull
+        cull = state['cull'] = resolve(name) not in no_cull
         if name in arrays:
             for entry in re.findall(r'\w+', arrays[name]):
                 if entry in lists:
                     state['mode'] = mode  # render_course_segments submits one entry per call, so a
-                    state['cull'] = True  # wrapper's trailing render-mode change (e.g. DKJ dl_0) doesn't carry over
+                    state['cull'] = cull  # wrapper's trailing render-mode change (e.g. DKJ dl_0) doesn't carry over
                     walk(entry)
         else:
             walk(resolve(name))
