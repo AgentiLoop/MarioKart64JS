@@ -1,0 +1,11 @@
+name = "mk64js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+routes = [
+  { pattern = "mk64js.gokart.games", custom_domain = true },
+]
+
+[assets]
+directory = "./public"
+html_handling = "drop-trailing-slash"
+not_found_handling = "404-page"

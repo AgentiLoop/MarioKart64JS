@@ -2,6 +2,7 @@
 
 A browser clone of **Mario Kart 64** (built for testing purposes — to see how far AI/LLM tech can duplicate the game). Three.js + Vite, no emulator: the original N64 ROM's assets are extracted and re-used directly.
 
+- Fan site: https://mk64js.gokart.games (`website/`, Cloudflare Worker static assets — `cd website && npx wrangler deploy`)
 - `npm install && npm run dev` → http://localhost:5173
 - Title screen → SELECT COURSE → race (Enter / click / arrows)
 - Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · M course menu. Gamepad supported.

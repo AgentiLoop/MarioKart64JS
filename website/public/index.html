@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarioKart64JS: a fan-made Mario Kart 64 rebuilt in JavaScript</title>
+<meta name="description" content="MarioKart64JS is a fan research project that rebuilds Mario Kart 64 in the browser with Three.js. There is no emulator: the courses, music and sprites are extracted from the N64 ROM. Desktop builds for macOS, Windows and Linux.">
+<meta property="og:title" content="MarioKart64JS: Mario Kart 64, rebuilt in JavaScript">
+<meta property="og:description" content="All 16 courses, the original sequenced music, items and drifting. Three.js, no emulator.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mk64js.gokart.games/">
+<meta property="og:image" content="https://mk64js.gokart.games/img/race-mario.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="canonical" href="https://mk64js.gokart.games/">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="nav">
+  <a class="brand" href="#top"><img src="/favicon.svg" alt="" width="32" height="32"><span>MarioKart64JS</span></a>
+  <nav>
+    <a href="#features">Features</a>
+    <a href="#courses">Courses</a>
+    <a href="#controls">Controls</a>
+    <a href="#build">Build it</a>
+    <a class="btn small" href="#download">Download</a>
+  </nav>
+</header>
+
+<main id="top">
+<section class="hero">
+  <div class="hero-bg" style="background-image:url(/img/race-mario.jpg)"></div>
+  <div class="hero-in">
+    <p class="kicker">Fan project &middot; Three.js &middot; no emulator</p>
+    <h1 class="logo" aria-label="MarioKart64JS"><span>M</span><span>K</span><span>6</span><span>4</span><span class="js">JS</span></h1>
+    <p class="lead">Mario Kart 64, rebuilt from scratch in JavaScript. The courses, music, sprites and sounds are extracted straight from the N64 ROM, and the game code is a port of the decompiled original.</p>
+    <div class="cta">
+      <a class="btn big" href="#download" id="hero-dl">Download for <span data-os>your computer</span></a>
+      <a class="btn ghost big" href="https://github.com/AgentiLoop/MarioKart64JS">View source</a>
+    </div>
+    <p class="plat-line">macOS universal &nbsp;&middot;&nbsp; Windows x64 / arm64 &nbsp;&middot;&nbsp; Linux x64 / arm64 &nbsp;&middot;&nbsp; any browser</p>
+  </div>
+</section>
+
+<section class="stats">
+  <div><b>16</b><span>native courses</span></div>
+  <div><b>8</b><span>drivers</span></div>
+  <div><b>4&times;</b><span>HD texture tier</span></div>
+  <div><b>0</b><span>emulators</span></div>
+</section>
+
+<section class="wrap" id="features">
+  <h2>What's in the box</h2>
+  <p class="sub">An experiment in how far AI-assisted development can go at re-creating a classic. Here's what works today.</p>
+  <div class="grid3">
+    <article class="card"><h3>All 16 courses</h3><p>Every Mario Kart 64 track is rebuilt from the ROM's own course geometry and textures, decoded by small Python tools (MIO0, CI8, RGBA16, TKMK00).</p></article>
+    <article class="card"><h3>The real soundtrack</h3><p>A port of the decomp's sequence player decodes the VADPCM instruments and plays the original .m64 sequences in an AudioWorklet: title, menus and every course theme.</p></article>
+    <article class="card"><h3>Kart physics</h3><p>Karts ride the course surface in the track's frame and can't pass through walls. Ramps and crests send you airborne with the decomp's gravity and drag.</p></article>
+    <article class="card"><h3>Drift &amp; mini-turbo</h3><p>Hold Space to power-slide, release for a mini-turbo. Exhaust smoke puffs are ported from the original particle code.</p></article>
+    <article class="card"><h3>Items &amp; roulette</h3><p>Item boxes spawn where the ROM puts them. Hit one and the item window spins through shells, bananas, mushrooms and the rest, at the original timing.</p></article>
+    <article class="card"><h3>240p or HD</h3><p>Play at an N64-style 240 lines, or 2&times;, 4&times; and native resolution with optional HD textures from the MK64 Reloaded pack. Press G to cycle.</p></article>
+  </div>
+</section>
+
+<section class="band" id="courses">
+  <div class="wrap">
+    <h2>Screenshots</h2>
+    <p class="sub">Native resolution with the 4&times; HD textures. Click any shot to see it full size.</p>
+    <div class="gallery">
+      <a href="/img/title.jpg"><img src="/img/title.jpg" alt="Title screen" loading="lazy"><span>Title screen</span></a>
+      <a href="/img/course-select.jpg"><img src="/img/course-select.jpg" alt="Course select" loading="lazy"><span>Course select</span></a>
+      <a href="/img/character-select.jpg"><img src="/img/character-select.jpg" alt="Character select" loading="lazy"><span>Character select</span></a>
+      <a href="/img/race-mario.jpg"><img src="/img/race-mario.jpg" alt="Mario Raceway" loading="lazy"><span>Mario Raceway</span></a>
+      <a href="/img/race-royal.jpg"><img src="/img/race-royal.jpg" alt="Royal Raceway" loading="lazy"><span>Royal Raceway</span></a>
+      <a href="/img/race-koopa.jpg"><img src="/img/race-koopa.jpg" alt="Koopa Troopa Beach" loading="lazy"><span>Koopa Troopa Beach</span></a>
+      <a href="/img/race-sherbet.jpg"><img src="/img/race-sherbet.jpg" alt="Sherbet Land" loading="lazy"><span>Sherbet Land</span></a>
+      <a href="/img/race-dk.jpg"><img src="/img/race-dk.jpg" alt="D.K.'s Jungle Parkway" loading="lazy"><span>D.K.'s Jungle Parkway</span></a>
+      <a href="/img/race-yoshi.jpg"><img src="/img/race-yoshi.jpg" alt="Yoshi Valley" loading="lazy"><span>Yoshi Valley</span></a>
+      <a href="/img/race-bowser.jpg"><img src="/img/race-bowser.jpg" alt="Bowser's Castle" loading="lazy"><span>Bowser's Castle</span></a>
+      <a href="/img/race-banshee.jpg"><img src="/img/race-banshee.jpg" alt="Banshee Boardwalk" loading="lazy"><span>Banshee Boardwalk</span></a>
+      <a href="/img/race-toad.jpg"><img src="/img/race-toad.jpg" alt="Toad's Turnpike" loading="lazy"><span>Toad's Turnpike</span></a>
+      <a href="/img/race-rainbow.jpg"><img src="/img/race-rainbow.jpg" alt="Rainbow Road" loading="lazy"><span>Rainbow Road</span></a>
+    </div>
+    <p class="muted center">Full 3200&times;2400 PNGs are on the <a href="https://github.com/AgentiLoop/MarioKart64JS/releases/tag/v0.0.1">v0.0.1 release</a>.</p>
+  </div>
+</section>
+
+<section class="wrap" id="controls">
+  <h2>Controls</h2>
+  <p class="sub">Keyboard or gamepad. Enter, click or the arrow keys get you through the menus.</p>
+  <div class="keys">
+    <div><kbd>&uarr;</kbd><kbd>W</kbd><span>Gas</span></div>
+    <div><kbd>&darr;</kbd><kbd>S</kbd><span>Brake</span></div>
+    <div><kbd>&larr;</kbd><kbd>&rarr;</kbd><kbd>A</kbd><kbd>D</kbd><span>Steer</span></div>
+    <div><kbd>Space</kbd><span>Drift, release for mini-turbo</span></div>
+    <div><kbd>Shift</kbd><kbd>E</kbd><span>Use item</span></div>
+    <div><kbd>R</kbd><span>Restart</span></div>
+    <div><kbd>G</kbd><span>Resolution: 240p / 480p / 960p / native</span></div>
+    <div><kbd>N</kbd><span>Music on / off</span></div>
+    <div><kbd>M</kbd><span>Course menu</span></div>
+  </div>
+</section>
+
+<section class="band" id="download">
+  <div class="wrap">
+    <h2>Download</h2>
+    <p class="sub">Desktop builds of v0.0.1 (pre-release) wrap the game in Electron. The macOS build is signed and notarized.</p>
+    <div class="dl">
+      <a class="dl-card" data-plat="mac" href="https://github.com/AgentiLoop/MarioKart64JS/releases/download/v0.0.1/MarioKart64JS-0.0.1-mac-universal.zip"><b>macOS</b><span>Universal (Apple silicon + Intel) &middot; .zip</span></a>
+      <a class="dl-card" data-plat="win" href="https://github.com/AgentiLoop/MarioKart64JS/releases/download/v0.0.1/MarioKart64JS-0.0.1-win-x64.zip"><b>Windows x64</b><span>.zip</span></a>
+      <a class="dl-card" data-plat="win-arm" href="https://github.com/AgentiLoop/MarioKart64JS/releases/download/v0.0.1/MarioKart64JS-0.0.1-win-arm64.zip"><b>Windows arm64</b><span>.zip</span></a>
+      <a class="dl-card" data-plat="linux" href="https://github.com/AgentiLoop/MarioKart64JS/releases/download/v0.0.1/MarioKart64JS-0.0.1-linux-x64.tar.gz"><b>Linux x64</b><span>.tar.gz</span></a>
+      <a class="dl-card" data-plat="linux-arm" href="https://github.com/AgentiLoop/MarioKart64JS/releases/download/v0.0.1/MarioKart64JS-0.0.1-linux-arm64.tar.gz"><b>Linux arm64</b><span>.tar.gz</span></a>
+    </div>
+    <p class="muted center">Checksums: <a href="https://github.com/AgentiLoop/MarioKart64JS/releases/download/v0.0.1/SHA256SUMS.txt">SHA256SUMS.txt</a> &middot; <a href="https://github.com/AgentiLoop/MarioKart64JS/releases">all releases</a></p>
+  </div>
+</section>
+
+<section class="wrap" id="build">
+  <h2>Run it from source</h2>
+  <p class="sub">You need Node.js. The Python scripts in <code>tools/</code> re-extract the assets from a Mario Kart 64 (USA) ROM.</p>
+<pre><code>git clone https://github.com/AgentiLoop/MarioKart64JS.git
+cd MarioKart64JS
+npm install
+npm run dev        # http://localhost:5173</code></pre>
+  <p class="muted">Expected ROM SHA-1: <code>579c48e211ae952530ffc8738709f078d5dd215e</code>. HD textures are optional: <code>tools/build-hd-textures.py</code> builds them from the <a href="https://github.com/GhostlyDark/MK64-Reloaded">MK64 Reloaded</a> pack.</p>
+  <h3 class="gap">On the roadmap</h3>
+  <ul class="road">
+    <li>Character select highlighter for the animated faces</li>
+    <li>Battle mode on the 4 battle arenas</li>
+    <li>More gameplay parity: CC classes, AI personalities, Lakitu</li>
+  </ul>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>MarioKart64JS</b> is an unofficial fan research project testing how far AI/LLM tools can go at re-creating a game. It isn't affiliated with or endorsed by Nintendo. Mario Kart 64 and its characters, music and artwork are &copy; Nintendo. This site itself doesn&#39;t host any ROM or game files.</p>
+    <p class="muted">Built on the <a href="https://github.com/n64decomp/mk64">n64decomp/mk64</a> decompilation and <a href="https://github.com/GhostlyDark/MK64-Reloaded">MK64 Reloaded</a> textures. Also by us: <a href="https://gokart.games/">GoKart</a>, an original kart racer. &middot; <a href="https://github.com/AgentiLoop/MarioKart64JS">GitHub</a></p>
+  </div>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
