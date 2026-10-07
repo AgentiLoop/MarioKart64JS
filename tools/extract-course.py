@@ -386,7 +386,29 @@ def convert(source, rom, course_id):
         provenance['translucentLists'] = [resolve(n) for n in cfg['xlu']]
     if cfg.get('sections'):
         provenance['sectionArrays'] = [n for n, _ in cfg['sections']]
+    # Boost-ramp collision surfaces (TrackSections d_course_<course>_addr, read by
+    # parse_course_displaylists): BOOST_RAMP_ASPHALT (0xFE, Royal Raceway), BOOST_RAMP_WOOD (0xFC, DKJP).
+    ramps = {}
+    table = re.search(rf'TrackSections d_course_{course_id}_addr\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
+    for name, surface in re.findall(r'\{\s*(\w+),\s*(\w+),', table.group(1) if table else ''):
+        kind = {'BOOST_RAMP_ASPHALT': 'asphalt', '254': 'asphalt', 'BOOST_RAMP_WOOD': 'wood', '252': 'wood'}.get(surface)
+        if not kind:
+            continue
+        slots, stack = {}, [name]
+        while stack:
+            for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[stack.pop()], re.S):
+                a = [v.strip() for v in args.split(',')]
+                if command == 'gsSPDisplayList':
+                    stack.append(a[0])
+                elif command == 'gsSPVertex':
+                    address, count, start = [int(v, 0) for v in a]
+                    for i in range(count):
+                        slots[start + i] = (address & 0xffffff) // 16 + i
+                elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
+                    for j in range(0, len(a), 4):
+                        ramps.setdefault(kind, []).extend(slots[int(v, 0)] for v in a[j:j + 3])
     course = dict(name=cfg['name'], vertices=vertices, path=route[:-1], batches=list(batches.values()),
+                  **({'ramps': ramps} if ramps else {}),
                   textures=textures, provenance=dict(**provenance,
                   vertexRomOffset=vertex_offset, vertexBytesSha256=hashlib.sha256(packed).hexdigest(),
                   pathBlockRomOffset=path_block, pathBlockOffset=path_offset,

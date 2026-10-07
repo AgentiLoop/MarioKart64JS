@@ -4,6 +4,13 @@ import * as HD from './hd.js';
 
 const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
+// Airborne vertical physics, player_controller.c: vy += (gravityY - vy * 0.12 * kartFriction) / 6000 / unk_DAC
+// per frame (gKartGravityTable 2600, gKartFrictionTable 5800). Assumption: MK64's top speed of 9 units/frame
+// (gKartTopSpeedTable) maps to our MAX_SPEED at course scale 0.1, which fixes one MK64 frame in seconds.
+const MK_FPS = MAX_SPEED / 0.1 / 9;
+const KART_GRAVITY = 2600, GRAVITY_SCALE = 0.1 * MK_FPS * MK_FPS / 6000, AIR_DRAG = MK_FPS * 0.12 * 5800 / 6000;
+// func_8002AB70: BOOST_RAMP_ASPHALT (Royal Raceway) / BOOST_RAMP_WOOD (DKJP) kartGravity and unk_DAC
+const RAMP_AIR = { asphalt: { gravity: 3500, dac: 20 }, wood: { gravity: 1800, dac: 25 } };
 
 // View tables: n64decomp/mk64 src/kart_dma.c (neutral slope group 4).
 // Angle quantization: src/player_controller.c, func_8002934C.
@@ -93,6 +100,7 @@ export class Kart {
     const t = this.track;
     const absD = Math.abs(this.d);
     this.offroad = absD > HALF_WIDTH + 1.5;
+    this.top = MAX_SPEED * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
     let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
     if (this.offroad && this.boost <= 0) max *= 0.45;
     if (this.finished) input = { throttle: 0.3, brake: 0, steer: 0, drift: false };
@@ -177,20 +185,68 @@ export class Kart {
     this.syncMesh(dt);
   }
 
-  syncMesh() {
+  syncMesh(dt = 0) {
     const t = this.track;
     t.frameAt(this.s, this.frame);
     const f = this.frame;
     this.fwd.copy(f.T).multiplyScalar(Math.cos(this.psi)).addScaledVector(f.R, Math.sin(this.psi)).normalize();
     this.world.copy(f.pos).addScaledVector(f.R, this.d).addScaledVector(f.U, 0.0);
+    const { x, z } = this.world, px = this.prevX ?? x, pz = this.prevZ ?? z;
+    this.prevX = x; this.prevZ = z;
     // native courses: sit on the real surface (embankments, banked turns) instead of the route plane
-    const g = t.groundAt && t.groundAt(this.world.x, this.world.z, this.groundY ?? this.world.y);
-    if (g) {
+    let g = null;
+    if (t.groundAt) {
+      if (this.air) g = t.groundBelow(x, z, this.y + 0.5);
+      else {
+        g = t.groundAt(x, z, this.groundY ?? this.world.y);
+        // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the old route-plane fallback
+        // (there is no Lakitu rescue, so falling into water/void would strand the kart)
+        if (!g && this.groundY != null && this.vy > 0.5) g = t.groundBelow(x, z, this.groundY + 0.5);
+      }
+    }
+    // ballistic height: leave the ground when it falls away faster than gravity (ramp lips, crests)
+    if (this.y == null || !dt) { if (g) this.y = g.y; this.vy = 0; this.air = false; this.dac = 1; this.ramp = null; }
+    else {
+      // BOOST_RAMP_* surface: trigger_*_ramp_boost / apply_boost_ramp_*_effect hold top speed until touchdown
+      if (!this.air && g && g.ramp) this.ramp = g.ramp;
+      if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
+      // func_8002AB70: unk_DAC eases to the ramp's value (1/frame), else back to 1 (0.07/frame); >= 50 units up: 2
+      const target = this.ramp ? RAMP_AIR[this.ramp].dac : 1, step = (this.ramp ? 1 : 0.07) * MK_FPS * dt;
+      this.dac = this.dac + THREE.MathUtils.clamp(target - this.dac, -step, step);
+      if (this.air && !this.ramp && g && this.y - g.y >= 5) this.dac = 2 - 0.07;
+      const accel = () => (-(this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY) * GRAVITY_SCALE - AIR_DRAG * this.vy) / this.dac;
+      if (this.air) {
+        this.vy += accel() * dt; this.y += this.vy * dt;
+        // no Lakitu rescue: outside a ramp flight, ground well below the route (water, void) is floored at the route
+        const floor = !this.ramp && (!g || g.y < f.pos.y - 4) ? f.pos.y : g ? g.y : -Infinity;
+        if (this.y <= floor) {
+          this.air = false; this.y = floor; this.vy = 0;
+          if (!g || floor !== g.y) g = null;   // landed on the route plane
+          if (!g || !g.ramp) this.ramp = null;
+        }
+        else if (!g && this.y < f.pos.y - 30) { this.air = false; this.y = f.pos.y; this.vy = 0; this.ramp = null; }   // fell into the void
+      } else if (g) {
+        const fall = this.y + (this.vy + accel() * dt) * dt;
+        if (g.y < fall - 0.05) { this.air = true; this.vy += accel() * dt; this.y = fall; }
+        else {
+          const n = g.normal;   // vertical speed of the slope under the kart (not frame-to-frame, so steps don't launch)
+          this.vy = n.y > 0.2 ? THREE.MathUtils.clamp(-(n.x * (x - px) + n.z * (z - pz)) / (n.y * dt), -0.6 * Math.abs(this.v), 0.6 * Math.abs(this.v)) : 0;
+          this.y = g.y;
+          if (!g.ramp) this.ramp = null;
+        }
+      }
+    }
+    if (g && !this.air) {
       this.groundY = g.y; this.world.y = g.y;
       this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
       this.up.copy(this.groundN);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope
+    } else if (this.air) {
+      this.groundY = this.y; this.world.y = this.y;
+      this.up.copy(this.groundN || f.U);
+      this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
     } else {
+      this.y = this.world.y; this.vy = 0;
       this.groundY = this.world.y; this.groundN = null;
       this.up.copy(f.U);
     }

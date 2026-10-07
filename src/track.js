@@ -231,6 +231,10 @@ export class Track {
         map.get(key).push(t);
       }
     };
+    const rampOf = new Map();   // BOOST_RAMP_* collision surfaces (extract-course.py "ramps"): sorted vertex triple -> kind
+    for (const [kind, idx] of Object.entries(course.ramps || {})) {
+      for (let i = 0; i + 2 < idx.length; i += 3) rampOf.set(idx.slice(i, i + 3).sort((p, q) => p - q).join(), kind);
+    }
     for (const batch of course.batches) {
       for (let i = 0; i + 2 < batch.indices.length; i += 3) {
         const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
@@ -245,27 +249,42 @@ export class Track {
         if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
         const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
         const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
-        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal]) - 1);
+        const ramp = rampOf.get(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join()) || null;
+        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp]) - 1);
       }
     }
-    let hitNormal = null;
+    let hitNormal = null, hitRamp = null;
     const height = (x, z, yRef) => {
       let best = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal] = tris[t];
+        const [a, b, c, area, normal, ramp] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; }
+        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; }
       }
       return best;
     };
-    // Ground under (x, z) nearest to yRef: { y, normal } or null. Used by karts to ride slopes.
+    // Ground under (x, z) nearest to yRef: { y, normal, ramp } or null. Used by karts to ride slopes.
     this.groundAt = (x, z, yRef) => {
       const y = height(x, z, yRef);
-      return y === null ? null : { y, normal: hitNormal };
+      return y === null ? null : { y, normal: hitNormal, ramp: hitRamp };
+    };
+    // Highest ground at or below yTop under (x, z): { y, normal, ramp } or null. Used by airborne karts.
+    this.groundBelow = (x, z, yTop) => {
+      let best = null, n = null, r = null;
+      for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
+        const [a, b, c, area, normal, ramp] = tris[t];
+        const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
+        const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
+        const w = 1 - u - v;
+        if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
+        const y = u * a[1] + v * b[1] + w * c[1];
+        if (y <= yTop && (best === null || y > best)) { best = y; n = normal; r = ramp; }
+      }
+      return best === null ? null : { y: best, normal: n, ramp: r };
     };
     // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face?
     const blocked = (x0, z0, x1, z1, y) => {
