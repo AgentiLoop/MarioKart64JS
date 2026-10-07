@@ -95,6 +95,9 @@ export class AudioSys {
     if (ctx.state !== 'running') ctx.resume();
     this.sequencer().then(n => n.port.postMessage({ type: 'sfx', bank, id }));
   }
+  stopSound(bank, id) {
+    if (this.seqNode) this.seqNode.then(n => n.port.postMessage({ type: 'sfxStop', bank, id }));
+  }
   // bank 4: SOUND_MENU_CURSOR_MOVE 0x00, _SELECT 0x01, _GO_BACK 0x02, _OK_CLICKED 0x16
   menuSound(id) { this.playSound(4, id); }
   // driver picked (menus.c player_select_menu_act): bank 2, id = characterId * 0x10 + 0x0E

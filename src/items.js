@@ -10,6 +10,11 @@ const BOX_RESPAWN = 4;
 // Native item box (tools/extract-item-boxes.py, common_data D_0D003090 / itemBoxQuestionMarkModel /
 // D_0D002EE8): MK64 units scaled to the kart sprites; it hovers 8.66 units up (update_actor_item_box).
 const BOX_SCALE = 0.25, BOX_HOVER = 8.66 * BOX_SCALE, DEG = Math.PI / 180, FPS = 30;
+// Item window icons (tools/extract-item-window.py, gItemWindowTextures index): banana, red shell, mushroom
+export const ITEM_ICON = { slick: 1, orb: 5, turbo: 12 };
+// sounds (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id)): func_8007ABFC 0x19008406 box hit,
+// func_8007B254 0x0100FE1C roulette loop, func_8007B34C state 6 0x0100FE47 item decided
+const SND_BOX = [1, 0x06], SND_ROULETTE = [0, 0x1c], SND_DECIDED = [0, 0x47];
 
 // One mesh per display list: vertices [x, y, z, s, t, r, g, b, a] in MK64 units.
 function listMesh(list, material, tile) {
@@ -76,6 +81,54 @@ export class Items {
     for (const o of this.orbs) this.group.remove(o.mesh);
     this.hazards = []; this.orbs = [];
     for (const b of this.boxes) { b.cd = 0; b.mesh.visible = true; }
+    this.audio.stopSound(...SND_ROULETTE);
+  }
+
+  // Player item window: update_objects.c func_8007B34C (1P), one step per 30 Hz frame. win.slide is
+  // playerHUD.slideItemBoxY (0..64), win.tex the gItemWindowTextures index on screen.
+  startRoulette(k) {
+    k.win = { state: 2, slide: k.win ? k.win.slide : 0, tex: 0, skip: 50, ready: 0, acc: 0, item: null, init: false };
+    this.audio.playSound(...SND_BOX);
+    this.audio.playSound(...SND_ROULETTE);
+  }
+  // func_80072E54: step the icon first..last every `period` frames, `loops` times, then the next state
+  cycle(w, first, last, period, loops) {
+    if (!w.init) { w.init = true; w.tex = first; w.timer = period; w.loops = loops; return; }
+    if (--w.timer > 0) return;
+    w.timer = period;
+    if (++w.tex <= last) return;
+    if (--w.loops > 0) { w.tex = first; return; }
+    w.tex = last; w.init = false; w.state++;
+  }
+  // func_80072D3C: blink between icons a and b every period + 1 frames, `count` times, then the next state
+  blink(w, a, b, period, count) {
+    if (!w.init) { w.init = true; w.timer = period; w.tex = a; w.phase = 1; w.loops = count; return; }
+    if (--w.timer >= 0) return;
+    w.timer = period;
+    w.tex = --w.phase & 1 ? a : b;
+    if (w.phase >= 0) return;
+    w.phase = 1;
+    if (--w.loops === 0) { w.init = false; w.state++; }
+  }
+  windowStep(k, karts) {
+    const w = k.win;
+    switch (w.state) {
+      case 2: w.slide = Math.min(64, w.slide + 4); if (w.slide === 64) w.state = 3; break;
+      case 3: this.cycle(w, 1, 15, 2, 2); break;
+      case 4: this.cycle(w, 1, 6, 8, 1); break;
+      case 5: this.cycle(w, 1, 4, 16, 1); break;
+      case 6:
+        w.item = this.roll(k, karts); w.tex = ITEM_ICON[w.item]; w.ready = 8; w.skip = -1; w.init = false; w.state = 7;
+        this.audio.stopSound(...SND_ROULETTE);
+        this.audio.playSound(...SND_DECIDED);
+        break;
+      case 7: this.blink(w, ITEM_ICON[w.item], 0, 8, 10); break;
+      case 9: w.tex = 0; w.timer = 20; w.state = 10; break;   // item used: empty window, then slide away
+      case 10: if (--w.timer <= 0) w.state = 11; break;
+      case 11: w.slide = Math.max(0, w.slide - 4); if (w.slide === 0) k.win = null; return;
+    }
+    if (w.skip > 0) w.skip--;
+    if (w.ready > 0 && --w.ready === 0) k.item = w.item;   // unk_04C 8 frames, then set_type_object
   }
 
   place(mesh, s, d, h, yaw = 0) {
@@ -96,7 +149,11 @@ export class Items {
   }
 
   use(kart) {
+    const w = kart.win;
+    // Z after the first 50 frames stops the roulette early (unk_04C / unk_0D6 == 1 -> state 6)
+    if (w && w.state >= 2 && w.state <= 5) { if (w.skip === 0) { w.init = false; w.state = 6; } return; }
     if (!kart.item) return;
+    if (w && w.state >= 7) { w.init = false; w.state = 9; }
     const L = this.track.length;
     if (kart.item === 'turbo') {
       kart.boost = Math.max(kart.boost, 1.8); kart.v += 6; this.audio.sfx('turbo');
@@ -154,16 +211,18 @@ export class Items {
       for (const k of karts) {
         // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item
         if (Math.abs(this.delta(k.s, b.s)) < 3 && Math.abs(k.d - b.d) < 3) {
-          if (!k.item) {
-            k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2;
-            if (k.isPlayer) this.audio.sfx('pickup');
-          }
+          if (k.isPlayer) { if (!k.item && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
+          else if (!k.item) { k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2; }
           b.cd = BOX_RESPAWN; b.mesh.visible = false;
           break;
         }
       }
     }
-    for (const k of karts) k.invuln = Math.max(0, k.invuln - dt);
+    for (const k of karts) {
+      k.invuln = Math.max(0, k.invuln - dt);
+      if (!k.win) continue;
+      for (k.win.acc += dt; k.win && k.win.acc >= 1 / FPS; ) { k.win.acc -= 1 / FPS; this.windowStep(k, karts); }
+    }
     // slicks
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.ttl -= dt; let gone = h.ttl <= 0;

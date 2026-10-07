@@ -192,7 +192,11 @@ const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
 const items = new Items(track, scene, audio);
 const exhaust = new Exhaust(scene);
-const itemEl = $('item');
+const itemEl = $('item'), itemWin = $('itemWin'), itemName = $('itemName');
+// gItemWindowTextures order (tools/extract-item-window.py); preloaded so the roulette never waits on a fetch
+const ITEM_WINDOW = ['none', 'banana', 'banana_bunch', 'green_shell', 'triple_green_shell', 'red_shell', 'triple_red_shell',
+  'blue_shell', 'thunder_bolt', 'fake_item_box', 'star', 'boo', 'mushroom', 'double_mushroom', 'triple_mushroom',
+  'super_mushroom'].map((n, i) => { const img = new Image(); img.src = `mk64/item-window/${String(i).padStart(2, '0')}-${n}.png`; return img.src; });
 const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
@@ -697,7 +701,15 @@ function frame(now) {
       items.update(h, karts);
     }
   }
-  itemEl.textContent = player.item ? ITEM_LABELS[player.item] : 'NO ITEM';
+  const win = player.win;
+  itemEl.style.display = win ? 'block' : 'none';
+  if (win) {
+    const s = Math.min(innerWidth / 320, innerHeight / 240);
+    itemEl.style.top = `${(win.slide - 48) * s}px`;   // centre y = itemBoxY (-32) + slideItemBoxY, 32 px tall
+    itemWin.style.width = `${40 * s}px`; itemWin.style.height = `${32 * s}px`;
+    if (itemWin.getAttribute('src') !== ITEM_WINDOW[win.tex]) itemWin.setAttribute('src', ITEM_WINDOW[win.tex]);
+    itemName.textContent = player.item ? ITEM_LABELS[player.item] : '';
+  }
   const order = rank();
   const place = order.indexOf(player) + 1;
   posEl.innerHTML = posStrokeEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;

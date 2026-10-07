@@ -146,6 +146,14 @@ export class M64 {
     this.sfxNext = this.sfxNext || [];
     const i = this.sfxNext[bank] = ((this.sfxNext[bank] ?? -1) + 1) % slots[bank];
     (this.sfxQueue = this.sfxQueue || []).push([base + i, id]);
+    (this.sfxIds = this.sfxIds || [])[base + i] = id;
+  }
+  // Stop a looping sound (external.c func_800C5578 -> io[0] = 0 on its channel), if it still owns one.
+  sfxStop(bank, id) {
+    const slots = [4, 2, 2, 2, 2, 1], base = slots.slice(0, bank).reduce((a, b) => a + b, 0);
+    for (let ch = base; ch < base + slots[bank]; ch++) {
+      if (this.sfxIds?.[ch] === id) { this.sfxIds[ch] = undefined; (this.sfxQueue = this.sfxQueue || []).push([ch, -1]); }
+    }
   }
 
   // ---------- sequence player (seqplayer.c) ----------
@@ -729,7 +737,8 @@ export class M64 {
     if (this.sfxQueue?.length && sp.enabled && sp.channels.length) {
       for (const [ch, id] of this.sfxQueue.splice(0)) {
         const c = sp.channels[ch];
-        if (c) { c.io[3] = 127; c.io[0] = 1; c.io[4] = id; }
+        if (c && id < 0) c.io[0] = 0;
+        else if (c) { c.io[3] = 127; c.io[0] = 1; c.io[4] = id; }
       }
     }
     for (const p of this.players) if (p.enabled) { this.processSequence(p); if (p.enabled) this.processSound(p); }
