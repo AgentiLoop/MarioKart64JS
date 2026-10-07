@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MarioKart64JS: a fan-made Mario Kart 64 rebuilt in JavaScript</title>
-<meta name="description" content="MarioKart64JS is a fan research project that rebuilds Mario Kart 64 in the browser with Three.js. There is no emulator: the courses, music and sprites are extracted from the N64 ROM. Desktop builds for macOS, Windows and Linux.">
+<meta name="description" content="MarioKart64JS is a fan research project that rebuilds Mario Kart 64 in the browser with Three.js. There is no emulator: AI agents distilled the lo-res graphics and reconstructed the sound from the n64decomp/mk64 decompilation, with hi-res graphics from the MK64 Reloaded pack. Desktop builds for macOS, Windows and Linux.">
 <meta property="og:title" content="MarioKart64JS: Mario Kart 64, rebuilt in JavaScript">
 <meta property="og:description" content="All 16 courses, the original sequenced music, items and drifting. Three.js, no emulator.">
 <meta property="og:type" content="website">
@@ -34,7 +34,7 @@
   <div class="hero-in">
     <p class="kicker">Fan project &middot; Three.js &middot; no emulator</p>
     <h1 class="logo" aria-label="MarioKart64JS"><span>M</span><span>K</span><span>6</span><span>4</span><span class="js">JS</span></h1>
-    <p class="lead">Mario Kart 64, rebuilt from scratch in JavaScript. The courses, music, sprites and sounds are extracted straight from the N64 ROM, and the game code is a port of the decompiled original.</p>
+    <p class="lead">Mario Kart 64, rebuilt from scratch in JavaScript. Built by AI agents: lo-res graphics and sound were distilled and reconstructed from the n64decomp/mk64 decompilation, hi-res graphics come from MK64 Reloaded (press G), and the game code is a port of the decompiled original.</p>
     <div class="cta">
       <a class="btn big" href="#download" id="hero-dl">Download for <span data-os>your computer</span></a>
       <a class="btn ghost big" href="https://github.com/AgentiLoop/MarioKart64JS">View source</a>
@@ -54,7 +54,7 @@
   <h2>What's in the box</h2>
   <p class="sub">An experiment in how far AI-assisted development can go at re-creating a classic. Here's what works today.</p>
   <div class="grid3">
-    <article class="card"><h3>All 16 courses</h3><p>Every Mario Kart 64 track is rebuilt from the ROM's own course geometry and textures, decoded by small Python tools (MIO0, CI8, RGBA16, TKMK00).</p></article>
+    <article class="card"><h3>All 16 courses</h3><p>Every Mario Kart 64 track is rebuilt from course geometry and textures distilled from the n64decomp/mk64 decompilation.</p></article>
     <article class="card"><h3>The real soundtrack</h3><p>A port of the decomp's sequence player decodes the VADPCM instruments and plays the original .m64 sequences in an AudioWorklet: title, menus and every course theme.</p></article>
     <article class="card"><h3>Kart physics</h3><p>Karts ride the course surface in the track's frame and can't pass through walls. Ramps and crests send you airborne with the decomp's gravity and drag.</p></article>
     <article class="card"><h3>Drift &amp; mini-turbo</h3><p>Hold Space to power-slide, release for a mini-turbo. Exhaust smoke puffs are ported from the original particle code.</p></article>
@@ -119,12 +119,12 @@
 
 <section class="wrap" id="build">
   <h2>Run it from source</h2>
-  <p class="sub">You need Node.js. The Python scripts in <code>tools/</code> re-extract the assets from a Mario Kart 64 (USA) ROM.</p>
+  <p class="sub">You need Node.js.</p>
 <pre><code>git clone https://github.com/AgentiLoop/MarioKart64JS.git
 cd MarioKart64JS
 npm install
 npm run dev        # http://localhost:5173</code></pre>
-  <p class="muted">Expected ROM SHA-1: <code>579c48e211ae952530ffc8738709f078d5dd215e</code>. HD textures are optional: <code>tools/build-hd-textures.py</code> builds them from the <a href="https://github.com/GhostlyDark/MK64-Reloaded">MK64 Reloaded</a> pack.</p>
+  <p class="muted">Hi-res graphics (press G) come from the <a href="https://github.com/GhostlyDark/MK64-Reloaded">MK64 Reloaded</a> pack.</p>
   <h3 class="gap">On the roadmap</h3>
   <ul class="road">
     <li>Character select highlighter for the animated faces</li>
