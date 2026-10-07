@@ -47,7 +47,7 @@ VRAM sane. Missing images fall back to the ROM originals.
 
 ## Roadmap
 
-- Character select with animated faces
+- Character select with animated faces (partial, missing highlighter)
 - Battle mode (4 battle arenas)
 - More gameplay parity (CC classes, AI personalities, Lakitu)
 
