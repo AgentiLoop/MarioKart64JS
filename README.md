@@ -1,5 +1,7 @@
 # MarioKart64JS
 
+<img width="800" height="661" alt="MarioKart64CloneTitle" src="https://github.com/user-attachments/assets/d0b1c1ef-5d04-4c61-b5e4-c3b3750ceeb7" />
+
 A browser clone of **Mario Kart 64** (built for testing purposes — to see how far AI/LLM tech can duplicate the game). Three.js + Vite, no emulator: the original N64 ROM's assets are extracted and re-used directly.
 
 - `npm install && npm run dev` → http://localhost:5173
@@ -54,8 +56,9 @@ VRAM sane. Missing images fall back to the ROM originals.
 - Battle mode (4 battle arenas)
 - More gameplay parity (CC classes, AI personalities, Lakitu)
 
-Reference: [n64decomp/mk64](https://github.com/n64decomp/mk64).
+## References:
 
-Hi-res graphics from [MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
+- lo-res graphics and sound in note form distilled from [n64decomp/mk64](https://github.com/n64decomp/mk64).
+- hi-res graphics distilled from [GhostlyDark/MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
 
 *This is a fan research project for AI-duplication testing. Mario Kart 64 is © Nintendo; assets belong to Nintendo and this repo is not affiliated with or endorsed by Nintendo.*
