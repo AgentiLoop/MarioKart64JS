@@ -14,7 +14,7 @@ export const PRESETS = [
   { id: '4x', label: '4× 960p', lines: 960 },
   { id: 'native', label: 'Native', lines: 0 },
 ];
-let preset = Math.max(0, PRESETS.findIndex(p => p.id === localStorage.getItem('mk64res')));
+let preset = Math.max(0, PRESETS.findIndex(p => p.id === globalThis.localStorage?.getItem('mk64res')));   // no storage under node tests
 let files = {};            // 'mario-raceway/gMRTextureRoad0.png' -> highest tier built
 let maxAniso = 1;
 const textures = new Set();
@@ -84,9 +84,12 @@ function refresh() {
   listeners.forEach(fn => fn());
 }
 
-export const ready = fetch(`${BASE}mk64-hd/manifest.json`)
+const browser = typeof document !== 'undefined';   // tools/test-*.mjs import track.js under node
+export const ready = browser && fetch(`${BASE}mk64-hd/manifest.json`)
   .then(r => (r.ok ? r.json() : {}))
   .catch(() => ({}))
   .then(m => { files = m.files || {}; refresh(); });
-document.documentElement.classList.toggle('hd', smooth());
-addEventListener('resize', () => { if (PRESETS[preset].lines === 0) refresh(); });
+if (browser) {
+  document.documentElement.classList.toggle('hd', smooth());
+  addEventListener('resize', () => { if (PRESETS[preset].lines === 0) refresh(); });
+}

@@ -173,6 +173,19 @@ function setup() {
 // track menu (shown until a track is picked; picking reloads with ?track=id)
 const $ = id => document.getElementById(id);
 const banner = $('banner'), posEl = $('pos'), posStrokeEl = $('posStroke'), lapEl = $('lapText'), timeEl = $('time'), speedEl = $('speed');
+// round-joined outline + solid drop shadow from text-shadow rings (-webkit-text-stroke gives miter spikes)
+const ring = (r, dy, c) => {
+  const out = [];
+  for (const rr of [r, r * 0.5]) {
+    const n = Math.max(16, Math.ceil(2 * Math.PI * rr / 1.5));
+    for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI; out.push(`${(Math.cos(a) * rr).toFixed(2)}px ${(Math.sin(a) * rr + dy).toFixed(2)}px 0 ${c}`); }
+  }
+  return out;
+};
+const outline = (el, r, color, dy) => { el.style.textShadow = [...ring(r, 0, color), ...ring(r, dy, '#000'), `0 ${dy}px 0 #000`].join(','); };
+outline($('hud'), 3, '#000', 3);
+outline(banner, 6, '#b3200f', 8);
+outline(posStrokeEl, 5, '#1a1a6e', 6);
 const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
@@ -681,4 +694,4 @@ function frame(now) {
 let lastTick = 4;
 if (trackDef) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys };
+window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys, renderer, scene, camera };

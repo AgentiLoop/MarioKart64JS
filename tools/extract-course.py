@@ -68,6 +68,81 @@ def numbers(text):
     return [int(n, 0) for n in re.findall(r'-?0x[0-9a-fA-F]+|-?\d+', text)]
 
 
+def overlap_area(p, q):
+    """Area shared by two counter-clockwise 2D triangles (Sutherland-Hodgman clip)."""
+    out = p
+    for i in range(3):
+        a, b = q[i], q[(i + 1) % 3]
+        side = lambda v: (b[0] - a[0]) * (v[1] - a[1]) - (b[1] - a[1]) * (v[0] - a[0])
+        src, out = out, []
+        for k, e in enumerate(src):
+            s = src[k - 1]
+            if (side(e) >= 0) != (side(s) >= 0):
+                t = side(s) / (side(s) - side(e))
+                out.append((s[0] + t * (e[0] - s[0]), s[1] + t * (e[1] - s[1])))
+            if side(e) >= 0:
+                out.append(e)
+        if len(out) < 3:
+            return 0
+    return abs(sum(out[k - 1][0] * v[1] - v[0] * out[k - 1][1] for k, v in enumerate(out))) / 2
+
+
+def decal_layers(vertices, drawn, batches):
+    """Depth layer per triangle (by draw order) drawn over coplanar scenery of other batches.
+
+    The RDP's opaque z compare lets a surface pass at the depth already stored (within its dz), so
+    where two coplanar triangles overlap the one drawn later shows. A depth buffer without that
+    tolerance flickers between them, so a triangle drawn over an earlier coplanar triangle gets a
+    higher layer (its batch is rendered with a polygon offset towards the camera).
+    """
+    tris = []
+    for order, (key, tri) in enumerate(drawn):
+        p = [vertices[i][:3] for i in tri]
+        u, w = [p[1][i] - p[0][i] for i in range(3)], [p[2][i] - p[0][i] for i in range(3)]
+        n = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
+        length = sum(c * c for c in n) ** 0.5
+        if length < 1e-6:
+            continue
+        n = tuple(c / length for c in n)
+        axis = max(range(3), key=lambda i: abs(n[i]))   # project away the dominant normal axis
+        i, j = [k for k in range(3) if k != axis]
+        flat = [(v[i], v[j]) for v in p]
+        if (flat[1][0] - flat[0][0]) * (flat[2][1] - flat[0][1]) - (flat[2][0] - flat[0][0]) * (flat[1][1] - flat[0][1]) < 0:
+            flat.reverse()
+        tris.append(dict(key=key, order=order, p=p, n=n, d=sum(n[k] * p[0][k] for k in range(3)), axis=axis, flat=flat,
+                         lo=[min(v[k] for v in p) for k in range(3)], hi=[max(v[k] for v in p) for k in range(3)]))
+    cell, grid = 128, {}
+    for t in tris:
+        for x in range(int(t['lo'][0] // cell), int(t['hi'][0] // cell) + 1):
+            for z in range(int(t['lo'][2] // cell), int(t['hi'][2] // cell) + 1):
+                grid.setdefault((x, z), []).append(t)
+    over = {}   # triangle draw order -> earlier coplanar triangles (other batches) it covers
+    checked = set()
+    for bucket in grid.values():
+        for a in range(len(bucket)):
+            for b in range(a + 1, len(bucket)):
+                s, t = bucket[a], bucket[b]
+                if s['key'] == t['key'] or (s['order'], t['order']) in checked:
+                    continue
+                checked.add((s['order'], t['order']))
+                if any(s['hi'][k] < t['lo'][k] - 0.5 or t['hi'][k] < s['lo'][k] - 0.5 for k in range(3)):
+                    continue
+                dot = sum(s['n'][k] * t['n'][k] for k in range(3))
+                two = batches[s['key']].get('doubleSided') or batches[t['key']].get('doubleSided')
+                if dot < 0.999 and not (two and dot < -0.999):
+                    continue
+                if any(abs(sum(t['n'][k] * v[k] for k in range(3)) - t['d']) > 0.5 for v in s['p']):
+                    continue
+                if s['axis'] != t['axis'] or overlap_area(s['flat'], t['flat']) < 0.5:
+                    continue
+                early, late = (s, t) if s['order'] < t['order'] else (t, s)
+                over.setdefault(late['order'], []).append(early['order'])
+    layers = {}
+    for order in sorted(over):   # draw order: everything a triangle covers already has its layer
+        layers[order] = max(layers.get(e, 0) + 1 for e in over[order])
+    return layers
+
+
 def convert(source, rom, course_id):
     cfg = COURSES[course_id]
     dl = f'd_course_{course_id}_packed_dl_'
@@ -122,6 +197,7 @@ def convert(source, rom, course_id):
     cache = {}
     visited = set()
     seen = set()
+    drawn = []   # (batch key, triangle) in display-list order
     formats = {}
 
     def wrap(value):
@@ -151,6 +227,8 @@ def convert(source, rom, course_id):
                 if a[-1] == 'G_ON' and a[:2] != ['0xFFFF', '0xFFFF']:
                     raise ValueError('Unsupported texture scale')
                 state['enabled'] = a[-1] == 'G_ON'
+            elif command in ('gsSPSetGeometryMode', 'gsSPClearGeometryMode') and 'G_CULL_B' in args:
+                state['cull'] = command == 'gsSPSetGeometryMode'
             elif command == 'gsDPSetRenderMode':
                 state['mode'] = ('xlu' if 'XLU' in a[0] + a[1] else
                                  'edge' if 'TEX_EDGE' in a[1] else 'opaque')
@@ -181,7 +259,7 @@ def convert(source, rom, course_id):
                 if texture:
                     formats[texture] = state['format']
                 key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'],
-                       state['mode'] == 'edge', state['mode'] == 'xlu', state['origin'])
+                       state['mode'] == 'edge', state['mode'] == 'xlu', state['origin'], state['cull'])
                 batch = batches.get(key)
                 if batch is None:
                     batch = batches[key] = dict(texture=texture, width=key[1], height=key[2],
@@ -190,11 +268,14 @@ def convert(source, rom, course_id):
                         batch['translucent'] = True
                     if key[7] != (0, 0):
                         batch['tileOrigin'] = list(key[7])
+                    if not key[8]:
+                        batch['doubleSided'] = True   # drawn with G_CULL_BACK cleared
                 for j in range(0, len(a), 4):
                     tri = tuple(cache[int(v, 0)] for v in a[j:j + 3])
                     if (texture, tri) not in seen:  # sections repeat shared lists
                         seen.add((texture, tri))
                         batch['indices'].extend(tri)
+                        drawn.append((key, tri))
             elif command not in ('gsDPTileSync', 'gsDPLoadSync', 'gsDPLoadBlock', 'gsDPSetTile',
                                  'gsSPEndDisplayList', 'gsDPSetCombineMode', 'gsDPPipeSync',
                                  'gsSPSetGeometryMode', 'gsSPClearGeometryMode', 'gsDPSetBlendMask',
@@ -209,17 +290,29 @@ def convert(source, rom, course_id):
 
     # Pass order mirrors render_<course>: opaque section arrays, separately submitted alpha-edge
     # lists, the translucent pass; the full static root last catches anything else.
+    # Lists the race renderer submits between gSPClearGeometryMode(G_CULL_BACK) and the matching
+    # set (render_<course> in render_courses.c); everything else draws back-face culled.
+    no_cull, culled = set(), True
+    for line in texts['src/racing/render_courses.c'].splitlines():
+        if line.startswith('void '):
+            culled = True
+        elif 'GeometryMode' in line and 'G_CULL_B' in line:
+            culled = 'gSPSetGeometryMode' in line
+        elif not culled:
+            no_cull.update(re.findall(rf'{dl}\w+|d_course_{course_id}_dl_\w+', line))
     sections = cfg.get('sections', [])
     passes = ([s for s in sections if s[1] != 'xlu'] + [(n, 'edge') for n in cfg['edge']] +
               [(n, 'xlu') for n in cfg.get('xlu', [])] + [s for s in sections if s[1] == 'xlu'] +
               [(cfg['root'], 'opaque')])
     for name, mode in passes:
         state['mode'] = mode
+        state['cull'] = resolve(name) not in no_cull
         if name in arrays:
             for entry in re.findall(r'\w+', arrays[name]):
                 if entry in lists:
                     state['mode'] = mode  # render_course_segments submits one entry per call, so a
-                    walk(entry)           # wrapper's trailing render-mode change (e.g. DKJ dl_0) doesn't carry over
+                    state['cull'] = True  # wrapper's trailing render-mode change (e.g. DKJ dl_0) doesn't carry over
+                    walk(entry)
         else:
             walk(resolve(name))
     # Lists reached only by course_generate_collision_mesh (invisible collision geometry), by
@@ -243,6 +336,14 @@ def convert(source, rom, course_id):
     if missing:
         raise ValueError(f'Unvisited geometry lists: {sorted(missing)}')
     batches = {k: b for k, b in batches.items() if b['indices']}
+    # split batches by decal layer (triangles keep their display-list order inside each batch)
+    layers, split = decal_layers(vertices, drawn, batches), {}
+    for order, (key, tri) in enumerate(drawn):
+        layer = layers.get(order, 0)
+        if (key, layer) not in split:
+            split[(key, layer)] = dict(batches[key], indices=[], **({'layer': layer} if layer else {}))
+        split[(key, layer)]['indices'].extend(tri)
+    batches = split
     assets = json.loads(texts['assets.json'])
     course_assets = json.loads(texts[inputs[7]])
     symbols = dict(re.findall(r'glabel (\w+)\s*\.incbin "([^"]+)"', texts['data/other_textures.s']))

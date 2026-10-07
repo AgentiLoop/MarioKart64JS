@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as HD from './hd.js';
 
 // Original item system: item boxes, Turbo (self boost), Slick (oil puddle dropped behind),
 // Seeker (orb that chases the kart ahead). Everything lives in track coordinates (s, d).
@@ -6,24 +7,40 @@ export const ITEM_LABELS = { turbo: '⚡ TURBO', slick: '● SLICK', orb: '◎ S
 const BOX_SPOTS = [0.06, 0.22, 0.40, 0.55, 0.72, 0.90];   // fractions of track length
 const BOX_D = [-6, 0, 6];
 const BOX_RESPAWN = 4;
+// Native item box (tools/extract-item-boxes.py, common_data D_0D003090 / itemBoxQuestionMarkModel /
+// D_0D002EE8): MK64 units scaled to the kart sprites; it hovers 8.66 units up (update_actor_item_box).
+const BOX_SCALE = 0.25, BOX_HOVER = 8.66 * BOX_SCALE, DEG = Math.PI / 180, FPS = 30;
 
-// 16x16 pixel-art item crystal, drawn procedurally and shown as a nearest-filtered billboard sprite.
-function boxTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 16;
-  const g = c.getContext('2d');
-  const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
-  px(2, 1, 12, 14, '#0b2a6b');          // outline
-  px(3, 2, 10, 12, '#ffd23a');          // body
-  px(3, 2, 10, 2, '#fff3a8');           // top light
-  px(3, 12, 10, 2, '#e08a12');          // bottom shade
-  px(1, 3, 1, 10, '#0b2a6b'); px(14, 3, 1, 10, '#0b2a6b');
-  px(3, 2, 1, 10, '#fff3a8');           // left highlight
-  // "?" glyph
-  const q = ['..XXXX..', '.XX..XX.', '.....XX.', '....XX..', '...XX...', '........', '...XX...', '...XX...'];
-  q.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === 'X') px(4 + x, 4 + y, 1, 1, '#2a63c8'); }));
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-  return t;
+// One mesh per display list: vertices [x, y, z, s, t, r, g, b, a] in MK64 units.
+function listMesh(list, material, tile) {
+  const pos = [], col = [], uv = [], c = new THREE.Color();
+  for (const tri of list.triangles) for (const i of tri) {
+    const [x, y, z, s, t, r, g, b, a] = list.vertices[i];
+    pos.push(x * BOX_SCALE, y * BOX_SCALE, z * BOX_SCALE);
+    c.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
+    col.push(c.r, c.g, c.b, a / 255);
+    if (tile) uv.push(s / 32 / tile[0], t / 32 / tile[1]);   // S10.5 texels, PNG rows top-down
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  if (tile) g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return new THREE.Mesh(g, material);
+}
+
+async function loadBoxModel() {
+  const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/item-box/item-boxes.json`);
+  const { model, questionMark } = await res.json();
+  const map = HD.loadTexture(`item-box/${questionMark.image}`);
+  map.colorSpace = THREE.SRGBColorSpace; map.flipY = false;
+  return {
+    // G_CC_SHADE, G_RM_ZB_CLD_SURF: rainbow shade colours at alpha 153, back faces culled
+    box: listMesh(model.box, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false })),
+    // G_CC_MODULATERGBA, G_RM_AA_ZB_TEX_EDGE, drawn with G_CULL_BACK cleared
+    card: listMesh(model.questionMark, new THREE.MeshBasicMaterial({ map, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false }), [questionMark.width, questionMark.height]),
+    // G_CC_SHADE, G_RM_ZB_XLU_SURF: black at alpha 128
+    shadow: listMesh(model.shadow, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false })),
+  };
 }
 
 export class Items {
@@ -31,19 +48,27 @@ export class Items {
     this.track = track; this.scene = scene; this.audio = audio;
     this.group = new THREE.Group(); scene.add(this.group);
     this.fr = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
-    const boxMat = new THREE.SpriteMaterial({ map: boxTex(), alphaTest: 0.5 });
     this.boxes = [];
     for (const u of BOX_SPOTS) for (const d of BOX_D) {
-      const mesh = new THREE.Sprite(boxMat);
-      mesh.scale.set(2.4, 2.4, 1);
+      const mesh = new THREE.Group();
       this.group.add(mesh);
-      this.boxes.push({ s: u * track.length, d, mesh, cd: 0, spin: 0 });
+      this.boxes.push({ s: u * track.length, d, mesh, cd: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ'), parts: null });
     }
+    this.boxModel = loadBoxModel().then(m => {
+      for (const b of this.boxes) {
+        const box = m.box.clone(), card = m.card.clone(), shadow = m.shadow.clone();
+        box.position.y = card.position.y = BOX_HOVER;
+        shadow.position.y = 2 * BOX_SCALE;   // resetDistance + 2
+        box.renderOrder = 2;                 // translucent shell over the "?" card
+        b.mesh.add(shadow, card, box);
+        b.parts = { box, card, shadow };
+      }
+    });
     this.orbGeo = new THREE.SphereGeometry(0.8, 16, 12);
     this.orbMat = new THREE.MeshBasicMaterial({ color: 0x35e0ff });
     this.slickGeo = new THREE.CircleGeometry(2.0, 20); this.slickGeo.rotateX(-Math.PI / 2);
     this.slickMat = new THREE.MeshLambertMaterial({ color: 0x120a1c, emissive: 0x2b0f55 });
-    this.hazards = []; this.orbs = []; this.time = 0;
+    this.hazards = []; this.orbs = [];
   }
 
   reset() {
@@ -114,11 +139,17 @@ export class Items {
   }
 
   update(dt, karts) {
-    this.time += dt;
     for (const b of this.boxes) {
       if (b.cd > 0) { b.cd -= dt; b.mesh.visible = b.cd <= 0; }
-      b.spin += 1.6 * dt;
-      this.place(b.mesh, b.s, b.d, 1.6 + Math.sin(this.time * 2 + b.s) * 0.2, b.spin);
+      // update_actor_item_box state 2: rot x +1, y -2, z +1 degrees per frame; the box turns on all
+      // three axes, the "?" card only about Y at twice the box's yaw, the shadow at its yaw
+      b.rot.x += DEG * FPS * dt; b.rot.y -= 2 * DEG * FPS * dt; b.rot.z += DEG * FPS * dt;
+      this.place(b.mesh, b.s, b.d, 0.05);
+      if (b.parts) {
+        b.parts.box.rotation.copy(b.rot);
+        b.parts.card.rotation.y = 2 * b.rot.y;
+        b.parts.shadow.rotation.y = b.rot.y;
+      }
       if (b.cd > 0) continue;
       for (const k of karts) {
         // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item

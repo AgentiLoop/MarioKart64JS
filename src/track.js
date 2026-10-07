@@ -416,10 +416,13 @@ export class Track {
         this.textures.push(map);
       }
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-        map, vertexColors: true, side: THREE.DoubleSide, toneMapped: false, fog: false,
+        map, vertexColors: true, toneMapped: false, fog: false,
+        side: batch.doubleSided ? THREE.DoubleSide : THREE.FrontSide,   // G_CULL_BACK unless the list clears it
         alphaTest: batch.alphaTest ? 0.5 : 0,   // G_RM_AA_ZB_TEX_EDGE lists
         // G_RM_AA_ZB_XLU_* lists blend by texture alpha (course vertex alpha is always 0 in the ROM)
         transparent: !!batch.translucent, depthWrite: !batch.translucent,
+        // drawn over coplanar scenery: the RDP lets the later surface win at equal depth
+        polygonOffset: !!batch.layer, polygonOffsetFactor: -(batch.layer || 0), polygonOffsetUnits: -2 * (batch.layer || 0),
       }));
       if (batch.translucent) mesh.renderOrder = 1;
       mesh.name = batch.texture || 'shade';

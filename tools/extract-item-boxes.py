@@ -55,6 +55,8 @@ def decode_list(data, offset):
             tris.append([cache[(w1 >> s & 0xFF) // 2] for s in (16, 8, 0)])
         elif op == 0xFC:
             state['combine'] = COMBINE[(w0 << 32) | w1]
+        elif op == 0xB9 and (w0 & 0xFFFF) == 0x0002:    # G_SETOTHERMODE_L alpha compare (G_AC_NONE)
+            pass
         elif op == 0xB9 and (w0 & 0xFFFF) == 0x031D:    # G_SETOTHERMODE_L render mode
             state['renderMode'] = RENDER_MODE[w1]
         elif op == 0xFD:                                # G_SETTIMG

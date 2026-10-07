@@ -24,9 +24,17 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - `extract-faces.py` — character-select face animation frames (17 per driver)
 - `extract-previews.py` — course preview thumbnails (16 race + 4 battle)
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
-- `extract-item-boxes.py` — item box sprites
+- `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
 
 ROM SHA-1: `579c48e211ae952530ffc8738709f078d5dd215e`
+
+### Graphics QC
+
+`node tools/qc-graphics.mjs [--course mario] [--presets 1x,4x] [--shots /tmp/mk64-qc]` starts Vite and drives
+every course in headless Chromium (needs `playwright-core`; set `PLAYWRIGHT_CORE` to its path if it is not
+installed locally). It fails on failed requests, console errors, textures not loaded at the expected HD
+tier, and z-fighting: each view is rendered as a flat per-batch ID buffer and again with sub-millimetre
+camera jitter, and pixels inside a surface that change batch are counted as flicker.
 
 ### HD textures (optional)
 
