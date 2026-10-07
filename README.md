@@ -55,8 +55,6 @@ VRAM sane. Missing images fall back to the ROM originals.
 - Battle mode (4 battle arenas)
 - More gameplay parity (CC classes, AI personalities, Lakitu)
 
-Reference: [n64decomp/mk64](https://github.com/n64decomp/mk64).
-
-Hi-res graphics from [MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
+References: lo-res graphics and sound distilled [n64decomp/mk64](https://github.com/n64decomp/mk64). hi-res graphics distilled [MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
 
 *This is a fan research project for AI-duplication testing. Mario Kart 64 is © Nintendo; assets belong to Nintendo and this repo is not affiliated with or endorsed by Nintendo.*
