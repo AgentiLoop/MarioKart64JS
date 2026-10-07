@@ -88,6 +88,17 @@ export class AudioSys {
   stopMusic() {
     if (this.seqNode) this.seqNode.then(n => n.port.postMessage({ type: 'stop', player: 0, frames: 10 }));
   }
+  // ROM sound effect: sequence 0 on player 2 (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id))
+  playSound(bank, id) {
+    const ctx = this.init();
+    if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume();
+    this.sequencer().then(n => n.port.postMessage({ type: 'sfx', bank, id }));
+  }
+  // bank 4: SOUND_MENU_CURSOR_MOVE 0x00, _SELECT 0x01, _GO_BACK 0x02, _OK_CLICKED 0x16
+  menuSound(id) { this.playSound(4, id); }
+  // driver picked (menus.c player_select_menu_act): bank 2, id = characterId * 0x10 + 0x0E
+  voice(characterId) { this.playSound(2, characterId * 0x10 + 0x0e); }
   toggleMusic() {
     this.muted = !this.muted;
     if (this.muted) this.stopMusic(); else if (this.wantMusic) this.playMusic(this.wantMusic);

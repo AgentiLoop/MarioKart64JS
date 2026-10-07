@@ -47,8 +47,8 @@
   .char .holder { position: absolute; left: 0; top: 0; width: 64px; height: 64px; overflow: hidden; }
   .char .face { left: 0; width: 64px; height: 1088px; }           /* 17 stacked 64x64 frames */
   .char .name { left: 0; top: 64px; width: 64px; height: 12px; }
-  .char .border { left: 0; top: 0; width: 64px; height: 64px; display: none; pointer-events: none; }
-  .char.cursor .border { display: block; }
+  #screen .char .border { left: 0; top: 0; width: 64px; height: 64px; display: none; pointer-events: none; }   /* #screen: must beat "#screen .scr img { display: block }" */
+  #screen .char.cursor .border { display: block; }
   #charOk { position: absolute; left: 264px; top: 202px; width: 31px; height: 19px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; transition: transform .2s; }
   #charOk.closed { transform: scaleX(0); pointer-events: none; }   /* collapsed (param1 = 0x20) until a driver is picked */
   #charOk .box { position: absolute; left: 0; top: 0; width: 30px; height: 18px; background: rgb(1,1,1); }   /* func_800A8564 box */

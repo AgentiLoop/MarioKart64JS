@@ -136,6 +136,17 @@ export class M64 {
     if (!frames) return this.disablePlayer(p);
     p.state = 2; p.fadeRemaining = frames * 3; p.fadeVelocity = -p.fadeVolume / p.fadeRemaining;
   }
+  // Sound effect: sequence 0 runs on player 2 with one channel per bank slot; external.c func_800C4FE4 starts
+  // a sound by writing io[3] = volume, io[0] = 1, io[4] = sound id to the bank's next channel.
+  // Slots per bank are D_800EA188[0] (1P): 4, 2, 2, 2, 2, 1.
+  sfx(bank, id) {
+    const p = this.players[2];
+    if (!p.enabled || p.seqId !== 0) this.play(2, 0);
+    const slots = [4, 2, 2, 2, 2, 1], base = slots.slice(0, bank).reduce((a, b) => a + b, 0);
+    this.sfxNext = this.sfxNext || [];
+    const i = this.sfxNext[bank] = ((this.sfxNext[bank] ?? -1) + 1) % slots[bank];
+    (this.sfxQueue = this.sfxQueue || []).push([base + i, id]);
+  }
 
   // ---------- sequence player (seqplayer.c) ----------
   disablePlayer(p) {
@@ -714,6 +725,13 @@ export class M64 {
   }
 
   update() {
+    const sp = this.players[2];
+    if (this.sfxQueue?.length && sp.enabled && sp.channels.length) {
+      for (const [ch, id] of this.sfxQueue.splice(0)) {
+        const c = sp.channels[ch];
+        if (c) { c.io[3] = 127; c.io[0] = 1; c.io[4] = id; }
+      }
+    }
     for (const p of this.players) if (p.enabled) { this.processSequence(p); if (p.enabled) this.processSound(p); }
     this.processNotes();
   }

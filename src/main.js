@@ -222,8 +222,15 @@ function titleStep(now) {
   }
 }
 window.__flag = titleFlag;
+// menu sounds, bank 4 of include/sounds.h: SOUND_MENU_CURSOR_MOVE, _SELECT, _GO_BACK, _OK_CLICKED, SOUND_INTRO_ENTER_MENU
+const SND = { move: 0x00, select: 0x01, back: 0x02, okClicked: 0x16, enter: 0x1a };
+const snd = name => audio.menuSound(SND[name]);
 function enterMenus() {
   if (!atTitle()) return;
+  // Browsers keep audio suspended until a gesture; on the console the voice and title music start with
+  // the title screen, so the first press only unlocks audio (playing them here) and the next one advances.
+  if (audio.ctx && audio.ctx.state !== 'running') { audio.ctx.resume(); return; }
+  snd('enter');   // splash_menu_act: A/Start plays SOUND_INTRO_ENTER_MENU
   showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
   cupMode('cup');
   audio.playMusic(2);   // SEQ_MENU_MAIN_MENU (menus.c:1861)
@@ -256,7 +263,7 @@ function buildCourseMenu() {
     b.className = 'cup'; b.setAttribute('aria-label', c.name);
     b.innerHTML = '<div class="box"></div><img alt="" />';
     HD.setImg(b.querySelector('img'), `courseselect/cup_${c.id}.png`);
-    b.onclick = () => { cupSel = i; cupMode('course'); };
+    b.onclick = () => { cupSel = i; cupMode('course'); snd('select'); };
     cups.appendChild(b);
   });
   for (let i = 0; i < 4; i++) {
@@ -268,10 +275,10 @@ function buildCourseMenu() {
     const b = document.createElement('button');
     b.className = 'cname'; b.style.top = `${112 + 24 * i}px`;
     b.innerHTML = '<div class="box"></div><img alt="" src="" />';
-    b.onclick = () => { if (courseMode === 'cup') cupMode('course'); courseIdx = i; cupMode('ok'); };
+    b.onclick = () => { if (courseMode === 'cup') cupMode('course'); courseIdx = i; cupMode('ok'); snd('select'); };
     names.appendChild(b);
   }
-  $('courseOk').onclick = () => { if (courseMode === 'ok') enterChar(cupCourses(cupSel)[courseIdx].id); };
+  $('courseOk').onclick = () => { if (courseMode === 'ok') { snd('okClicked'); enterChar(cupCourses(cupSel)[courseIdx].id); } };
 }
 function cupMode(mode) {
   courseMode = mode;
@@ -433,19 +440,26 @@ function updateCharClasses() {
   });
   $('charOk').classList.toggle('closed', !okMode);
 }
+// characterId (include/defines.h MARIO..BOWSER) for the pick voice
+const CHAR_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
 function pickChar(slot) {
   charSel = slot;
   okMode = true;   // single player: every pick leads to OK (menus.c:1543)
+  audio.voice(CHAR_ID[CHAR_ORDER[slot]]);   // func_800C90F4(.., characterId * 0x10 + 0x2900800E)
   updateCharClasses();
   $('charOk').focus();
 }
+let leaving = false;
 function confirmChar() {
-  if (charSel === null) return;
+  if (charSel === null || leaving) return;
   const c = CHAR_ORDER[charSel];
   localStorage.setItem('mk64char', c);
-  location.search = `?track=${selCourse}&char=${c}`;
+  snd('okClicked');
+  leaving = true;   // let SOUND_MENU_OK_CLICKED play before the page reloads into the race
+  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}`; }, 500);
 }
 function backFromChar() {
+  snd('back');
   if (okMode) { okMode = false; charSel = null; updateCharClasses(); return; }   // B on OK goes back (menus.c:1651)
   showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
   cupMode('ok');
@@ -473,7 +487,7 @@ addEventListener('keydown', e => {
       const move = { ArrowLeft: col > 0 ? -1 : 0, ArrowRight: col < 3 ? 1 : 0, ArrowUp: row > 0 ? -4 : 0, ArrowDown: row < 1 ? 4 : 0 }[e.code];
       if (move !== undefined) {
         e.preventDefault();
-        if (!okMode && move) { charCursor += move; updateCharClasses(); }
+        if (!okMode && move) { charCursor += move; updateCharClasses(); snd('move'); }
         return;
       }
       if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
@@ -490,18 +504,18 @@ addEventListener('keydown', e => {
       const back = e.code === 'Escape' || e.code === 'Backspace';
       if (e.code.startsWith('Arrow') || enter || back) e.preventDefault();
       if (courseMode === 'cup') {
-        if (e.code === 'ArrowLeft' && cupSel > 0) { cupSel--; cupMode('cup'); }
-        else if (e.code === 'ArrowRight' && cupSel < 3) { cupSel++; cupMode('cup'); }
-        else if (enter) cupMode('course');
-        else if (back) backToTitle();
+        if (e.code === 'ArrowLeft' && cupSel > 0) { cupSel--; cupMode('cup'); snd('move'); }
+        else if (e.code === 'ArrowRight' && cupSel < 3) { cupSel++; cupMode('cup'); snd('move'); }
+        else if (enter) { cupMode('course'); snd('select'); }
+        else if (back) { backToTitle(); snd('back'); }
       } else if (courseMode === 'course') {
-        if (e.code === 'ArrowUp' && courseIdx > 0) { courseIdx--; cupMode('course'); }
-        else if (e.code === 'ArrowDown' && courseIdx < 3) { courseIdx++; cupMode('course'); }
-        else if (enter) cupMode('ok');
-        else if (back) cupMode('cup');
+        if (e.code === 'ArrowUp' && courseIdx > 0) { courseIdx--; cupMode('course'); snd('move'); }
+        else if (e.code === 'ArrowDown' && courseIdx < 3) { courseIdx++; cupMode('course'); snd('move'); }
+        else if (enter) { cupMode('ok'); snd('select'); }
+        else if (back) { cupMode('cup'); snd('back'); }
       } else {
-        if (enter) enterChar(cupCourses(cupSel)[courseIdx].id);
-        else if (back) cupMode('course');
+        if (enter) { snd('okClicked'); enterChar(cupCourses(cupSel)[courseIdx].id); }
+        else if (back) { cupMode('course'); snd('back'); }
       }
       return;
     }
