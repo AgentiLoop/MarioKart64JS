@@ -61,8 +61,9 @@ def s8(v):
     return v - 256 if v > 127 else v
 
 
-def convert(source, rom, course_id, course_json, config=None):
-    """config: (spawn, kinds, drawing, initial) like COURSES (spawn None = models only); returns (out, images)."""
+def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
+    """config: (spawn, kinds, drawing, initial) like COURSES (spawn None = models only); extra_lists: more display
+    lists by name (C body text) the walker may call; returns (out, images)."""
     spawn, kinds, drawing, initial = config or COURSES[course_id]
     data_c = (source / f'courses/{course_id}/course_data.c').read_text()
     tex_meta = json.loads((source / f'assets/courses/{course_id}.json').read_text())
@@ -76,7 +77,7 @@ def convert(source, rom, course_id, course_json, config=None):
         return at
 
     vtx_arrays = dict(re.findall(r'Vtx (\w+)\[\d*\] = \{(.*?)\n\};', data_c, re.S))
-    lists = dict(re.findall(r'Gfx (\w+)\[\] = \{(.*?)\};', data_c, re.S))
+    lists = dict(re.findall(r'Gfx (\w+)\[\] = \{(.*?)\};', data_c, re.S), **(extra_lists or {}))
     images_c = dict(re.findall(r'u8 (\w+)\[\] = \{\s*#include "assets/courses/\w+/(\w+)\.inc\.c"', data_c))
     lights = {n: numbers(a) for n, a in re.findall(r'Lights1 (\w+) = gdSPDefLights1\((.*?)\);', data_c)}
 

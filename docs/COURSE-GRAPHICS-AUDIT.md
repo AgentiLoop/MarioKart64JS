@@ -35,7 +35,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | Moo Moo Farm | trees (21, not in 4P) | **done** |
 | | cows (`render_cows`, 37 from `d_course_moo_moo_farm_cow_spawn`, 5 kinds) | **done** (tools/extract-foliage.py → cows.json, src/foliage.js) |
 | | moles (`render_object_moles`) | — |
-| Toad's Turnpike | box trucks, school buses, tanker trucks, cars | — |
+| Toad's Turnpike | box trucks, school buses, tanker trucks, cars (7 each) | **done** (tools/extract-traffic.py, src/traffic.js) |
+| | engine hum / horns, karts tumbling when hit | — |
 | Kalimari Desert | cacti (44, three kinds) | **done** |
 | | train (engine, tender, carriages), railroad crossings ×4 | **done** (tools/extract-train.py, src/train.js) |
 | | the locomotive's smoke | — |
@@ -139,3 +140,29 @@ console's single-precision steps: 465 points, the count the decomp's comment giv
 EXTRA flips each model back in its own x and turns the crossings the other way, as the props.
 Not ported yet: the locomotive smoke (`render_object_trains_smoke_particles`), karts tumbling when hit
 (`handle_trains_interactions`) and CPU karts stopping at a rung crossing (`check_ai_crossing_distance`).
+## Toad's Turnpike traffic (done)
+tools/extract-traffic.py walks `render_actor_box_truck` / `_school_bus` / `_tanker_truck` / `_car`'s lists with the
+tools/extract-props.py walker. The `toads_turnpike_dl_0`-`11` wrappers (courses/toads_turnpike/course_offsets.c) call
+five common_data render-mode lists (0x0D005398-0x0D005418) that exist only as ROM bytes; the extractor checks their
+F3DEX words in the common_data MIO0 block (0x132B50) and feeds the walker the matching macros (near / middle:
+G_CC_MODULATEIA opaque body + G_CC_MODULATEIDECALA tex-edge parts; far: 2-cycle fog, drawn here without the fog). The
+box trucks' three box textures are loaded by dl_23858 / 238A0 / 238E8 before the truck list (actor state 0-2,
+D_802BA260 counting 0, 1, 2 as trucks spawn). src/traffic.js:
+- route: track path 0 (course.json `path`, 912 points), edges 50 either side (`calculate_track_boundaries`,
+  cpu_maximum_separation from yamls/courses/toads_turnpike_metadata.yml), stored as s16;
+- `initialize_toads_turnpike_vehicle`: vehicle i of 7 (8 in time trials, of which 7 spawn) at path point
+  (i × 912 / n + 0 / 75 / 50 / 25) % 912 for trucks / buses / tankers / cars, lane type random_int(3) (i % 3 in time
+  trials), speed cc × 90 / 216 + 4.5833 for type 2 above 50cc or in time trials, else + 2.9167; `spawn_vehicle_on_road`
+  steps it once more and faces it DEGREES(180) (0 in EXTRA);
+- `update_vehicle_follow_path_point` (every other 60 Hz tick): the lane factor moves 0.06 towards `func_80013C74`'s
+  (point < 0x28A: -0.7 / 0 / 0.7, after: -0.5 / -0.5 / 0.5), `func_8000D6D0` heads `speed` units (3D) at the mean of
+  `set_track_offset_position` at points + 3 / + 4 past the nearest (`update_path_index` - 3 .. + 6 within 400,
+  `adjust_path_at_start_line`); EXTRA uses `func_8000D940`'s points - 3 / - 4, so traffic drives against the karts;
+  yaw and pitch turn 100 angle units a step at most (`adjust_angle`), so a vehicle spawned facing the wrong way takes
+  ~11 s to come round, as on the console;
+- `render_actor_*`: 1P near < 400, middle < 800, far < 3000 (x/z); 2P-4P middle < 400, far beyond; cars scaled 0.1.
+EXTRA runs the unmirrored path with the lane factor negated (the mirrored left edge is the mirror of the right one)
+and flips each model back in its own x, as the train. Assumption: when no path point is within 400 the nearest point
+overall is used (`func_8000D24C` searches the kart's track section). Not ported yet: engine hum and horns
+(`func_800C9D80`, `handle_vehicle_interactions`), karts tumbling when hit (VERTICAL_TUMBLE_TRIGGER) and CPU karts
+steering round traffic (`update_player_track_position_factor_from_*`).

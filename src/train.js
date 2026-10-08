@@ -47,7 +47,7 @@ function dist2(origin, camera) {
   return dx * dx + dz * dz;
 }
 // onBeforeRender: drawn only while this camera's distance is in [min, max)
-function band(renderer, scene, camera) {
+export function band(renderer, scene, camera) {
   const { origin, min, max } = this.userData, d = dist2(origin, camera);
   if (d < min || d >= max) {
     const e = this.matrixWorld.elements;
