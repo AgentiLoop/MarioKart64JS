@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE } from './track.js';
+import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -21,6 +21,7 @@ const params = new URLSearchParams(location.search);
 const trackId = params.get('track');
 const playerChar = params.get('char') || localStorage.getItem('mk64char') || 'mario';
 const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show the track menu
+const battle = !!(trackDef && trackDef.battle);   // battle arena: balloons, no laps (rules below)
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
@@ -148,21 +149,25 @@ const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario
 const characters = ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'];
 let karts = [], player, raceTime = 0, state = 'countdown', countdown = 3.4, finishOrder = [];
 
-function setup(count = 8) {   // count: karts on the grid (8 for 1P; 2-4 when an online room falls back to the CPU)
+function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P; 2-4 when an online room falls back to the CPU)
   for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
   karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4;
   const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];
   // start line is at s=0; grid sits behind it so lap 1 begins on crossing
   // player takes their character (URL ?char= / localStorage), AI fill the rest in native order.
   // With playerChar=mario this reproduces the old [7,0,1,2,3,4,5,6] grid exactly.
+  // Battle (assumption, the console has no 1P battle): the player is P1 on the first start spot and up to three
+  // CPU karts take the other spots (spawn_players_4p_battle order).
   const rest = characters.filter(c => c !== playerChar);
-  const order = [rest[6], playerChar, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5]].slice(0, count);
+  const order = battle ? [playerChar, ...rest].slice(0, Math.min(4, count))
+    : [rest[6], playerChar, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5]].slice(0, count);
   order.forEach((c, i) => {
     const ci = characters.indexOf(c);
     const [d, back] = slots[i];
     const k = new Kart(track, {
       color: PALETTE[ci], s: track.length - back, d, isPlayer: c === playerChar,
       skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c,
+      spawn: battle ? battleSpawn(trackDef.id, i) : null,
     });
     k.aiOffset = d * 0.8;
     k.prevS = k.s; k.crossings = 0;
@@ -255,8 +260,10 @@ function backToTitle() {
 // the cursor is still on the columns (MAIN_MENU_PLAYER_SELECT); once a count is picked the mode row flashes instead
 // (MAIN_MENU_MODE_SELECT). The cc sub-select and OK are skipped: picking a mode goes straight to course select.
 // 2P-4P GAME are online: `players` rides along to the race URL, which waits for that many players (src/net.js).
+// BATTLE goes to the battle course select (SUB_MENU_MAP_SELECT_BATTLE_COURSE: the four arenas, no cups); 1P GAME
+// also offers it here (assumption: the console has no solo battle, this port battles three CPU karts).
 const PCOL_X = [21, 92, 163, 234];
-const PMODES = [['mario_gp', 'time_trials'], ['mario_gp', 'vs', 'battle'], ['vs', 'battle'], ['vs', 'battle']];
+const PMODES = [['mario_gp', 'time_trials', 'battle'], ['mario_gp', 'vs', 'battle'], ['vs', 'battle'], ['vs', 'battle']];
 let pcount = 0, pmode = 0, gameMode = 'player';   // 'player' | 'mode'
 function buildGameSelect() {
   const cols = $('pcols');
@@ -289,6 +296,13 @@ function enterGameSelect() {
 }
 function pickMode() {
   snd('okClicked');
+  if (PMODES[pcount][pmode] === 'battle') {   // menus.c COURSE_SELECT_MENU: gCupSelection = BATTLE_CUP, straight to the course rows
+    cupSel = 4;
+    showScreen(menuEl, 'Battle course select: ↑/↓ pick an arena, Enter · Enter on OK starts · Esc goes back');
+    cupMode('course');
+    return;
+  }
+  if (cupSel === 4) cupSel = 0;
   showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
   cupMode('cup');
 }
@@ -347,7 +361,7 @@ function cupMode(mode) {
   const courses = cupCourses(cupSel);
   [...$('cups').children].forEach((b, i) => {
     const on = i === cupSel;
-    b.style.display = mode === 'cup' || on ? 'block' : 'none';
+    b.style.display = mode === 'cup' || on ? 'block' : 'none';   // battle cup (4) has no icon: all hidden
     b.style.left = `${mode === 'cup' ? CUP_X[i] : 128}px`;
     b.setAttribute('aria-pressed', on);
   });
@@ -592,7 +606,7 @@ addEventListener('keydown', e => {
         if (e.code === 'ArrowUp' && courseIdx > 0) { courseIdx--; cupMode('course'); snd('move'); }
         else if (e.code === 'ArrowDown' && courseIdx < 3) { courseIdx++; cupMode('course'); snd('move'); }
         else if (enter) { cupMode('ok'); snd('select'); }
-        else if (back) { cupMode('cup'); snd('back'); }
+        else if (back) { if (cupSel === 4) enterGameSelect(); else cupMode('cup'); snd('back'); }   // battle: B returns to the main menu
       } else {
         if (enter) { snd('okClicked'); enterChar(cupCourses(cupSel)[courseIdx].id); }
         else if (back) { cupMode('course'); snd('back'); }
@@ -649,7 +663,8 @@ function setupOnline() {
     const c = chars.get(p.id), ci = characters.indexOf(c);
     const [d, back] = slots[i];
     const mine = p.id === net.myId;
-    const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c });
+    const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c,
+      spawn: battle ? battleSpawn(trackDef.id, i) : null });
     k.netId = p.id; k.remote = !mine; k.poses = [];
     k.prevS = k.s; k.crossings = 0;
     scene.add(k.mesh); karts.push(k);
@@ -661,11 +676,40 @@ function setupOnline() {
 }
 function sendPose() {
   const k = player;
+  if (battle) {   // arena: world position and heading; balloons left and out ride along (the victim decides hits)
+    net.send({ t: 'p', x: k.x, z: k.z, h: k.h, v: k.v, y: k.y, air: k.air ? 1 : 0, dr: k.drift, b: k.boost, sp: k.spin,
+      sv: k.steerVis, bl: k.balloons, o: k.out ? 1 : 0, r: k.rescue > 0 ? 1 : 0 }, false);
+    return;
+  }
   net.send({ t: 'p', s: k.s, d: k.d, psi: k.psi, v: k.v, y: k.world.y, air: k.air ? 1 : 0,
     dr: k.drift, b: k.boost, sp: k.spin, sv: k.steerVis, c: k.crossings, f: k.finished ? k.finishTime : -1 }, false);
 }
+function puppetStepArena(k, now) {
+  const P = k.poses;
+  if (!P.length) return;
+  const t = now - PUPPET_DELAY * 1000;
+  while (P.length > 2 && P[1].rx <= t) P.shift();
+  const a = P[0], b = P[1];
+  let x = a.x, z = a.z, h = a.h, v = a.v, y = a.y, src = a;
+  if (b && b.rx > a.rx) {
+    const u = Math.min(1, Math.max(0, (t - a.rx) / (b.rx - a.rx)));
+    let dh = b.h - a.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    x += (b.x - a.x) * u; z += (b.z - a.z) * u; h += dh * u; v += (b.v - a.v) * u; y += (b.y - a.y) * u;
+    if (u >= 1) src = b;
+  } else if (!b) {
+    const e = v * Math.min(0.3, Math.max(0, (t - a.rx) / 1000));   // dead reckoning along the heading
+    x += Math.sin(h) * e; z += Math.cos(h) * e;
+  }
+  k.x = x; k.z = z; k.h = h; k.v = v; k.y = y;
+  k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 / 60) : 0; k.steerVis = src.sv;
+  k.balloons = src.bl; k.out = !!src.o; k.rescue = src.r ? 1 : 0;
+  k.air = !!src.air;
+  k.syncFree(0);
+  k.y = y; k.world.y = y; k.mesh.position.y = y;   // the owner's height is the truth (falls, rescue)
+}
 // Replay the puppet's poses PUPPET_DELAY behind their arrival; extrapolate along the road past the newest.
 function puppetStep(k, now) {
+  if (battle) return puppetStepArena(k, now);
   const P = k.poses;
   if (!P.length) return;
   const L = track.length, t = now - PUPPET_DELAY * 1000;
@@ -690,13 +734,13 @@ function puppetStep(k, now) {
 function useItem() {
   const item = player.item;
   items.use(player);
-  if (online && item && !player.item) net.send({ t: 'item', item, s: player.s, d: player.d });
+  if (online && item && !player.item) net.send(battle ? { t: 'item', item, x: player.x, z: player.z, h: player.h, y: player.y } : { t: 'item', item, s: player.s, d: player.d });
 }
 function onlineData(from, m) {
   const k = peerKart(from);
   switch (m.t) {
     case 'p': if (k) { m.rx = performance.now(); k.poses.push(m); if (k.poses.length > 30) k.poses.shift(); } break;
-    case 'item': if (k) { k.s = m.s; k.d = m.d; k.item = m.item; items.use(k); } break;
+    case 'item': if (k) { if (battle) { k.x = m.x; k.z = m.z; k.h = m.h; k.y = m.y; } else { k.s = m.s; k.d = m.d; } k.item = m.item; items.use(k); } break;
     case 'ready': netReady.add(from); hostCheckGo(); break;
     case 'go': startRace(); break;
   }
@@ -804,7 +848,8 @@ function playerInput() {
 const mm = [];
 {
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
-  for (const p of track.pos) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  if (track.arena) ({ minX, maxX, minZ, maxZ } = track.bounds);
+  else for (const p of track.pos) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
   const sc = 300 / Math.max(maxX - minX, maxZ - minZ);
   mm.push(sc, minX, minZ, 20 + (300 - (maxX - minX) * sc) / 2, 20 + (300 - (maxZ - minZ) * sc) / 2);
 }
@@ -812,8 +857,15 @@ function drawMini() {
   const [sc, minX, minZ, ox, oy] = mm;
   mini.clearRect(0, 0, 340, 340);
   mini.lineWidth = 9; mini.strokeStyle = '#fff'; mini.lineJoin = 'round'; mini.beginPath();
-  track.pos.forEach((p, i) => { const x = ox + (p.x - minX) * sc, y = oy + (p.z - minZ) * sc; i ? mini.lineTo(x, y) : mini.moveTo(x, y); });
-  mini.closePath(); mini.stroke();
+  if (track.arena) {   // arena: its footprint and the item boxes
+    const b = track.bounds;
+    mini.strokeRect(ox, oy, (b.maxX - b.minX) * sc, (b.maxZ - b.minZ) * sc);
+    mini.fillStyle = '#ffd23a';
+    for (const bx of items.boxes) if (bx.cd <= 0) mini.fillRect(ox + (bx.x - minX) * sc - 3, oy + (bx.z - minZ) * sc - 3, 6, 6);
+  } else {
+    track.pos.forEach((p, i) => { const x = ox + (p.x - minX) * sc, y = oy + (p.z - minZ) * sc; i ? mini.lineTo(x, y) : mini.moveTo(x, y); });
+    mini.closePath(); mini.stroke();
+  }
   for (const k of karts) {
     mini.fillStyle = '#' + k.color.toString(16).padStart(6, '0');
     mini.strokeStyle = '#000'; mini.lineWidth = 3;
@@ -915,6 +967,18 @@ function showRes() {
 
 function collide() {
   const L = track.length;
+  if (battle) {   // arena: push overlapping karts apart in the ground plane
+    for (let i = 0; i < karts.length; i++) for (let j = i + 1; j < karts.length; j++) {
+      const a = karts[i], b = karts[j];
+      if (a.rescue > 0 || b.rescue > 0 || Math.abs(a.y - b.y) > 2.5) continue;
+      const dx = b.x - a.x, dz = b.z - a.z, dist = Math.hypot(dx, dz);
+      if (dist >= 2.8 || dist < 1e-4) continue;
+      const push = (2.8 - dist) * 0.5, ux = dx / dist, uz = dz / dist, avg = (a.v + b.v) / 2;
+      if (!a.remote) { a.x -= ux * push; a.z -= uz * push; a.v = a.v * 0.7 + avg * 0.3; }
+      if (!b.remote) { b.x += ux * push; b.z += uz * push; b.v = b.v * 0.7 + avg * 0.3; }
+    }
+    return;
+  }
   for (let i = 0; i < karts.length; i++) for (let j = i + 1; j < karts.length; j++) {
     const a = karts[i], b = karts[j];
     let ds = b.s - a.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
@@ -930,9 +994,23 @@ function collide() {
 }
 
 function rank() {
+  if (battle) return [...karts].sort((a, b) => (b.balloons - a.balloons) || ((b.outAt ?? 1e9) - (a.outAt ?? 1e9)));   // balloons, then who lasted longer
   const sorted = [...karts].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.finishTime - b.finishTime : b.progress - a.progress));
   return sorted;
 }
+// Battle rules: every hit pops a balloon (items.js hit); a kart with none left is out and sits where it stopped
+// (assumption: no bomb kart). The last kart with balloons wins; the player's result shows on their banner.
+function battleStep() {
+  for (const k of karts) {
+    if (!k.out && k.balloons <= 0) { k.out = true; k.outAt = raceTime; if (k.isPlayer && state === 'race') { banner.textContent = 'LOSER'; } }
+  }
+  const alive = karts.filter(k => !k.out);
+  if (state === 'race' && alive.length <= 1 && karts.length > 1) {
+    state = 'finished';
+    banner.textContent = alive[0] === player ? 'WINNER!' : alive[0] ? `${alive[0].name.toUpperCase()} WINS` : 'DRAW';
+  }
+}
+const balloonText = k => k.out ? 'OUT' : '●'.repeat(k.balloons) + '○'.repeat(3 - k.balloons);
 
 let last = performance.now();
 const mkFrame = () => ({ pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
@@ -945,9 +1023,17 @@ function frame(now) {
 
   if (!trackDef || (online && !raceGo)) {   // menu / online lobby open: fly along the road (like ../GoKart attract.gd), no race
     flyS += 20 * dt;
-    track.frameAt(flyS, flyA); track.frameAt(flyS + 40, flyB);
-    const target = flyA.pos.clone().addScaledVector(flyA.R, 10).addScaledVector(flyA.U, 12);
-    const look = flyB.pos.clone().addScaledVector(flyB.U, 1);
+    let target, look;
+    if (track.arena) {   // circle the arena
+      const b = track.bounds, cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2, r = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * 0.45;
+      const a = flyS / r;
+      target = new THREE.Vector3(cx + Math.sin(a) * r, b.maxY + r * 0.35, cz + Math.cos(a) * r);
+      look = new THREE.Vector3(cx, (b.minY + b.maxY) / 2, cz);
+    } else {
+      track.frameAt(flyS, flyA); track.frameAt(flyS + 40, flyB);
+      target = flyA.pos.clone().addScaledVector(flyA.R, 10).addScaledVector(flyA.U, 12);
+      look = flyB.pos.clone().addScaledVector(flyB.U, 1);
+    }
     if (!flyInit) { camera.position.copy(target); flyLook.copy(look); flyInit = true; }
     const a = 1 - Math.exp(-3 * dt);
     camera.position.lerp(target, a); flyLook.lerp(look, a); camera.lookAt(flyLook);
@@ -977,7 +1063,7 @@ function frame(now) {
         const inp = k.isPlayer ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
-        if (!k.finished && k.crossings >= LAPS) {
+        if (!battle && !k.finished && k.crossings >= LAPS) {
           k.finished = true; k.finishTime = raceTime; finishOrder.push(k);
           if (k.isPlayer) { state = 'finished'; banner.textContent = `${finishOrder.length}${ordinal(finishOrder.length)} PLACE!`; }
         }
@@ -985,6 +1071,7 @@ function frame(now) {
       collide();
       items.update(h, karts);
     }
+    if (battle) battleStep();
   }
   if (online) { sendClock += dt; if (sendClock >= SEND_INTERVAL) { sendClock = 0; sendPose(); } }
   const win = player.win;
@@ -999,12 +1086,12 @@ function frame(now) {
   const order = rank();
   const place = order.indexOf(player) + 1;
   posEl.innerHTML = posStrokeEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
-  lapEl.textContent = `LAP ${Math.min(LAPS, player.crossings + 1)}/${LAPS}`;
-  for (const v of views) {   // the other players' views: place and lap
+  lapEl.textContent = battle ? balloonText(player) : `LAP ${Math.min(LAPS, player.crossings + 1)}/${LAPS}`;
+  for (const v of views) {   // the other players' views: place and lap (battle: balloons)
     if (!v.hud) continue;
     const p = order.indexOf(v.kart) + 1;
     v.hud.children[0].innerHTML = `${p}<small>${ordinal(p)}</small>`;
-    v.hud.children[1].textContent = `LAP ${Math.min(LAPS, v.kart.crossings + 1)}/${LAPS}`;
+    v.hud.children[1].textContent = battle ? balloonText(v.kart) : `LAP ${Math.min(LAPS, v.kart.crossings + 1)}/${LAPS}`;
   }
   timeEl.textContent = fmt(raceTime);
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;

@@ -54,7 +54,15 @@ export class Items {
     this.group = new THREE.Group(); scene.add(this.group);
     this.fr = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
     this.boxes = [];
-    for (const u of BOX_SPOTS) for (const d of BOX_D) {
+    this.arena = !!track.arena;   // battle: boxes at the course's item box actor spots, everything in world x/y/z
+    if (this.arena) {
+      const S = 0.1;   // NATIVE_SCALE
+      for (const [x, y, z] of track.def.native.itemBoxes) {
+        const mesh = new THREE.Group();
+        this.group.add(mesh);
+        this.boxes.push({ x: x * S, y: y * S, z: z * S, mesh, cd: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ'), parts: null });
+      }
+    } else for (const u of BOX_SPOTS) for (const d of BOX_D) {
       const mesh = new THREE.Group();
       this.group.add(mesh);
       this.boxes.push({ s: u * track.length, d, mesh, cd: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ'), parts: null });
@@ -132,6 +140,7 @@ export class Items {
   }
 
   place(mesh, s, d, h, yaw = 0) {
+    if (this.arena) { mesh.position.set(s, h, d); mesh.quaternion.identity(); if (yaw) mesh.rotateY(yaw); return; }   // (x, z, y)
     const f = this.track.frameAt(s, this.fr);
     mesh.position.copy(f.pos).addScaledVector(f.R, d).addScaledVector(f.U, h);
     mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.R, f.U, f.T.clone().negate()));
@@ -141,7 +150,7 @@ export class Items {
   delta(a, b) { const L = this.track.length; let ds = a - b; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; return ds; }
 
   roll(kart, karts) {
-    const sorted = [...karts].sort((a, b) => b.progress - a.progress);
+    const sorted = [...karts].sort((a, b) => this.arena ? b.balloons - a.balloons : b.progress - a.progress);
     const frac = karts.length > 1 ? sorted.indexOf(kart) / (karts.length - 1) : 0;   // 0 = leader
     const wTurbo = 0.3 + 0.15 * frac, wOrb = 0.15 + 0.4 * frac;
     const r = Math.random();
@@ -157,6 +166,21 @@ export class Items {
     const L = this.track.length;
     if (kart.item === 'turbo') {
       kart.boost = Math.max(kart.boost, 1.8); kart.v += 6; this.audio.sfx('turbo');
+    } else if (this.arena) {   // world space: a slick drops behind the kart, an orb flies off its nose along its heading
+      const fx = Math.sin(kart.h), fz = Math.cos(kart.h);
+      if (kart.item === 'slick') {
+        const mesh = new THREE.Mesh(this.slickGeo, this.slickMat);
+        this.group.add(mesh);
+        const x = kart.x - fx * 5, z = kart.z - fz * 5, g = this.track.groundAt(x, z, kart.y) || this.track.groundBelow(x, z, kart.y + 0.5);
+        this.place(mesh, x, z, (g ? g.y : kart.y) + 0.12);
+        this.hazards.push({ x, z, y: g ? g.y : kart.y, mesh, ttl: 30 });
+        this.audio.sfx('drop');
+      } else {
+        const mesh = new THREE.Mesh(this.orbGeo, this.orbMat);
+        this.group.add(mesh);
+        this.orbs.push({ x: kart.x + fx * 4, z: kart.z + fz * 4, y: kart.y, h: kart.h, owner: kart, mesh, ttl: 7 });
+        this.audio.sfx('launch');
+      }
     } else if (kart.item === 'slick') {
       const mesh = new THREE.Mesh(this.slickGeo, this.slickMat);
       mesh.receiveShadow = true;
@@ -177,8 +201,9 @@ export class Items {
   // Online: only the player who gets hit decides it (../GoKart online_race.gd), so puppets are never hit here;
   // their spin arrives in their own pose packets.
   hit(kart) {
-    if (kart.remote || kart.spin > 0 || kart.invuln > 0) return false;
+    if (kart.remote || kart.spin > 0 || kart.invuln > 0 || kart.out || kart.rescue > 0) return false;
     kart.spin = 1.1; kart.invuln = 2.2; kart.v *= 0.3; kart.drift = 0; kart.boost = 0;
+    if (this.arena) kart.balloons = Math.max(0, kart.balloons - 1);   // battle: every hit pops a balloon
     this.audio.sfx('hit');
     return true;
   }
@@ -190,6 +215,14 @@ export class Items {
     if (kart.item === 'turbo') return this.use(kart);
     for (const o of karts) {
       if (o === kart) continue;
+      if (this.arena) {   // orb when an opponent is roughly ahead and in range; slick when one is close behind
+        if (o.out) continue;
+        const dx = o.x - kart.x, dz = o.z - kart.z, dist = Math.hypot(dx, dz);
+        const ahead = Math.cos(Math.atan2(dx, dz) - kart.h);
+        if (kart.item === 'orb' && dist > 6 && dist < 70 && ahead > 0.6) return this.use(kart);
+        if (kart.item === 'slick' && dist < 20 && ahead < -0.5) return this.use(kart);
+        continue;
+      }
       const ds = this.delta(o.s, kart.s);
       if (kart.item === 'orb' && ds > 8 && ds < 90) return this.use(kart);
       if (kart.item === 'slick' && ds < -4 && ds > -25 && Math.abs(o.d - kart.d) < 6) return this.use(kart);
@@ -203,7 +236,7 @@ export class Items {
       // update_actor_item_box state 2: rot x +1, y -2, z +1 degrees per frame; the box turns on all
       // three axes, the "?" card only about Y at twice the box's yaw, the shadow at its yaw
       b.rot.x += DEG * FPS * dt; b.rot.y -= 2 * DEG * FPS * dt; b.rot.z += DEG * FPS * dt;
-      this.place(b.mesh, b.s, b.d, 0.05);
+      if (this.arena) this.place(b.mesh, b.x, b.z, b.y + 0.05); else this.place(b.mesh, b.s, b.d, 0.05);
       if (b.parts) {
         b.parts.box.rotation.copy(b.rot);
         b.parts.card.rotation.y = 2 * b.rot.y;
@@ -212,7 +245,9 @@ export class Items {
       if (b.cd > 0) continue;
       for (const k of karts) {
         // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item
-        if (Math.abs(this.delta(k.s, b.s)) < 3 && Math.abs(k.d - b.d) < 3) {
+        const touching = this.arena ? Math.abs(k.x - b.x) < 3 && Math.abs(k.z - b.z) < 3 && Math.abs(k.y - b.y) < 3
+          : Math.abs(this.delta(k.s, b.s)) < 3 && Math.abs(k.d - b.d) < 3;
+        if (touching) {
           if (k.isPlayer) { if (!k.item && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
           else if (!k.item && !k.remote) { k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2; }
           b.cd = BOX_RESPAWN; b.mesh.visible = false;
@@ -225,6 +260,7 @@ export class Items {
       if (!k.win) continue;
       for (k.win.acc += dt; k.win && k.win.acc >= 1 / FPS; ) { k.win.acc -= 1 / FPS; this.windowStep(k, karts); }
     }
+    if (this.arena) { this.updateArena(dt, karts); return; }
     // slicks
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.ttl -= dt; let gone = h.ttl <= 0;
@@ -250,6 +286,44 @@ export class Items {
         if (Math.abs(this.delta(k.s, o.s)) < 2.4 && Math.abs(k.d - o.d) < 2.2) { this.hit(k); gone = true; }
       }
       this.place(o.mesh, o.s, o.d, 1.0);
+      if (gone) { this.group.remove(o.mesh); this.orbs.splice(i, 1); }
+    }
+  }
+
+  // Battle: slicks sit where dropped; orbs fly along their heading, homing on the nearest kart in the
+  // battle, follow the floor and die on walls.
+  updateArena(dt, karts) {
+    const t = this.track;
+    for (let i = this.hazards.length - 1; i >= 0; i--) {
+      const h = this.hazards[i]; h.ttl -= dt; let gone = h.ttl <= 0;
+      for (const k of karts) {
+        if (!gone && Math.abs(k.x - h.x) < 2.3 && Math.abs(k.z - h.z) < 2.3 && Math.abs(k.y - h.y) < 2.5 && this.hit(k)) gone = true;
+      }
+      if (gone) { this.group.remove(h.mesh); this.hazards.splice(i, 1); }
+    }
+    for (let i = this.orbs.length - 1; i >= 0; i--) {
+      const o = this.orbs[i]; o.ttl -= dt; let gone = o.ttl <= 0;
+      let target = null, best = 90;
+      for (const k of karts) {
+        if (k === o.owner || k.out || k.rescue > 0) continue;
+        const d = Math.hypot(k.x - o.x, k.z - o.z);
+        if (d < best) { best = d; target = k; }
+      }
+      if (target) {
+        let diff = Math.atan2(target.x - o.x, target.z - o.z) - o.h;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        o.h += THREE.MathUtils.clamp(diff, -3 * dt, 3 * dt);
+      }
+      const nx = o.x + Math.sin(o.h) * 75 * dt, nz = o.z + Math.cos(o.h) * 75 * dt;
+      if (t.blocked(o.x, o.z, nx, nz, o.y)) gone = true;
+      o.x = nx; o.z = nz;
+      const g = t.groundAt(o.x, o.z, o.y) || t.groundBelow(o.x, o.z, o.y + 0.5);
+      if (g) o.y = g.y; else if (o.y < t.fallY) gone = true; else o.y -= 20 * dt;
+      for (const k of karts) {
+        if (k === o.owner || k.remote || gone) continue;
+        if (Math.abs(k.x - o.x) < 2.4 && Math.abs(k.z - o.z) < 2.4 && Math.abs(k.y - o.y) < 2.5) { this.hit(k); gone = true; }
+      }
+      this.place(o.mesh, o.x, o.z, o.y + 1.0);
       if (gone) { this.group.remove(o.mesh); this.orbs.splice(i, 1); }
     }
   }

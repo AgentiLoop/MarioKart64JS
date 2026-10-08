@@ -62,15 +62,30 @@ export function buildKartMesh(character = 'mario') {
 }
 
 export class Kart {
-  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario' }) {
+  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null }) {
     this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name;
     this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
+    // arena (battle) kart: roams freely as (x, z, heading h) with facing (sin h, 0, cos h); spawn = { x, y, z, h }
+    this.free = !!track.arena;
+    if (this.free) {
+      this.spawn = spawn; this.x = spawn.x; this.z = spawn.z; this.h = spawn.h; this.slip = 0; this.rescue = 0; this.balloons = 3;
+      const g = track.groundAt(spawn.x, spawn.z, spawn.y) || track.groundBelow(spawn.x, spawn.z, spawn.y + 0.5);
+      this.y = g ? g.y : spawn.y;
+    }
+    this.mesh = buildKartMesh(character);
+    this.color = color;
+    if (this.free) {   // battle balloons: three in the kart's colour floating over the roof, one less per hit
+      this.balloonMeshes = [[-1.3, 5.4, 0.6], [1.3, 5.4, 0.6], [0, 6.3, -0.5]].map(p => {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+        m.position.set(...p); m.userData.base = p[1];
+        this.mesh.add(m);
+        return m;
+      });
+    }
     this.crossings = 0; this.prevS = s;
     this.drift = 0;            // -1 left, +1 right, 0 none
     this.driftTime = 0; this.boost = 0;
     this.aiOffset = d; this.finished = false; this.finishTime = 0;
-    this.mesh = buildKartMesh(character);
-    this.color = color;
     this.frame = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
     this.world = new THREE.Vector3(); this.fwd = new THREE.Vector3(); this.up = new THREE.Vector3();
     this.steerVis = 0; this.sparks = 0; this.offroad = false; this.hitWall = 0;
@@ -80,7 +95,49 @@ export class Kart {
 
   get progress() { return this.crossings * this.track.length + this.s; }
 
+  // Arena CPU: chase the nearest opponent still in the battle, turning away from walls and edges ahead.
+  thinkFree(dt, karts) {
+    const t = this.track;
+    let target = null, best = Infinity;
+    for (const o of karts) {
+      if (o === this || o.out || o.rescue > 0) continue;
+      const d = Math.hypot(o.x - this.x, o.z - this.z);
+      if (d < best) { best = d; target = o; }
+    }
+    this.wander = (this.wander ?? 0) + (Math.random() - 0.5) * dt * 2;
+    this.wander = THREE.MathUtils.clamp(this.wander, -0.8, 0.8);
+    let want = target ? Math.atan2(target.x - this.x, target.z - this.z) + this.wander * 0.5 : this.h + this.wander;
+    // probe ahead (further the faster it goes): a wall or a drop there turns the kart towards the open side
+    const reach = 6 + Math.abs(this.v) * 0.5;
+    // ground sampled along the ray: a step down of up to 6 units (decks, slabs) is fine, a hole is not
+    const probe = (ang, dist = reach) => {
+      let px = this.x, pz = this.z, py = this.y;
+      for (let k = 1; k <= 3; k++) {
+        const qx = this.x + Math.sin(ang) * dist * k / 3, qz = this.z + Math.cos(ang) * dist * k / 3;
+        if (t.blocked(px, pz, qx, qz, py)) return false;
+        const g = t.groundAt(qx, qz, py) || t.groundBelow(qx, qz, py + 0.5);
+        if (!g || g.y < py - 6) return false;
+        px = qx; pz = qz; py = g.y;
+      }
+      return true;
+    };
+    let blockedAhead = false;
+    if (!probe(this.h) || !probe(this.h + 0.3, reach * 0.8) || !probe(this.h - 0.3, reach * 0.8)) {   // a corridor, not a single ray
+      blockedAhead = true;
+      if (this.avoid == null) {
+        const l = probe(this.h + 0.8), r = probe(this.h - 0.8);
+        this.avoid = l && !r ? 1 : r && !l ? -1 : probe(this.h + 1.6) ? 1 : probe(this.h - 1.6) ? -1 : (Math.random() < 0.5 ? 1 : -1);
+      }
+      want = this.h + this.avoid * 1.4;
+    } else this.avoid = null;
+    let diff = want - this.h;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    const steer = THREE.MathUtils.clamp(-diff * 2.5, -1, 1);   // steering right turns h negative
+    return { throttle: blockedAhead ? 0.3 : Math.abs(diff) > 2.2 ? 0.5 : 1, brake: blockedAhead && this.v > 18 ? 0.8 : 0, steer, drift: false };
+  }
+
   think(dt, karts) {
+    if (this.free) return this.thinkFree(dt, karts);
     const t = this.track, look = 14 + this.v * 0.6;
     const f = t.frameAt(this.s + look, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
     let target = this.aiOffset;
@@ -97,6 +154,7 @@ export class Kart {
   }
 
   update(dt, input) {
+    if (this.free) return this.updateFree(dt, input);
     const t = this.track;
     const absD = Math.abs(this.d);
     this.offroad = absD > HALF_WIDTH + 1.5;
@@ -185,7 +243,106 @@ export class Kart {
     this.syncMesh(dt);
   }
 
+  // Arena driving: the same speed / drift model, heading h integrated directly; the course collision mesh
+  // gives the ground (slopes, ramps, upper decks) and steep faces are walls. Off an edge the kart falls; below
+  // the course's fall height (lava, the void) it is put back on its start spot after a short rescue.
+  updateFree(dt, input) {
+    const t = this.track;
+    this.offroad = false;
+    this.top = MAX_SPEED * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    if (this.rescue > 0) {   // Lakitu: hang above the start spot, then drop in
+      this.rescue -= dt; this.v = 0; this.drift = 0; this.boost = 0; this.spin = 0;
+      this.x = this.spawn.x; this.z = this.spawn.z; this.h = this.spawn.h; this.air = false; this.vy = 0;
+      const g = t.groundAt(this.x, this.z, this.spawn.y) || t.groundBelow(this.x, this.z, this.spawn.y + 0.5);   // the spot's floor
+      this.y = (g ? g.y : this.spawn.y) + (this.rescue > 0 ? 4 : 0);
+      this.syncFree(0);
+      return;
+    }
+    if (this.finished || this.out) input = { throttle: 0, brake: 0, steer: 0, drift: false };
+    if (this.spin > 0) {
+      this.spin -= dt; this.spinAngle += dt * 11;
+      input = { throttle: 0, brake: 0, steer: 0, drift: false };
+      if (this.spin <= 0) this.spinAngle = 0;
+    }
+    this.throttle = input.throttle > 0;
+    if (input.throttle > 0) {
+      this.v += (14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2;
+      if (this.boost > 0) this.v += 40 * dt;
+    }
+    if (input.brake > 0) this.v -= (this.v > 0 ? 55 : 14) * input.brake * dt;
+    this.v -= Math.sign(this.v) * 4 * dt;
+    if (this.v > max) this.v = Math.max(max, this.v - (this.boost > 0 ? 0 : 30) * dt);
+    this.v = Math.max(this.v, -12);
+    if (this.boost > 0) this.boost -= dt;
+    if (input.drift && !this.drift && this.v > 18 && Math.abs(input.steer) > 0.25) { this.drift = Math.sign(input.steer); this.driftTime = 0; }
+    if (this.drift) {
+      this.driftTime += dt;
+      if (!input.drift || this.v < 12) {
+        if (this.driftTime > 2.2) this.boost = 1.6; else if (this.driftTime > 1.1) this.boost = 0.8;
+        this.drift = 0; this.driftTime = 0;
+      }
+    }
+    let steer = input.steer;
+    if (this.drift) steer = this.drift * 0.65 + steer * 0.55;
+    const speedFactor = THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90);
+    this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
+    const dir = this.v >= 0 ? 1 : -1;
+    // right = fwd x up = (-cos h, 0, sin h): steering right turns h negative
+    this.h -= steer * (this.drift ? 2.3 : 1.9) * speedFactor * dt * dir;
+    // the nose points into the drift while the kart slides a little wide
+    this.slip += ((this.drift ? this.drift * 0.35 : 0) - this.slip) * Math.min(1, (this.drift ? 1.6 : 9) * dt);
+    if (this.drift) this.v -= 2 * dt;
+    const a = this.h + this.slip, step = this.v * dt;
+    let nx = this.x + Math.sin(a) * step, nz = this.z + Math.cos(a) * step;
+    // walls: slide along by trying each axis alone, else stop
+    if (!this.air && t.blocked(this.x, this.z, nx, nz, this.y)) {
+      const hit = () => { this.v *= 0.82; this.hitWall = 0.25; this.drift = 0; };
+      if (!t.blocked(this.x, this.z, nx, this.z, this.y)) { nz = this.z; hit(); }
+      else if (!t.blocked(this.x, this.z, this.x, nz, this.y)) { nx = this.x; hit(); }
+      else { nx = this.x; nz = this.z; this.v *= 0.3; this.hitWall = 0.25; this.drift = 0; }
+    }
+    this.hitWall = Math.max(0, this.hitWall - dt);
+    this.x = nx; this.z = nz;
+    this.syncFree(dt);
+  }
+
+  syncFree(dt = 0) {
+    const t = this.track, x = this.x, z = this.z;
+    this.fwd.set(Math.sin(this.h), 0, Math.cos(this.h));
+    let g = this.air ? t.groundBelow(x, z, this.y + 0.5) : t.groundAt(x, z, this.y);
+    if (!g && !this.air) g = t.groundBelow(x, z, this.y + 0.5);   // rolled off an edge: whatever is below
+    const accel = () => -KART_GRAVITY * GRAVITY_SCALE - AIR_DRAG * this.vy;
+    if (!dt) { if (g && !this.rescue) this.y = g.y; this.vy = 0; this.air = false; }
+    else if (this.air) {
+      this.vy += accel() * dt; this.y += this.vy * dt;
+      if (g && this.y <= g.y) { this.air = false; this.y = g.y; this.vy = 0; }
+    } else if (g) {
+      const fall = this.y + (this.vy + accel() * dt) * dt;
+      if (g.y < fall - 0.05) { this.air = true; this.vy += accel() * dt; this.y = fall; }
+      else { this.y = g.y; this.vy = 0; }
+    } else { this.air = true; this.vy += accel() * dt; this.y += this.vy * dt; }
+    if (this.y <= t.fallY + 0.3 && dt) { this.rescue = 1.5; this.air = false; this.vy = 0; this.invuln = Math.max(this.invuln, 2.5); }   // fell into the lava / off the arena
+    this.world.set(x, this.y, z);
+    this.groundY = this.y;
+    const n = g && !this.air ? g.normal : null;
+    this.groundN = n ? (this.groundN || n.clone()).lerp(n, 0.25).normalize() : (this.groundN || new THREE.Vector3(0, 1, 0));
+    this.up.copy(this.groundN);
+    this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
+    const right = new THREE.Vector3().crossVectors(this.fwd, this.up).normalize();
+    this.up.crossVectors(right, this.fwd).normalize();
+    const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
+    this.mesh.quaternion.setFromRotationMatrix(m);
+    this.mesh.userData.lean = this.steerVis * 0.08 + (this.drift ? this.drift * 0.12 : 0);
+    this.mesh.userData.spinning = this.spin > 0;
+    if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
+    this.mesh.position.copy(this.world);
+    const bob = performance.now() / 1000;
+    this.balloonMeshes.forEach((m, i) => { m.visible = i < this.balloons; m.position.y = m.userData.base + Math.sin(bob * 2 + i * 2.1) * 0.15; });
+  }
+
   syncMesh(dt = 0) {
+    if (this.free) return this.syncFree(dt);
     const t = this.track;
     t.frameAt(this.s, this.frame);
     const f = this.frame;

@@ -15,6 +15,23 @@ const NATIVE_COURSES = [
   ['dk', 'dks-jungle-parkway', "D.K.'s Jungle Parkway"], ['yoshi', 'yoshi-valley', 'Yoshi Valley'],
   ['banshee', 'banshee-boardwalk', 'Banshee Boardwalk'], ['rainbow', 'rainbow-road', 'Rainbow Road'],
 ];
+// The four battle arenas (gCupCourseOrder[4], menus.c): open courses with no track path.
+const BATTLE_COURSES = [
+  ['big-donut', 'big-donut', 'Big Donut'], ['block-fort', 'block-fort', 'Block Fort'],
+  ['double-deck', 'double-deck', 'Double Deck'], ['skyscraper', 'skyscraper', 'Skyscraper'],
+];
+// Battle start spots (spawn_players.c func_8003C0F0 / spawn_players_Np_battle): [x, z] per player slot in
+// MK64 units, the common height, and the facing angle (u16 binary, kart faces (-sin, cos)) per slot.
+// Players 1-2 take the first two spots in 2P, 1-4 all four in 3P/4P. The 'fall' height is D_8015F8E4
+// (course_generate_collision_mesh): at or below it the kart is put back on its start spot. Block Fort's is
+// gCourseMinY - 10 below its dark floor at -167; assumption: the kart is rescued once it has fallen off the
+// arena (-160) rather than landing on that floor.
+export const BATTLE_SPAWNS = {
+  'block-fort': { y: 5, xz: [[0, 200], [0, -200], [-200, 0], [200, 0]], rot: [32768, 0, -16384, 16384], fall: -160 },
+  skyscraper: { y: 480, xz: [[0, 400], [0, -400], [-400, 0], [400, 0]], rot: [32768, 0, -16384, 16384], fall: -480 },
+  'double-deck': { y: 55, xz: [[0, 160], [0, -160], [-160, 0], [160, 0]], rot: [32768, 0, -16384, 16384], fall: null },
+  'big-donut': { y: 200, xz: [[0, 575], [0, -575], [-575, 0], [575, 0]], rot: [-16384, 16384, 0, 32768], fall: 100 },
+};
 
 // Per-course sky gradients, verbatim from mk64-master yamls/courses/*_metadata.yml
 // (sky_colors / sky_colors2 -> sTopSkyBoxColors / sBottomSkyBoxColors). Each entry is
@@ -37,6 +54,10 @@ export const NATIVE_SKY = {
   rainbow: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
   wario: [[20, 30, 56, 40, 60, 110], [0, 0, 0, 0, 0, 0]],
   dk: [[255, 174, 0, 255, 229, 124], [22, 145, 22, 0, 0, 0]],
+  'big-donut': [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
+  'block-fort': [[128, 4280, 6136, 216, 7144, 32248], [216, 7144, 32248, 0, 0, 0]],
+  'double-deck': [[113, 70, 255, 255, 184, 99], [255, 224, 240, 0, 0, 0]],
+  skyscraper: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]],
 };
 // Above the horizon: top colour at the screen top fading to the bottom colour at the
 // horizon. Below it (drawn behind the course): sky_colors2 top at the horizon to
@@ -156,13 +177,25 @@ export async function loadNativeCourse(def) {
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
   return def;
 }
+// Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
+// radians with the kart facing (sin h, 0, cos h).
+export function battleSpawn(id, i) {
+  const b = BATTLE_SPAWNS[id], [x, z] = b.xz[i % 4];
+  return { x: x * NATIVE_SCALE, y: b.y * NATIVE_SCALE, z: z * NATIVE_SCALE, h: -b.rot[i % 4] * Math.PI / 32768 };
+}
 
 // Track defined as a closed 3D spline (x, y=elevation, z). Banking is derived
 // automatically from horizontal curvature so hills, dips and camber all fall out
 // of the control points.
+// Race courses 0-15 in cup order, then the battle cup (16-19) like gCupCourseOrder.
 export const TRACKS = [
   ...NATIVE_COURSES.map(([id, dir, name]) => ({
     id, name, dir, blurb: 'Native MK64 geometry and ROM textures. Static scenery; prototype physics.',
+    native: null, control: null, padSpots: [],
+    theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
+  })),
+  ...BATTLE_COURSES.map(([id, dir, name]) => ({
+    id, name, dir, blurb: 'Battle arena: native MK64 geometry and ROM textures.', battle: true,
     native: null, control: null, padSpots: [],
     theme: { skyTop: 0x508cff, skyBot: 0xd8e8f8, hemiSky: 0xffffff, hemiGround: 0xffffff, sun: 0xffffff },
   })),
@@ -195,6 +228,22 @@ function noise(ctx, w, h, n, alpha) {
 export class Track {
   constructor(def = TRACKS[0]) {
     this.def = def; this.theme = def.theme;
+    if (def.battle) {   // arena: no route, karts roam the collision mesh freely (src/kart.js free mode)
+      this.arena = true; this.length = 0; this.n = 0; this.pos = []; this.boostPads = [];
+      this.group = new THREE.Group();
+      this._buildNativeMeshes();
+      this._nativeBounds();
+      const S = NATIVE_SCALE, v = def.native.vertices;
+      this.bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };
+      for (const [x, y, z] of v) {
+        this.bounds.minX = Math.min(this.bounds.minX, x * S); this.bounds.maxX = Math.max(this.bounds.maxX, x * S);
+        this.bounds.minY = Math.min(this.bounds.minY, y * S); this.bounds.maxY = Math.max(this.bounds.maxY, y * S);
+        this.bounds.minZ = Math.min(this.bounds.minZ, z * S); this.bounds.maxZ = Math.max(this.bounds.maxZ, z * S);
+      }
+      const fall = BATTLE_SPAWNS[def.id].fall;
+      this.fallY = fall === null ? this.bounds.minY - 1 : fall * S;   // gCourseMinY - 10 / D_8015F8E4
+      return;
+    }
     const pts = def.control.map(p => new THREE.Vector3(...p));
     this.curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
     if (def.native) this.curve.arcLengthDivisions = pts.length * 8;
@@ -310,6 +359,9 @@ export class Track {
       }
       return false;
     };
+    // does the segment (x0,z0)->(x1,z1) at kart body height above ground y hit a steep face? (arena karts)
+    this.blocked = blocked;
+    if (this.arena) return;
     const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
     for (let i = 0; i < this.n; i++) {
       const p = this.pos[i], R = this.R[i];
