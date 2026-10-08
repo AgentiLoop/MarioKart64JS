@@ -69,7 +69,7 @@ export function cpuSpeedControl(karts, order, track, cc) {
     } else {
       // func_800088D8: the leading CPU waits when more than band * (cc + 1) ahead of the best human; the others
       // run fast when farther than their slot's band from rival 1 and ease off inside it, so the pack trails the rival.
-      const lap = Math.min(3, k.crossings - 1), frac = k.s / L;
+      const lap = Math.min(3, k.crossings), frac = k.s / L;
       const bandAt = slot => Math.trunc(lap < 3 ? band[lap * 8 + slot + 8] * frac + band[lap * 8 + slot] * (1 - frac) : band[lap * 8 + slot]);
       if (lap < 0) mode = 'fast';
       else if (rank === 0) {

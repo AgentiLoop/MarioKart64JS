@@ -173,7 +173,7 @@ function setup(count = 8) {   // count: karts on the grid (8 for 1P; 2-4 when an
       skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(cc, c), cc,
     });
     k.aiOffset = d * 0.8;
-    k.prevS = k.s; k.crossings = 0;
+    k.prevS = k.s; k.crossings = -1;   // gLapCountByPlayerId starts at -1: crossing the line from the grid begins lap 1
     scene.add(k.mesh); karts.push(k);
     if (c === playerChar) player = k;
   });
@@ -695,7 +695,7 @@ function setupOnline() {
     const mine = p.id === net.myId;
     const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c, speedScale: ccSpeedScale(cc, c), cc });
     k.netId = p.id; k.remote = !mine; k.poses = [];
-    k.prevS = k.s; k.crossings = 0;
+    k.prevS = k.s; k.crossings = -1;   // gLapCountByPlayerId starts at -1: crossing the line from the grid begins lap 1
     scene.add(k.mesh); karts.push(k);
     if (mine) player = k;
   });
@@ -1048,12 +1048,12 @@ function frame(now) {
   const order = rank();
   const place = order.indexOf(player) + 1;
   posEl.innerHTML = posStrokeEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
-  lapEl.textContent = `LAP ${Math.min(LAPS, player.crossings + 1)}/${LAPS}`;
+  lapEl.textContent = `LAP ${Math.max(1, Math.min(LAPS, player.crossings + 1))}/${LAPS}`;
   for (const v of views) {   // the other players' views: place and lap
     if (!v.hud) continue;
     const p = order.indexOf(v.kart) + 1;
     v.hud.children[0].innerHTML = `${p}<small>${ordinal(p)}</small>`;
-    v.hud.children[1].textContent = `LAP ${Math.min(LAPS, v.kart.crossings + 1)}/${LAPS}`;
+    v.hud.children[1].textContent = `LAP ${Math.max(1, Math.min(LAPS, v.kart.crossings + 1))}/${LAPS}`;
   }
   timeEl.textContent = fmt(raceTime);
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;
