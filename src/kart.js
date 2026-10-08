@@ -57,6 +57,11 @@ export function buildKartMesh(character = 'mario') {
     sprite.userData.mirrored = view.mirrored;
   };
   g.userData.character = character;
+  // Lakitu fades a fished-out kart (player->alpha, LAKITU_FIZZLE)
+  g.userData.setAlpha = a => {
+    if (material.transparent !== a < 1) { material.transparent = a < 1; material.depthWrite = a >= 1; material.needsUpdate = true; }
+    material.opacity = a;
+  };
   g.userData.dispose = () => { map.dispose(); material.dispose(); };
   return g;
 }
@@ -98,6 +103,7 @@ export class Kart {
 
   update(dt, input) {
     const t = this.track;
+    if (this.rescue) { this.v = 0; this.drift = 0; this.boost = 0; this.spin = 0; this.spinAngle = 0; return; }   // held by Lakitu (src/lakitu.js)
     const absD = Math.abs(this.d);
     this.offroad = absD > HALF_WIDTH + 1.5;
     this.top = MAX_SPEED * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
@@ -200,7 +206,7 @@ export class Kart {
       else {
         g = t.groundAt(x, z, this.groundY ?? this.world.y);
         // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the old route-plane fallback
-        // (there is no Lakitu rescue, so falling into water/void would strand the kart)
+        // (karts leave the course only through the air, see below)
         if (!g && this.groundY != null && this.vy > 0.5) g = t.groundBelow(x, z, this.groundY + 0.5);
       }
     }
@@ -217,17 +223,20 @@ export class Kart {
       const accel = () => (-(this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY) * GRAVITY_SCALE - AIR_DRAG * this.vy) / this.dac;
       if (this.air) {
         this.vy += accel() * dt; this.y += this.vy * dt;
-        // no Lakitu rescue: outside a ramp flight, ground well below the route (water, void) is floored at the route
-        const floor = !this.ramp && (!g || g.y < f.pos.y - 4) ? f.pos.y : g ? g.y : -Infinity;
-        if (this.y <= floor) {
-          this.air = false; this.y = floor; this.vy = 0;
-          if (!g || floor !== g.y) g = null;   // landed on the route plane
-          if (!g || !g.ramp) this.ramp = null;
+        // Off the course: ground well below both the road and the takeoff point (water, a lower level), or none at
+        // all, is no landing. The kart falls on until it hits it, sinks under the course's fluid level with no floor
+        // within 600 MK64 units (LAKITU_RETRIEVAL, func_8002C4F8) or drops 30 below the road: Lakitu fishes it out.
+        const ref = Math.min(f.pos.y, this.takeoffY ?? f.pos.y), low = !g || g.y < ref - 4;
+        if (!low && this.y <= g.y) {
+          this.air = false; this.y = g.y; this.vy = 0;
+          if (!g.ramp) this.ramp = null;
         }
-        else if (!g && this.y < f.pos.y - 30) { this.air = false; this.y = f.pos.y; this.vy = 0; this.ramp = null; }   // fell into the void
+        else if (low && g && this.y <= g.y) { this.y = g.y; this.vy = 0; this.fell = { kind: 'drop', base: g.y }; g = null; }
+        else if (this.y < (t.fluidY ?? -Infinity) - 0.55 && (!g || g.y < this.y - 60)) this.fell = { kind: 'water', base: t.fluidY };
+        else if (this.y < ref - 30) this.fell = { kind: 'drop', base: this.y };
       } else if (g) {
         const fall = this.y + (this.vy + accel() * dt) * dt;
-        if (g.y < fall - 0.05) { this.air = true; this.vy += accel() * dt; this.y = fall; }
+        if (g.y < fall - 0.05) { this.air = true; this.takeoffY = this.y; this.vy += accel() * dt; this.y = fall; }
         else {
           const n = g.normal;   // vertical speed of the slope under the kart (not frame-to-frame, so steps don't launch)
           this.vy = n.y > 0.2 ? THREE.MathUtils.clamp(-(n.x * (x - px) + n.z * (z - pz)) / (n.y * dt), -0.6 * Math.abs(this.v), 0.6 * Math.abs(this.v)) : 0;
@@ -238,6 +247,7 @@ export class Kart {
     }
     if (g && !this.air) {
       this.groundY = g.y; this.world.y = g.y;
+      if (!this.ramp) this.lastGroundS = this.s;   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
       this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
       this.up.copy(this.groundN);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope

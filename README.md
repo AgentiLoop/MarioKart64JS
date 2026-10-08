@@ -31,6 +31,7 @@ Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to
 - **Native courses** — all 16 MK64 tracks reconstructed from the ROM's course geometry + textures (MIO0/CI8/RGBA16 decoders in `tools/`).
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls. Karts go airborne off ramps and crests with the decomp's gravity and air drag, and the boost ramps (Royal Raceway, D.K.'s Jungle Parkway) launch long, floaty jumps.
 - **Items** — item boxes give MK64 items (shell, banana, mushroom…).
+- **Lakitu** — the referee from the ROM's sprites (`src/lakitu.js`): he flies in with the start signal and the race starts on his blue light, shows the 2nd / final lap signs, waves the checkered flag once you finish while your kart drives on, and fishes out any kart that falls off the course (water, lava, the void), fading it out and setting it back down on the last stretch of road it drove on.
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars, kart exhaust smoke.
 - **HUD** — position, lap, race timer, speedometer, minimap.
 - **Sound** — the ROM's "Welcome to Mario Kart" voice on the title screen, and the ROM's own music: `src/m64.js` ports the decomp's sequence player (seqplayer.c / playback.c / effects.c), decodes the VADPCM instruments and plays the .m64 sequences in an AudioWorklet — title, menu and per-course race themes.
@@ -67,6 +68,7 @@ carrying the full HUD. Enter while waiting races the CPU instead; Esc goes back 
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
 - `extract-smoke.py` — kart exhaust smoke puff frames (`src/smoke.js`)
+- `extract-lakitu.py` — Lakitu's countdown, lap sign, checkered flag and fishing animations (`src/lakitu.js`)
 - `extract-sounds.py` — "Welcome to Mario Kart" voice WAV plus the raw audio banks, sample tables, sequences and bank sets that `src/m64.js` plays
 - `extract-mainmenu.py` — GAME SELECT banner, 1P–4P GAME cards, mode plates, OPTION / DATA and the cursor triangle
 
