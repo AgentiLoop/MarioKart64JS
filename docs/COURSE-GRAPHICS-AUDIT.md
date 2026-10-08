@@ -44,7 +44,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | Rainbow Road | neon signs (`render_object_neon`), Chain Chomps | — |
 | Wario Stadium | Wario signs (`ACTOR_WARIO_SIGN` ×3) | **done** (src/props.js) |
 | D.K.'s Jungle Parkway | trees and palm trees (`render_palm_trees`, 95) | **done** (src/props.js) |
-| D.K.'s Jungle Parkway | paddle-boat ferry and its smoke, kiwano fruit, torches | — |
+| | paddle-boat ferry (`render_actor_paddle_boat`, 1-2 screens) | **done** (tools/extract-ferry.py, src/ferry.js) |
+| | the ferry's smoke, kiwano fruit, torches | — |
 | Battle arenas | bomb karts (`render_object_bomb_kart`, battle) | — |
 | Every course | item boxes at the course's `item_box_spawns` | race courses place boxes at fractions of the track length (src/items.js `BOX_SPOTS`), not at the ROM spots; arenas use the ROM spots |
 
@@ -166,3 +167,20 @@ and flips each model back in its own x, as the train. Assumption: when no path p
 overall is used (`func_8000D24C` searches the kart's track section). Not ported yet: engine hum and horns
 (`func_800C9D80`, `handle_vehicle_interactions`), karts tumbling when hit (VERTICAL_TUMBLE_TRIGGER) and CPU karts
 steering round traffic (`update_player_track_position_factor_from_*`).
+## D.K.'s Jungle Parkway ferry (done)
+tools/extract-ferry.py walks `d_course_dks_jungle_parkway_boat_dl` + `railings_dl` and `paddle_wheel_dl` with the
+tools/extract-props.py walker (vertex arrays and RGBA16 textures verified byte-for-byte) in its normals mode: F3DEX
+lights a vertex when it is loaded, so each lit vertex keeps its normal and the light in force then (the lists'
+`gsSPSetLights1` / `gsSPLight` pairs, `unknown_light1-4`, else the render code's D_800DC610[1]). It verifies
+`d_course_dks_jungle_parkway_ferry_path` (31 points), runs `generate_2d_path` on it (345 points) and writes the
+`d_course_dks_jungle_parkway_addr` section triangles. src/ferry.js:
+- `init_vehicles_ferry`: one boat at 2D point 0, y -40, speed 1.6666666, only with 1-2 screens;
+  `spawn_course_vehicles` steps it once and heads it along that step;
+- `update_vehicle_paddle_boats` (every other 60 Hz tick): `update_vehicle_following_path` at its speed, then it turns
+  towards 2D point + 5 from its old position: more than 0x1770 off, speed - 0.04 (while over 0.2) and up to 0x3C a
+  step, else speed + 0.02 (while under 2.0) and up to 0x1E; horn 0x19018047 / 48 one frame in 100;
+- `update_actor_paddle_boat`: paddle wheel + DEGREES(5) a tick, drawn turned about x at (0, 16, -255) in the boat;
+- `render_actor_paddle_boat`: hidden while the screen's pathCounter is 21-24 (src/sections.js, shared with the Yoshi
+  egg) and past 3000 x/z; vertex colours re-lit (ambient + colour × max(0, n·l), light in world space) as it turns.
+EXTRA flips the model back in its own x, as the train. Not ported yet: its smoke (`spawn_ferry_smoke`) and karts
+tumbling when it hits them (`handle_paddle_boats_interactions`, HIT_PADDLE_BOAT_TRIGGER).

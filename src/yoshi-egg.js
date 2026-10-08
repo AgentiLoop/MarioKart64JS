@@ -3,16 +3,16 @@
 // eggRot - DEGREES(3) a tick. render_actor_yoshi_egg draws it within 4000 x/z of the camera: while that screen's
 // track section (pathCounter) is 13-19 the lit 3D egg (d_course_yoshi_valley_dl_16D70, F3DEX light fixed in world
 // space while the egg turns), otherwise the flat far egg (dl_egg_lod0) turned to the camera's yaw (D_801502C0).
-// pathCounter (func_8029122C): the section id of the course triangle under the camera, or under its kart when
-// the two are more than one section apart; a floor over 30 below or with no section (255) keeps the old one.
+// pathCounter (func_8029122C): src/sections.js.
 // EXTRA: the console mirrors positions only, so the 3D egg is flipped back in its own x and turns the other way.
 // Not ported: its ground shadow (func_8029794C, D_0D007B20), kart collisions and the hop when hit (flag 0x400).
 import * as THREE from 'three';
 import * as HD from './hd.js';
 import { NATIVE_SCALE } from './track.js';
 import { billboard } from './foliage.js';
+import { TrackSections } from './sections.js';
 
-const TICK = 1 / 60, BAM = Math.PI * 2 / 65536, CELL = 256, FLOOR = 30;
+const TICK = 1 / 60, BAM = Math.PI * 2 / 65536;
 const _p = new THREE.Vector3(), color = new THREE.Color();
 
 function texture(dir, image, wrap) {
@@ -97,52 +97,8 @@ export class YoshiEgg {
     };
     this.group.add(this.far);
 
-    // section triangles bucketed by x/z cell: [id, ax, ay, az, bx, by, bz, cx, cy, cz] in course units
-    this.grid = new Map();
-    for (const t of data.sections) {
-      const xs = [t[1], t[4], t[7]], zs = [t[3], t[6], t[9]];
-      for (let x = Math.floor(Math.min(...xs) / CELL); x <= Math.floor(Math.max(...xs) / CELL); x++) {
-        for (let z = Math.floor(Math.min(...zs) / CELL); z <= Math.floor(Math.max(...zs) / CELL); z++) {
-          const key = x * 65536 + z;
-          if (!this.grid.has(key)) this.grid.set(key, []);
-          this.grid.get(key).push(t);
-        }
-      }
-    }
+    this.trackSections = new TrackSections(data.sections);
     this._place();
-  }
-
-  // the floor triangle under (x, y, z) in course units: { id, distance } (the highest one at or below y), or null
-  _floor(x, y, z) {
-    let best = null;
-    for (const t of this.grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-      const [, ax, ay, az, bx, by, bz, cx, cy, cz] = t;
-      const area = (bx - ax) * (cz - az) - (cx - ax) * (bz - az);
-      if (Math.abs(area) < 1e-6) continue;
-      const u = ((bx - x) * (cz - z) - (cx - x) * (bz - z)) / area;
-      const v = ((cx - x) * (az - z) - (ax - x) * (cz - z)) / area;
-      const w = 1 - u - v;
-      if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
-      const fy = u * ay + v * by + w * cy;
-      if (fy <= y + 1 && (!best || y - fy < best.distance)) best = { id: t[0], distance: y - fy };
-    }
-    return best;
-  }
-
-  _sectionOf(obj) {
-    if (!obj) return { id: 255, distance: Infinity };
-    const S = NATIVE_SCALE, p = obj.isObject3D ? _p.setFromMatrixPosition(obj.matrixWorld) : obj.world;   // camera / kart
-    return this._floor(p.x / S, p.y / S, p.z / S) ?? { id: 255, distance: Infinity };
-  }
-
-  // func_8029122C: the screen's pathCounter from the camera's and its player's floor triangles
-  _pathCounter(cam, prev) {
-    const c = this._sectionOf(cam), p = this._sectionOf(cam.userData.kart), d = c.id - p.id;
-    const kart = p.id === 255 || p.distance > FLOOR ? prev : p.id;
-    // assumption: this chase camera rides about 42 units over the road (higher than the console's), so a camera
-    // more than 30 over its floor takes its kart's section instead of keeping the old one
-    if (d < 2 && d >= -1 && c.id !== 255) return c.distance > FLOOR ? kart : c.id;
-    return kart;
   }
 
   _place() {
@@ -178,6 +134,6 @@ export class YoshiEgg {
       ticked = true;
     }
     if (ticked) this._place();
-    for (const cam of cameras) this.sections.set(cam, this._pathCounter(cam, this.sections.get(cam) ?? 1));
+    for (const cam of cameras) this.sections.set(cam, this.trackSections.pathCounter(cam, this.sections.get(cam) ?? 1));
   }
 }

@@ -41,6 +41,29 @@ def s8(v):
     return v - 256 if v > 127 else v
 
 
+def track_sections(data_c, lists, cv, course):
+    """TrackSections d_course_<course>_addr: {list, surface, section id, flags}; every triangle of each list as
+    [section id, ax, ay, az, bx, by, bz, cx, cy, cz] (vertex slots -> course.json vertex index)."""
+    table = re.search(rf'TrackSections d_course_{course}_addr\[\] = \{{(.*?)\}};', data_c, re.S).group(1)
+    sections = []
+    for name, _, section in re.findall(r'\{\s*(\w+),\s*(\w+),\s*(\w+),', table):
+        if name not in lists:   # the { 0x00000000, ... } terminator
+            continue
+        slots, stack = {}, [name]
+        while stack:
+            for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[stack.pop()], re.S):
+                a = [v.strip() for v in args.split(',')]
+                if command == 'gsSPDisplayList':
+                    stack.append(a[0])
+                elif command == 'gsSPVertex':
+                    address, count, start = [int(v, 0) for v in a]
+                    for i in range(count):
+                        slots[start + i] = (address & 0xffffff) // 16 + i
+                elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
+                    for j in range(0, len(a), 4):
+                        tri = [cv[slots[int(v, 0)]][:3] for v in a[j:j + 3]]
+                        sections.append([int(section, 0)] + [c for p in tri for c in p])
+    return sections
 def convert(source, rom, course_json):
     data_c = (source / f'courses/{COURSE}/course_data.c').read_text()
     dls_c = (source / f'courses/{COURSE}/course_displaylists.inc.c').read_text()
@@ -115,27 +138,7 @@ def convert(source, rom, course_json):
     if (near['width'], near['height'], far['width'], far['height']) != (32, 32, 64, 32):
         raise ValueError('Unexpected egg texture sizes')
 
-    # TrackSections d_course_yoshi_valley_addr: {list, surface, section id, flags}; vertex slots -> course vertex index
-    table = re.search(rf'TrackSections d_course_{COURSE}_addr\[\] = \{{(.*?)\}};', data_c, re.S).group(1)
-    cv = course_json['vertices']
-    sections = []
-    for name, _, section in re.findall(r'\{\s*(\w+),\s*(\w+),\s*(\w+),', table):
-        if name not in lists:   # the { 0x00000000, ... } terminator
-            continue
-        slots, stack = {}, [name]
-        while stack:
-            for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[stack.pop()], re.S):
-                a = [v.strip() for v in args.split(',')]
-                if command == 'gsSPDisplayList':
-                    stack.append(a[0])
-                elif command == 'gsSPVertex':
-                    address, count, start = [int(v, 0) for v in a]
-                    for i in range(count):
-                        slots[start + i] = (address & 0xffffff) // 16 + i
-                elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
-                    for j in range(0, len(a), 4):
-                        tri = [cv[slots[int(v, 0)]][:3] for v in a[j:j + 3]]
-                        sections.append([int(section, 0)] + [c for p in tri for c in p])
+    sections = track_sections(data_c, lists, course_json['vertices'], COURSE)
     out = dict(romSha1=karts.US_SHA1, courseDataRomOffset=block_offset, source='spawn_course_actors (src/racing/actors.c)',
                spawn=[-2300, 0, 634], pathRadius=70, pathCenterOffset=[0, 0, 70], pathRotPerTick=0x5B,
                eggRotPerTick=-546, maxDistance=4000, nearSections=[13, 19],

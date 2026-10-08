@@ -61,9 +61,11 @@ def s8(v):
     return v - 256 if v > 127 else v
 
 
-def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
+def convert(source, rom, course_id, course_json, config=None, extra_lists=None, normals=None):
     """config: (spawn, kinds, drawing, initial) like COURSES (spawn None = models only); extra_lists: more display
-    lists by name (C body text) the walker may call; returns (out, images)."""
+    lists by name (C body text) the walker may call; normals: the render code's light (9 gdSPDefLights1 numbers): vertices
+    lit when loaded keep their signed normals and the index of that light in out['lights'] (the lists'
+    gsSPSetLights1 / gsSPLight, else this one) for run-time shading; returns (out, images)."""
     spawn, kinds, drawing, initial = config or COURSES[course_id]
     data_c = (source / f'courses/{course_id}/course_data.c').read_text()
     tex_meta = json.loads((source / f'assets/courses/{course_id}.json').read_text())
@@ -79,7 +81,7 @@ def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
     vtx_arrays = dict(re.findall(r'Vtx (\w+)\[\d*\] = \{(.*?)\n\};', data_c, re.S))
     lists = dict(re.findall(r'Gfx (\w+)\[\] = \{(.*?)\};', data_c, re.S), **(extra_lists or {}))
     images_c = dict(re.findall(r'u8 (\w+)\[\] = \{\s*#include "assets/courses/\w+/(\w+)\.inc\.c"', data_c))
-    lights = {n: numbers(a) for n, a in re.findall(r'Lights1 (\w+) = gdSPDefLights1\((.*?)\);', data_c)}
+    lights = {n: numbers(a) for n, a in re.findall(r'Lights1 (\w+)\s*=\s*gdSPDefLights1\((.*?)\);', data_c)}
 
     def vertices(name):
         rows = [numbers(r) for r in re.findall(r'\{\s*\{\s*\{([^{}]+)\}\s*,\s*(-?\w+)\s*,\s*\{([^{}]+)\}\s*,\s*\{([^{}]+)\}\s*\}\s*\}',
@@ -122,6 +124,8 @@ def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
                     state['lit'] = command == 'gsSPSetGeometryMode'
             elif command == 'gsSPSetLights1':
                 state['light'] = a[0]
+            elif command == 'gsSPLight' and normals:   # gsSPLight(&X.l, 1) + gsSPLight(&X.a, 2): light X from here on
+                state['light'] = re.fullmatch(r'&(\w+)\.[la]', a[0]).group(1)
             elif command == 'gsDPSetTile' and a[4] == 'G_TX_RENDERTILE':
                 state.update(wrapS=wrap(a[9]), wrapT=wrap(a[6]))
             elif command == 'gsDPSetTileSize':
@@ -134,14 +138,16 @@ def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
                 rows, count, start = vertices(a[0]), int(a[1], 0), int(a[2], 0)
                 if count > len(rows):
                     raise ValueError(f'{name}: {a[0]} has fewer than {count} vertices')
+                # F3DEX lights each vertex as it is loaded: remember the light in force then
+                at_load = state['lit'] and (state['light'] or 'render')
                 for i in range(count):
-                    cache[start + i] = rows[i]
+                    cache[start + i] = (rows[i], at_load)
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
                 if state['mode'] == 'decal':   # XLU_DECAL re-draw of the same triangles: only blends their AA edges
                     continue
                 textured = state['enabled'] and state['combine'] != 'G_CC_SHADE'
                 key = (state['texture'] if textured else None, state['tileW'], state['tileH'], state['wrapS'],
-                       state['wrapT'], state['mode'], state['cull'], state['lit'] and state['light'])
+                       state['wrapT'], state['mode'], state['cull'], None if normals else state['lit'] and state['light'])
                 if not parts or parts[-1]['key'] != key:
                     part = dict(key=key, triangles=[], alphaTest=state['mode'] == 'edge', doubleSided=not state['cull'])
                     if key[0]:
@@ -151,12 +157,26 @@ def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
                         part.update(image=image, width=w, height=h, wrapS=key[3], wrapT=key[4], rgbaSha256=digest)
                     parts.append(part)
                 for j in range(0, len(a), 4):
-                    parts[-1]['triangles'].append([shade(cache[int(v, 0)], key[7]) for v in a[j:j + 3]])
+                    parts[-1]['triangles'].append([vertex(*cache[int(v, 0)], key[7]) for v in a[j:j + 3]])
             elif command == 'gsDPSetTextureLUT' and a[0] != 'G_TT_NONE':
                 raise ValueError(f'{name}: unsupported {command}({a[0]})')
             elif command not in ('gsDPPipeSync', 'gsDPTileSync', 'gsDPLoadSync', 'gsDPLoadBlock', 'gsDPSetTile',
                                  'gsDPSetTextureLUT', 'gsSPEndDisplayList'):
                 raise ValueError(f'{name}: unsupported display-list command {command}')
+
+    used_lights = []
+
+    def vertex(v, at_load, light):
+        """normals mode: [x, y, z, s, t, nx, ny, nz, a, light index into out['lights']] for a vertex lit as it was
+        loaded, [x, y, z, s, t, r, g, b, a, -1] otherwise; else shade(v, light)."""
+        if not normals:
+            return shade(v, light)
+        x, y, z, _, s, t, r, g, b, alpha = v
+        if not at_load:
+            return [x, y, z, s, t, r, g, b, alpha, -1]
+        if at_load not in used_lights:
+            used_lights.append(at_load)
+        return [x, y, z, s, t, s8(r), s8(g), s8(b), alpha, used_lights.index(at_load)]
 
     def shade(v, light):
         """[x, y, z, s, t, r, g, b, a]; lit vertices carry a normal instead of a colour."""
@@ -181,6 +201,12 @@ def convert(source, rom, course_id, course_json, config=None, extra_lists=None):
             del p['key']
         models[str(some_id)] = dict(lists=[dl for dl, _ in dls], parts=parts)
     out = dict(romSha1=karts.US_SHA1, courseDataRomOffset=block_offset, **drawing, models=models)
+    if normals:
+        out['lights'] = []
+        for name in used_lights:
+            ar, ag, ab, cr, cg, cb, lx, ly, lz = normals if name == 'render' else lights[name]
+            out['lights'].append(dict(name=name, ambient=[ar, ag, ab], color=[cr, cg, cb],
+                                      direction=[s8(lx & 0xff), s8(ly & 0xff), s8(lz & 0xff)]))
     if spawn is None:
         out['actors'] = []
         return out, images

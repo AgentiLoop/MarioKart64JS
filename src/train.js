@@ -56,6 +56,22 @@ export function band(renderer, scene, camera) {
   }
 }
 
+// update_vehicle_following_path (find_closest_vehicles_path_point, get_angle_between_path) on the 2D path P:
+// car.idx, car.pos, car.vel and car.yaw (the motion's heading)
+export function followPath(P, car, speed) {
+  const L = P.length, [x, , z] = car.pos;
+  let best = 250000, bi = -1;
+  for (let r = car.idx - 2; r < car.idx + 7; r++) {
+    const c = (r < 0 ? r + L : r) % L, dx = P[c][0] - x, dz = P[c][1] - z, d = dx * dx + dz * dz;
+    if (d < best) { best = d; bi = c; }
+  }
+  if (bi >= 0) car.idx = bi;
+  const a = P[(car.idx + 3) % L], b = P[(car.idx + 4) % L];
+  const dx = (a[0] + b[0]) * 0.5 - x, dz = (a[1] + b[1]) * 0.5 - z, d = Math.sqrt(dx * dx + dz * dz);
+  if (d > 0.01) { car.pos[0] = x + dx * speed / d; car.pos[2] = z + dz * speed / d; }
+  car.vel = [car.pos[0] - x, car.pos[2] - z];
+  if (car.vel[0] || car.vel[1]) car.yaw = Math.atan2(car.vel[0], car.vel[1]);   // atan2s(dx, dz)
+}
 export class Train {
   constructor(scene, track, def, { mirror = false, audio = null, gp = false } = {}) {
     this.group = new THREE.Group();
@@ -158,22 +174,7 @@ export class Train {
     this._place();
   }
 
-  // update_vehicle_following_path (find_closest_vehicles_path_point, get_angle_between_path)
-  _follow(car) {
-    const P = this.path, L = P.length, [x, , z] = car.pos;
-    let best = 250000, bi = -1;
-    for (let r = car.idx - 2; r < car.idx + 7; r++) {
-      const c = (r < 0 ? r + L : r) % L, dx = P[c][0] - x, dz = P[c][1] - z, d = dx * dx + dz * dz;
-      if (d < best) { best = d; bi = c; }
-    }
-    if (bi >= 0) car.idx = bi;
-    const a = P[(car.idx + 3) % L], b = P[(car.idx + 4) % L];
-    const dx = (a[0] + b[0]) * 0.5 - x, dz = (a[1] + b[1]) * 0.5 - z, d = Math.sqrt(dx * dx + dz * dz);
-    if (d > 0.01) { car.pos[0] = x + dx * SPEED / d; car.pos[2] = z + dz * SPEED / d; }
-    car.vel = [car.pos[0] - x, car.pos[2] - z];
-    if (car.vel[0] || car.vel[1]) car.yaw = Math.atan2(car.vel[0], car.vel[1]);   // atan2s(dx, dz)
-  }
-
+  _follow(car) { followPath(this.path, car, SPEED); }
   // update_vehicle_trains
   _vehicles(cams) {
     for (const t of this.trains) {
