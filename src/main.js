@@ -990,6 +990,8 @@ function layoutViews() {
 }
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
+  if (k.rescue?.watch) { camera.lookAt(k.world); return; }   // camera.c: holds still while Lakitu fishes the kart out
+  if (k.rescue?.snap) { k.rescue.snap = false; v.init = false; }   // and cuts back behind it over the road
   const behind = k.fwd.clone().multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(k.up, 4.2);
   const target = k.world.clone().add(behind);
   const a = v.init ? 1 - Math.exp(-dt * 7) : 1;
@@ -1057,6 +1059,7 @@ function collide() {
   }
   for (let i = 0; i < karts.length; i++) for (let j = i + 1; j < karts.length; j++) {
     const a = karts[i], b = karts[j];
+    if (a.rescue || b.rescue) continue;
     let ds = b.s - a.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
     const dd = b.d - a.d;
     if (Math.abs(ds) < 3.4 && Math.abs(dd) < 2.1) {
