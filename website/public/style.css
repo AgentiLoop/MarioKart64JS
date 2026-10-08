@@ -69,6 +69,9 @@ kbd{font:700 14px ui-monospace,Menlo,monospace;background:linear-gradient(180deg
 .foot{border-top:1px solid var(--line);background:#07061a}
 .foot .wrap{padding-block:40px}
 .foot p{margin:0 0 10px;max-width:880px}
+.play-shot{display:block;max-width:720px;margin:0 auto 36px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#000}
+.play-shot img{display:block;width:100%;height:auto;transition:transform .3s}
+.play-shot:hover img{transform:scale(1.03)}
 .lightbox{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.9);display:grid;place-items:center;padding:24px;cursor:zoom-out}
 .lightbox img{max-height:92vh;border-radius:10px}
 @media (max-width:760px){.nav nav a:not(.btn){display:none}}
