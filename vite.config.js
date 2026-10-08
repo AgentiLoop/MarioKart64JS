@@ -6,4 +6,4 @@ import { defineConfig } from 'vite';
 // tools/build-web-assets.mjs copies public/mk64 and public/mk64-hd/2x instead.
 export default defineConfig(({ mode }) => mode === 'web'
   ? { base: '/play/', build: { outDir: 'website/public/play', emptyOutDir: true, copyPublicDir: false } }
-  : {});
+  : { server: { watch: { ignored: ['**/.agent/**', '**/website/**'] } } });
