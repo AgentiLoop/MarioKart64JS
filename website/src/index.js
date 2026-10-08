@@ -14,6 +14,7 @@ export default {
     h.set("referrer-policy", "strict-origin-when-cross-origin");
     if (res.ok && (url.pathname === "/play" || url.pathname.startsWith("/play/"))) {
       if (url.pathname.startsWith("/play/assets/")) h.set("cache-control", "public, max-age=31536000, immutable");   // hashed by vite
+      else if (url.pathname === "/play/mk64-hd/manifest.json") h.set("cache-control", "no-cache");                 // tiers change between releases
       else if (url.pathname.startsWith("/play/mk64")) h.set("cache-control", "public, max-age=86400");            // ROM + HD textures, audio
     }
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });

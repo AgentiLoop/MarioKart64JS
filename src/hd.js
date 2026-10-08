@@ -88,7 +88,7 @@ function refresh() {
 }
 
 const browser = typeof document !== 'undefined';   // tools/test-*.mjs import track.js under node
-export const ready = browser && fetch(`${BASE}mk64-hd/manifest.json`)
+export const ready = browser && fetch(`${BASE}mk64-hd/manifest.json`, { cache: 'no-cache' })
   .then(r => (r.ok ? r.json() : {}))
   .catch(() => ({}))
   .then(m => { files = m.files || {}; refresh(); });
