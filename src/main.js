@@ -68,7 +68,7 @@ scene.add(sky);
 // fixed +Z point flipping when facing away).
 const _hp = new THREE.Vector3();
 let cameraYaw = 0;   // camera->rot[1]: u16 binary angle, atan2s(dx, dz)
-function updateSky() {
+function updateSky(camera, vw = 0, vh = 0) {   // per view: vw x vh is the viewport in buffer pixels (0 = whole frame)
   if (!nativeSky) return;
   camera.updateMatrixWorld();
   camera.getWorldDirection(_hp); _hp.y = 0;
@@ -76,7 +76,7 @@ function updateSky() {
   cameraYaw = Math.round(Math.atan2(_hp.x, _hp.z) * 32768 / Math.PI) & 0xffff;
   _hp.normalize().multiplyScalar(30000 * NATIVE_SCALE).add(camera.position); _hp.y = 0;
   sky.material.uniforms.horizon.value = _hp.project(camera).y;
-  updateClouds();
+  updateClouds(vw, vh);
 }
 window.__sky = nativeSky && { colors: nativeSky, get horizon() { return sky.material.uniforms.horizon.value; } };
 
@@ -121,9 +121,10 @@ if (cloudSet) {
   clouds.frustumCulled = false; clouds.renderOrder = -999;
   scene.add(clouds);
 }
-function updateClouds() {
+function updateClouds(vw, vh) {
   if (!clouds) return;
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  if (vw && vh) size.set(vw, vh);
   const kx = (size.y / 240) * 2 / size.x;   // native px -> NDC x, height-matched scaling
   const row = (1 - sky.material.uniforms.horizon.value) * 120;
   const tick = Math.floor(performance.now() * 0.03);   // object updates at 30 Hz (assumption)
@@ -168,7 +169,7 @@ function setup() {
     scene.add(k.mesh); karts.push(k);
     if (c === playerChar) player = k;
   });
-  camPos.copy(player.world); camInit = false;
+  setViews([player]);
   banner.textContent = '';
   items.reset();
 }
@@ -653,7 +654,7 @@ function setupOnline() {
     scene.add(k.mesh); karts.push(k);
     if (mine) player = k;
   });
-  camPos.copy(player.world); camInit = false;
+  setViews(karts);   // every player's view, in grid order, like the console's split screen
   banner.textContent = '';
   items.reset();
 }
@@ -820,21 +821,75 @@ function drawMini() {
   }
 }
 
-const camPos = new THREE.Vector3(), camUp = new THREE.Vector3(0, 1, 0), camLook = new THREE.Vector3();
-let camInit = false;
-function updateCamera(dt) {
-  const k = player;
+// ------- views: one chase camera per screen player. MK64 split screen (skybox_and_splitscreen.c): 2P stacks P1 over
+// P2 (SCREEN_MODE_2P_SPLITSCREEN_HORIZONTAL, 320x120 each); 3P/4P are quadrants P1 top-left, P2 top-right, P3
+// bottom-left, P4 bottom-right (SCREEN_MODE_3P_4P_SPLITSCREEN); in 3P the fourth quadrant draws no course, only
+// its HUD (render_player_four_3p_4p_screen), which here holds the course map. Online every game shows every
+// player's view, so the screen matches the console's; only the local player's view carries the full HUD.
+const mkView = (cam, kart) => ({ cam, kart, pos: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), look: new THREE.Vector3(), init: false, rect: [0, 0, 1, 1], hud: null });
+let views = [mkView(camera, null)];
+const miniEl = $('mini'), hudEl = $('hud');
+function setViews(list) {
+  for (const v of views) if (v.hud) v.hud.remove();
+  views = list.map((k, i) => mkView(i === 0 ? camera : new THREE.PerspectiveCamera(70, 1, 0.5, 2500), k));
+  views.forEach((v, i) => {
+    if (!v.kart || v.kart === player) return;
+    v.hud = document.createElement('div');
+    v.hud.className = 'vhud';
+    v.hud.innerHTML = `<div class="vpos"></div><div class="vlap"></div><div class="vname">P${i + 1} ${v.kart.name.toUpperCase()}</div>`;
+    document.body.appendChild(v.hud);
+  });
+  layoutViews();
+}
+// Viewport rects as fractions of the frame (x, y from the top-left, w, h).
+function viewRects(n) {
+  if (n <= 1) return [[0, 0, 1, 1]];
+  if (n === 2) return [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]];
+  return [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]].slice(0, n);
+}
+function layoutViews() {
+  const rects = viewRects(views.length), n = views.length;
+  const zoom = n === 1 ? 1 : n === 2 ? 0.7 : 0.55;
+  views.forEach((v, i) => {
+    v.rect = rects[i];
+    v.cam.aspect = (innerWidth * v.rect[2]) / (innerHeight * v.rect[3]); v.cam.updateProjectionMatrix();
+    const box = el => { el.style.left = `${v.rect[0] * 100}%`; el.style.top = `${v.rect[1] * 100}%`; el.style.width = `${v.rect[2] * 100}%`; el.style.height = `${v.rect[3] * 100}%`; };
+    if (v.hud) { box(v.hud); v.hud.style.zoom = zoom; }
+    if (v.kart === player || !v.kart) { box(hudEl); hudEl.style.zoom = zoom; }
+  });
+  // 3P: the course map takes the empty fourth quadrant
+  if (n === 3) { document.body.appendChild(miniEl); Object.assign(miniEl.style, { position: 'fixed', left: `calc(75vw - 85px)`, top: `calc(75vh - 85px)`, zIndex: 3 }); }
+  else if (miniEl.parentElement !== hudEl) { hudEl.prepend(miniEl); Object.assign(miniEl.style, { position: '', left: '', top: '', zIndex: '' }); }
+}
+function updateCamera(dt, v) {
+  const k = v.kart, camera = v.cam;
   const behind = k.fwd.clone().multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(k.up, 4.2);
   const target = k.world.clone().add(behind);
-  const a = camInit ? 1 - Math.exp(-dt * 7) : 1;
-  camPos.lerp(target, a);
-  camUp.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
-  camLook.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
-  camera.position.copy(camPos); camera.up.copy(camUp); camera.lookAt(camLook);
+  const a = v.init ? 1 - Math.exp(-dt * 7) : 1;
+  v.pos.lerp(target, a);
+  v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
+  v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
+  camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
-  camInit = true;
-  sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world);
+  v.init = true;
+  if (k === player) { sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world); }
+}
+function renderViews() {
+  if (views.length === 1) { updateSky(camera); renderer.render(scene, camera); return; }
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  renderer.setScissorTest(true);
+  const rect = r => [Math.round(r[0] * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
+  for (const v of views) {
+    const [x, y, w, h] = rect(v.rect);
+    renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
+    exhaust.draw(karts, v.cam);
+    updateSky(v.cam, w, h);
+    renderer.render(scene, v.cam);
+  }
+  if (views.length === 3) { const [x, y, w, h] = rect([0.5, 0.5, 0.5, 0.5]); renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.clear(); }
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, size.x, size.y);
 }
 
 // Presentation: render HD.renderLines() lines (1x = N64 240p, upscaled with hard pixels). G cycles presets.
@@ -844,6 +899,7 @@ function resize() {
   renderer.setSize(w, Math.round(h), false);
   canvas.style.imageRendering = HD.smooth() ? 'auto' : 'pixelated';
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  layoutViews();
 }
 addEventListener('resize', resize); resize();
 HD.onChange(resize);
@@ -897,7 +953,7 @@ function frame(now) {
     gameStep(now);    // GAME SELECT column / mode row flash boxes
     charStep(now);    // animate the character-select faces when that screen is open
     courseStep(now);  // cup / course / OK flash boxes on the course-select screen
-    updateSky();
+    updateSky(camera);
     renderer.render(scene, camera);
     return;
   }
@@ -942,14 +998,19 @@ function frame(now) {
   const place = order.indexOf(player) + 1;
   posEl.innerHTML = posStrokeEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
   lapEl.textContent = `LAP ${Math.min(LAPS, player.crossings + 1)}/${LAPS}`;
+  for (const v of views) {   // the other players' views: place and lap
+    if (!v.hud) continue;
+    const p = order.indexOf(v.kart) + 1;
+    v.hud.children[0].innerHTML = `${p}<small>${ordinal(p)}</small>`;
+    v.hud.children[1].textContent = `LAP ${Math.min(LAPS, v.kart.crossings + 1)}/${LAPS}`;
+  }
   timeEl.textContent = fmt(raceTime);
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
-  updateCamera(dt);
+  for (const v of views) updateCamera(dt, v);
   exhaust.update(dt, karts, camera);
   drawMini();
-  updateSky();
-  renderer.render(scene, camera);
+  renderViews();
 }
 let lastTick = 4;
 if (trackDef && !online) setup();

@@ -87,6 +87,13 @@
   #itemWin { display: block; margin: 0 auto; image-rendering: pixelated; }
   #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
 
+  /* ---------- split screen: #hud sits in the local player's viewport (zoomed down); the others get place / lap / name ---------- */
+  .vhud { position: fixed; pointer-events: none; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; }
+  .vhud .vpos { position: absolute; left: 24px; bottom: 20px; font-size: 128px; font-style: italic; line-height: 1; color: #ffe033; padding: 0 28px 0 8px; }
+  .vhud .vpos small { font-size: 44px; }
+  .vhud .vlap { position: absolute; right: 24px; top: 16px; font-size: 34px; color: #ffe033; }
+  .vhud .vname { position: absolute; left: 24px; top: 16px; font-size: 26px; color: #7dff6a; }
+
   /* ---------- online lobby (2P-4P GAME): waits for the other players over the attract fly-along ---------- */
   #lobby { position: fixed; inset: 0; display: none; z-index: 8; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-align: center; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; background: rgba(0,0,30,.35); }
   #lobbyTitle { margin-top: 14vh; font-size: 46px; font-style: italic; color: #ffd23a; }
