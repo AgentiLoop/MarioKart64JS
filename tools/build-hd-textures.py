@@ -101,6 +101,16 @@ def open_hd(path, intensity=False):
     return img
 
 
+def right_bevel(img, rel):
+    """The HD pack's cup icons end in black where the native 65x40 ones have the grey right bevel column
+    (like the course title plates): paste the native last column back, nearest-scaled to this tier."""
+    native = Image.open(NATIVE / rel).convert('RGBA')
+    t = img.width // native.width
+    col = native.crop((native.width - 1, 0, native.width, native.height)).resize((t, native.height * t), Image.NEAREST)
+    img.paste(col, (img.width - t, 0))
+    return img
+
+
 def tint_lut(colour, arg1=0x19):
     """Continuous form of extract-menu-backgrounds.tint (convert_img_to_greyscale + adjust_img_colour)."""
     exp = arg1 * 1.5 / 256 + 0.25
@@ -181,6 +191,17 @@ def main():
     # item box "?" card: common_texture_item_box_question_mark, RGBA16 32x64 (by CRC)
     img = Image.open(NATIVE / 'item-box' / 'question-mark.png').convert('RGBA')
     single('item-box/question-mark.png', pack.by_texels(texels16(img, 'rgba16'), *img.size, 0, 2))
+    # item window icons: CI8 40x32, by decomp name (gItemWindowTextures order, see extract-item-window.py)
+    for path in sorted((NATIVE / 'item-window').glob('*.png')):
+        single(f'item-window/{path.name}', named(f'common_data/common_texture_item_window_{path.stem[3:]}'))
+    # exhaust smoke: 3 stacked 32x32 I8 frames (matched by CRC); native pixels are the intensity in RGBA
+    img = Image.open(NATIVE / 'particles' / 'smoke.png').convert('RGBA')
+    parts = [(pack.by_texels(img.crop((0, y, 32, y + 32)).getchannel('A').tobytes(), 32, 32, 4, 1), (0, y, 32, 32), False)
+             for y in range(0, img.height, 32)]
+    if all(p for p, _, _ in parts):
+        jobs['particles/smoke.png'] = (img.size, parts, 4, lambda a: Image.merge('RGBA', [a.getchannel('A')] * 4))
+    else:
+        print('  incomplete HD frames: particles/smoke.png')
 
     # menus
     sky = named('texture_tkmk00/background_blue_sky')
@@ -199,7 +220,8 @@ def main():
         single(f'courseselect/title_{cid}.png', named(f'texture_tkmk00/{title}'))
     single('courseselect/map_select.png', named('texture_tkmk00/gTextureMapSelect'))
     for cup in ('mushroom', 'flower', 'star', 'special'):
-        single(f'courseselect/cup_{cup}.png', named(f'texture_tkmk00/gTextureMenu{cup.title()}Cup'))
+        single(f'courseselect/cup_{cup}.png', named(f'texture_tkmk00/gTextureMenu{cup.title()}Cup'),
+               post=lambda img, rel=f'courseselect/cup_{cup}.png': right_bevel(img, rel))
     single('charselect/player_select_banner.png', named('texture_tkmk00/texture_player_select'))
     single('charselect/ok.png', named('texture_tkmk00/texture_ok'))
     for driver in ('mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'):
