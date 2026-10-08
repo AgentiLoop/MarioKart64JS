@@ -1,4 +1,5 @@
 name = "mk64js"
+main = "src/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
 routes = [
@@ -7,5 +8,18 @@ routes = [
 
 [assets]
 directory = "./public"
+binding = "ASSETS"
 html_handling = "drop-trailing-slash"
 not_found_handling = "404-page"
+run_worker_first = ["/api/*"]
+
+[observability]
+enabled = true
+
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "Lobby"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Lobby"]
