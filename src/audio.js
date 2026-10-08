@@ -1,4 +1,4 @@
-// WebAudio: procedural engine hum, skid noise and countdown beeps; ROM voice samples and ROM music (src/m64.js).
+// WebAudio: procedural engine hum, skid noise; ROM voice samples and ROM music (src/m64.js).
 import workletUrl from './m64-worklet.js?worker&url';
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
@@ -148,12 +148,5 @@ export class AudioSys {
     o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
-  }
-  beep(go) {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
-    o.type = 'square'; o.frequency.value = go ? 880 : 440;
-    g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + (go ? 0.7 : 0.25));
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.8);
   }
 }

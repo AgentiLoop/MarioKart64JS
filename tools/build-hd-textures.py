@@ -204,6 +204,16 @@ def main():
     # item box "?" card: common_texture_item_box_question_mark, RGBA16 32x64 (by CRC)
     img = Image.open(NATIVE / 'item-box' / 'question-mark.png').convert('RGBA')
     single('item-box/question-mark.png', pack.by_texels(texels16(img, 'rgba16'), *img.size, 0, 2))
+    # Lakitu animations (extract-lakitu.py): atlases of other_textures/gTextureLakitu* frames, `columns` per row
+    lakitu = json.loads((NATIVE / 'lakitu' / 'manifest.json').read_text())
+    for info in lakitu['anims'].values():
+        fw, fh, cols = info['frameWidth'], info['frameHeight'], lakitu['columns']
+        parts = [(named(f'other_textures/{s}'), (n % cols * fw, n // cols * fh, fw, fh), False)
+                 for n, s in enumerate(info['symbols'])]
+        if all(p for p, _, _ in parts):
+            jobs[f'lakitu/{info["image"]}'] = (Image.open(NATIVE / 'lakitu' / info['image']).size, parts, 4, None)
+        else:
+            print(f'  incomplete HD frames: lakitu/{info["image"]}')
     # item window icons: CI8 40x32, by decomp name (gItemWindowTextures order, see extract-item-window.py)
     for path in sorted((NATIVE / 'item-window').glob('*.png')):
         single(f'item-window/{path.name}', named(f'common_data/common_texture_item_window_{path.stem[3:]}'))

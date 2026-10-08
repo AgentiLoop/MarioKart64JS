@@ -7,6 +7,7 @@ import { createTitleFlag } from './flag.js';
 import * as HD from './hd.js';
 import { Exhaust } from './smoke.js';
 import { Net } from './net.js';
+import { Lakitu } from './lakitu.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -157,11 +158,11 @@ scene.add(track.group);
 const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf4cd30, 0xe78d32];
 const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario', 'Bowser'];
 const characters = ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'];
-let karts = [], player, raceTime = 0, state = 'countdown', countdown = 3.4, finishOrder = [];
+let karts = [], player, raceTime = 0, state = 'countdown', finishOrder = [];
 
 function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P; 2-4 when an online room falls back to the CPU)
   for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
-  karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4;
+  karts = []; finishOrder = []; raceTime = 0; state = 'countdown';
   const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];
   // start line is at s=0; grid sits behind it so lap 1 begins on crossing
   // player takes their character (URL ?char= / localStorage), AI fill the rest in native order.
@@ -188,6 +189,7 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
   setViews([player]);
   banner.textContent = '';
   items.reset();
+  lakitu.startCountdown(countdownLight);
 }
 
 // track menu (shown until a track is picked; picking reloads with ?track=id)
@@ -212,6 +214,14 @@ if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (bro
 const items = new Items(track, scene, audio);
 items.gp = raceMode === 'mario_gp';   // GP CPUs draw items on a timer (cpu_use_item_strategy), not from boxes
 const exhaust = new Exhaust(scene);
+const lakitu = new Lakitu(scene, track);
+// Lakitu's start signal: two red lights, then blue starts the race (update_object_lakitu_countdown). The ROM's
+// SOUND_ACTION_COUNTDOWN_LIGHT 0x49008003 / SOUND_ACTION_GREEN_LIGHT 0x49008004 (bank 4)
+function countdownLight(light) {
+  if (state !== 'countdown') return;
+  if (light === 'red') { audio.playSound(4, 0x03); return; }
+  state = 'race'; audio.playSound(4, 0x04);
+}
 const itemEl = $('item'), itemWin = $('itemWin'), itemName = $('itemName');
 // gItemWindowTextures order (tools/extract-item-window.py); preloaded so the roulette never waits on a fetch
 const ITEM_WINDOW = ['none', 'banana', 'banana_bunch', 'green_shell', 'triple_green_shell', 'red_shell', 'triple_red_shell',
@@ -670,7 +680,7 @@ addEventListener('keydown', e => {
 // second; the other karts are puppets replaying those poses 0.1 s in the past. Items: you roll and use your own,
 // every banana / shell / star / boo / lightning you use appears in the other games, and only the player who gets hit decides it (their spin
 // arrives in their pose). The lowest id is the host: each game says READY once its mesh is up, the host answers
-// GO and all run the 3-2-1 countdown together. Multiplayer is 2-4 karts total, never 8: the humans who showed up,
+// GO and all run Lakitu's start countdown together. Multiplayer is 2-4 karts total, never 8: the humans who showed up,
 // and only when nobody comes (Enter on the lobby) CPU karts fill the seats up to the player count that was picked.
 const PLAYERS_WANTED = Math.min(4, Math.max(0, +params.get('players') || 0));
 const online = !!trackDef && PLAYERS_WANTED >= 2;
@@ -703,7 +713,7 @@ function lobbyShow(players, countdown, max) {
 // Grid in id order (the same on every peer).
 function setupOnline() {
   for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
-  karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4; raceGo = false;
+  karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; raceGo = false;
   const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24]];
   const chars = resolveChars(net.players);
   net.players.forEach((p, i) => {
@@ -720,6 +730,7 @@ function setupOnline() {
   setViews(karts);   // every player's view, in grid order, like the console's split screen
   banner.textContent = '';
   items.reset();
+  lakitu.startCountdown(countdownLight);
 }
 function sendPose() {
   const k = player;
@@ -955,6 +966,7 @@ function setViews(list) {
     document.body.appendChild(v.hud);
   });
   layoutViews();
+  lakitu.setViews(views);
 }
 // Viewport rects as fractions of the frame (x, y from the top-left, w, h).
 function viewRects(n) {
@@ -1109,13 +1121,7 @@ function frame(now) {
     renderer.render(scene, camera);
     return;
   }
-  if (state === 'countdown') {
-    countdown -= dt;
-    const c = Math.ceil(countdown - 0.4);
-    banner.textContent = c > 0 ? c : 'GO!';
-    if (countdown <= 0.4 && !player.started) { player.started = true; }
-    if (countdown <= 0.4) { state = 'race'; audio.beep(true); setTimeout(() => { if (state === 'race') banner.textContent = ''; }, 900); }
-    else if (Math.ceil(countdown - 0.4) !== lastTick) { lastTick = Math.ceil(countdown - 0.4); audio.beep(false); }
+  if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
     for (const k of karts) { if (k.remote) puppetStep(k, now); else k.update(dt, { throttle: 0, brake: 0, steer: 0, drift: false }); }
   } else {
     raceTime += dt;
@@ -1165,12 +1171,12 @@ function frame(now) {
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
   for (const v of views) updateCamera(dt, v);
+  lakitu.update(dt, karts, battle ? 0 : LAPS);
   exhaust.update(dt, karts, camera);
   drawMini();
   renderViews();
 }
-let lastTick = 4;
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+window.__game = { track, items, lakitu, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
   get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };
