@@ -10,7 +10,6 @@ export const ITEM_ICON = Object.fromEntries(ITEMS.map((n, i) => [n, i]));
 export const ITEM_LABELS = Object.fromEntries(ITEMS.map(n => [n, n === 'none' ? '' : n.replace(/_/g, ' ').toUpperCase()]));
 const BOX_SPOTS = [0.06, 0.22, 0.40, 0.55, 0.72, 0.90];   // fractions of track length
 const BOX_D = [-6, 0, 6];
-const BOX_RESPAWN = 4;
 // Native item box (tools/extract-item-boxes.py, common_data D_0D003090 / itemBoxQuestionMarkModel /
 // D_0D002EE8): MK64 units scaled to the kart sprites; it hovers 8.66 units up (update_actor_item_box).
 const BOX_SCALE = 0.25, BOX_HOVER = 8.66 * BOX_SCALE, DEG = Math.PI / 180, FPS = 30;
@@ -70,6 +69,9 @@ async function loadBoxModel() {
   const { model, questionMark } = await res.json();
   const map = HD.loadTexture(`item-box/${questionMark.image}`);
   map.colorSpace = THREE.SRGBColorSpace; map.flipY = false;
+  // broken box pieces: G_CULL_BACK cleared, every other frame G_RM_AA_ZB_OPA_SURF / G_RM_AA_ZB_XLU_INTER
+  const opaque = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false });
+  const xlu = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, depthWrite: false, toneMapped: false });
   return {
     // G_CC_SHADE, G_RM_ZB_CLD_SURF: rainbow shade colours at alpha 153, back faces culled
     box: listMesh(model.box, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false })),
@@ -77,7 +79,28 @@ async function loadBoxModel() {
     card: listMesh(model.questionMark, new THREE.MeshBasicMaterial({ map, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false }), [questionMark.width, questionMark.height]),
     // G_CC_SHADE, G_RM_ZB_XLU_SURF: black at alpha 128
     shadow: listMesh(model.shadow, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false })),
+    pieces: model.pieces.map(p => listMesh(p, opaque)), opaque, xlu,
   };
+}
+
+// render_actor_item_box state 3 / render_actor_fake_item_box state 2: the box's six one-triangle pieces fly apart
+// by these offsets x the frame count (world axes, unrotated), turning with the box; from frame 10 they shrink by
+// 0.1 a frame. The first three are opaque on odd frames and see-through on even ones, the last three the reverse.
+const PIECE_OFFSETS = [[0, 2, 1], [0.8, 2.3, 0.5], [0.8, 1.2, -0.5], [0, 1.8, -1], [-0.8, 0.6, -0.5], [-0.8, 2, 0.5]];
+const BREAK_FRAMES = 20;
+function makeShatter(model) {
+  const g = new THREE.Group();
+  for (const p of model.pieces) { const m = p.clone(); m.renderOrder = 2; g.add(m); }
+  return g;
+}
+function poseShatter(g, t, rot, { opaque, xlu }) {
+  const s = t < 10 ? 1 : Math.max(0.001, 1 - (t - 10) * 0.1);
+  g.children.forEach((m, i) => {
+    const o = PIECE_OFFSETS[i];
+    m.position.set(o[0] * t * BOX_SCALE, BOX_HOVER + o[1] * t * BOX_SCALE, o[2] * t * BOX_SCALE);
+    m.rotation.copy(rot); m.scale.setScalar(s);
+    m.material = ((t & 1) === 1) !== (i >= 3) ? opaque : xlu;
+  });
 }
 
 // tools/extract-items.py: common_model_banana, two crossed textured triangles drawn unrotated (render_actor_banana),
@@ -149,13 +172,15 @@ export class Items {
       this.boxes.push({ s: u * track.length, d, mesh, cd: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ'), parts: null });
     }
     this.boxModel = loadBoxModel().then(m => {
+      this.boxParts = m;
       for (const b of this.boxes) {
-        const box = m.box.clone(), card = m.card.clone(), shadow = m.shadow.clone();
+        const box = m.box.clone(), card = m.card.clone(), shadow = m.shadow.clone(), shatter = makeShatter(m);
         box.position.y = card.position.y = BOX_HOVER;
         shadow.position.y = 2 * BOX_SCALE;   // resetDistance + 2
         box.renderOrder = 2;                 // translucent shell over the "?" card
-        b.mesh.add(shadow, card, box);
-        b.parts = { box, card, shadow };
+        shatter.visible = false;
+        b.mesh.add(shadow, card, box, shatter);
+        b.parts = { box, card, shadow, shatter };
       }
       return m;
     });
@@ -184,7 +209,7 @@ export class Items {
     for (const k of this.trails) this.clearTrail(k);
     for (const d of this.debris) this.group.remove(d.mesh);
     this.hazards = []; this.shots = []; this.debris = [];
-    for (const b of this.boxes) { b.cd = 0; b.mesh.visible = true; }
+    for (const b of this.boxes) { b.cd = 0; b.state = 2; }
     this.audio.stopSound(...SND_ROULETTE);
     this.audio.stopSound(...SND_THUNDER_LOOP); this.audio.stopSound(...SND_STAR); this.thunder = false;
   }
@@ -454,8 +479,17 @@ export class Items {
   // A banana or shell that was run into stays in the world for 0x3C frames: it pops up at 3 units a frame, falls
   // 0.3 a frame faster each frame (at most 5) with no ground under it. DESTROYED_BANANA swaps in
   // common_model_flat_banana turned zxy by +2 / -8 / +5 degrees a frame (render_actor_banana); DESTROYED_SHELL /
-  // GREEN_SHELL_HIT_A_RACER keep the spinning sprite. The blue shell and the fake item box are just gone here.
+  // GREEN_SHELL_HIT_A_RACER keep the spinning sprite. A fake item box breaks into the item box's pieces for 20
+  // frames (DESTROYED_FAKE_ITEM_BOX: update_actor_fake_item_box state 2, rot +6 / -4 / +2 a frame). The blue
+  // shell is just gone here.
   wreck(mesh, kind) {
+    if (kind === 'fake_item_box' && this.boxParts) {
+      mesh.clear();
+      const shatter = makeShatter(this.boxParts), rot = new THREE.Euler(0, 0, 0, 'YXZ');
+      mesh.add(shatter); poseShatter(shatter, 0, rot, this.boxParts);
+      this.debris.push({ mesh, kind, shatter, rot, t: 0, acc: 0 });
+      return;
+    }
     if (kind !== 'banana' && !kind.endsWith('shell') || kind === 'blue_shell') { this.group.remove(mesh); return; }
     const d = { mesh, kind, base: mesh.position.clone(), up: new THREE.Vector3(0, 1, 0).applyQuaternion(mesh.quaternion),
       y: 0, vy: 3, t: 0x3C, acc: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ') };
@@ -468,6 +502,14 @@ export class Items {
   updateDebris(dt) {
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
+      if (d.shatter) {
+        for (d.acc += dt; d.acc >= 1 / FPS && d.t < BREAK_FRAMES; d.acc -= 1 / FPS) {
+          d.t++; d.rot.x += 6 * DEG; d.rot.y -= 4 * DEG; d.rot.z += 2 * DEG;
+        }
+        poseShatter(d.shatter, d.t, d.rot, this.boxParts);
+        if (d.t >= BREAK_FRAMES) { this.group.remove(d.mesh); this.debris.splice(i, 1); }
+        continue;
+      }
       for (d.acc += dt; d.acc >= 1 / FPS && d.t > 0; d.acc -= 1 / FPS) {
         d.vy = Math.max(-5, d.vy - 0.3); d.y += d.vy; d.t--;
         d.rot.x += 2 * DEG; d.rot.y -= 8 * DEG; d.rot.z += 5 * DEG;
@@ -591,23 +633,39 @@ export class Items {
   update(dt, karts) {
     this.clock += dt;
     for (const b of this.boxes) {
-      if (b.cd > 0) { b.cd -= dt; b.mesh.visible = b.cd <= 0; }
-      // update_actor_item_box state 2: rot x +1, y -2, z +1 degrees per frame; the box turns on all
-      // three axes, the "?" card only about Y at twice the box's yaw, the shadow at its yaw
-      b.rot.x += DEG * FPS * dt; b.rot.y -= 2 * DEG * FPS * dt; b.rot.z += DEG * FPS * dt;
+      // update_actor_item_box, one step per 30 Hz frame. State 2: hovering, rot x +1, y -2, z +1 degrees a frame.
+      // State 3 (run into): broken for 20 frames, rot +6 / -4 / +2 a frame. Then it comes back from 20 units below
+      // the ground (state 0/1), rising 0.45 a frame to 8.66 up, the box alone; the "?" card and shadow only
+      // show in state 2. The card turns about Y at twice the box's yaw, the shadow at its yaw.
+      b.state ??= 2;
+      for (b.acc = (b.acc || 0) + dt; b.acc >= 1 / FPS; b.acc -= 1 / FPS) {
+        if (b.state === 2) { b.rot.x += DEG; b.rot.y -= 2 * DEG; b.rot.z += DEG; }
+        else if (b.state === 3) {
+          if (b.t === BREAK_FRAMES) { b.state = 1; b.lift = -20 - 8.66; }
+          else { b.t++; b.rot.x += 6 * DEG; b.rot.y -= 4 * DEG; b.rot.z += 2 * DEG; }
+        } else if (b.lift + 0.45 < 0) b.lift += 0.45;
+        else { b.lift = 0; b.state = 2; }
+      }
+      b.cd = b.state === 2 ? 0 : 1;
       if (this.arena) this.place(b.mesh, b.x, b.z, b.y + 0.05); else this.place(b.mesh, b.s, b.d, 0.05);
       if (b.parts) {
-        b.parts.box.rotation.copy(b.rot);
-        b.parts.card.rotation.y = 2 * b.rot.y;
-        b.parts.shadow.rotation.y = b.rot.y;
+        const p = b.parts;
+        p.card.visible = p.shadow.visible = b.state === 2;
+        p.box.visible = b.state !== 3; p.shatter.visible = b.state === 3;
+        p.box.rotation.copy(b.rot);
+        p.box.position.y = BOX_HOVER + (b.state === 1 ? b.lift * BOX_SCALE : 0);
+        p.card.rotation.y = 2 * b.rot.y;
+        p.shadow.rotation.y = b.rot.y;
+        if (b.state === 3) poseShatter(p.shatter, b.t, b.rot, this.boxParts);
       }
-      if (b.cd > 0) continue;
+      // a rising box can be hit again once it is out of the ground (assumption for the 3D collision test)
+      if (b.state === 3 || (b.state === 1 && b.lift < -8.66)) continue;
       for (const k of karts) {
         // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item
         if (this.touch(k, b, 3)) {
           if (k.isPlayer) { if (!k.item && (!k.trail || k.trail.held) && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
           else if (!k.item && !k.trail && !k.remote && !this.gp) { k.item = this.roll(k, karts, true); k.itemTimer = 0.8 + Math.random() * 2.2; }
-          b.cd = BOX_RESPAWN; b.mesh.visible = false;
+          b.state = 3; b.t = 0; b.cd = 1;
           break;
         }
       }

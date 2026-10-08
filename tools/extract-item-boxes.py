@@ -23,6 +23,9 @@ spec.loader.exec_module(karts)
 COMMON_DATA = 0x132B50
 QUESTION_TEXTURE = 0x1EE8          # common_texture_item_box_question_mark, RGBA16 32x64
 LISTS = {'shadow': 0x2EE8, 'questionMark': 0x3008, 'box': 0x3090}
+# render_actor_item_box state 3 / render_actor_fake_item_box state 2: the box breaks into these one-triangle
+# pieces, in draw order D_0D003158, D_0D0031B8, D_0D003128, D_0D0031E8, D_0D003188, D_0D0030F8
+PIECES = [0x3158, 0x31B8, 0x3128, 0x31E8, 0x3188, 0x30F8]
 COURSES = ['luigi_raceway', 'moo_moo_farm', 'koopa_troopa_beach', 'kalimari_desert', 'toads_turnpike',
            'frappe_snowland', 'choco_mountain', 'mario_raceway', 'wario_stadium', 'sherbet_land',
            'royal_raceway', 'bowsers_castle', 'dks_jungle_parkway', 'yoshi_valley', 'banshee_boardwalk',
@@ -80,6 +83,7 @@ def main():
         raise SystemExit('Expected the US Mario Kart 64 ROM (SHA1 %s)' % karts.US_SHA1)
     common = karts.mio0(rom[COMMON_DATA:])
     model = {name: decode_list(common, off) for name, off in LISTS.items()}
+    model['pieces'] = [decode_list(common, off) for off in PIECES]
     q = model['questionMark']
     if q['textureImage'] != QUESTION_TEXTURE or q['tile'] != [32, 64]:
         raise SystemExit('Question mark texture reference mismatch')
@@ -116,7 +120,8 @@ def main():
                                  rgbaSha256=hashlib.sha256(rgba).hexdigest()),
                spawns=spawns)
     (args.output / 'item-boxes.json').write_text(json.dumps(out, separators=(',', ':')) + '\n')
-    print('model: %s' % {k: (len(v['vertices']), len(v['triangles'])) for k, v in model.items()})
+    print('model: %s' % {k: (len(v['vertices']), len(v['triangles'])) for k, v in model.items() if k != 'pieces'})
+    print('pieces: %s' % [len(p['triangles']) for p in model['pieces']])
 
 
 if __name__ == '__main__':
