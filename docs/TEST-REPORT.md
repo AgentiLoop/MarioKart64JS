@@ -28,17 +28,19 @@ Screenshots of each window's last frame: `/tmp/mk64-test/<scenario>.png`, raw nu
 
 ## What we should fix
 
-1. **Time trials races 7 CPU karts.** `setup()` (src/main.js ~line 164) always builds 8 karts unless it's battle;
-   `raceMode === 'time_trials'` should put only the player on the grid (MK64 time trials is solo, against a ghost).
-   The finish banner then says "2nd PLACE!" in a time trial.
-2. **Battle on Block Fort and Double Deck doesn't finish.** After 3 minutes of autopilot + 3 CPUs, 3 karts still
-   had balloons on both arenas (Big Donut and Skyscraper end in ~90 s). The CPU battle driver probably doesn't find
-   opponents across Block Fort's walls / Double Deck's two floors. Worth a CPU targeting pass, or a time limit.
-3. **Battle falls cost nothing.** Big Donut had 13 and Skyscraper 18 Lakitu rescues in ~90 s, but balloons only
-   drop on item hits (`Items.strike`, src/items.js ~line 533). To check against the decomp: I believe a fall in
-   MK64 battle costs a balloon, which would also shorten fix 2's long matches. The high fall count also suggests
-   the CPU drives off the arena edges a lot.
-4. **Player is grid slot 2, not 1, in 1P.** Every race lists the karts as [rival, player, ...] (setup's `order`).
-   That's the existing GP grid choice — just confirm it's intended.
+1. ~~**Time trials races 7 CPU karts.**~~ Fixed: the player is alone in the middle of the first row
+   (spawn_players.c TIME_TRIALS), with three mushrooms (func_8005995C) and no item boxes (actors.c skips them in
+   TIME_TRIALS); the finish banner shows the race time. `tt-mario` now passes with 1 kart.
+2. ~~**Battle on Block Fort and Double Deck doesn't finish.**~~ Fixed: the battle CPU chases the nearest kart it can
+   drive straight to, otherwise goes via the item box spots towards one; a CPU pinned nose-first on a wall backs off
+   and turns. All four arenas now end with a winner (re-run: Block Fort 61 s, Double Deck 76 s).
+3. ~~**Battle falls cost nothing.**~~ Confirmed in the decomp and fixed: effects.c pops a balloon when Lakitu lets go
+   of the kart in BATTLE (`pop_player_balloon`, which also plays 0x19009051 for a human).
+4. ~~**Player is grid slot 2.**~~ The decomp puts player 1 *last* on a cup's first course (func_80039DA4:
+   D_80165270 = 7, 6, .. 0), and every Grand Prix race here is a single course, so 1P Grand Prix now starts 8th.
+   VS and an online room falling back to CPU karts keep the old order.
+5. **Balloons** were plain coloured spheres. They are now the ROM's balloon (gTextureBalloon1 / 2 with the
+   onomatopoeia TLUT, `tools/extract-items.py` -> `items/balloon.png`), coloured per driver with
+   render_battle_balloon's prim / env colours, fanned, leaning with speed, distance-scaled, rising away when popped.
 5. **Not covered by the automated run** (needs hands-on play): sound/music by ear, gamepad, how the HD textures
    look, 3–4 player online rooms, online battle, Mirror on the other 12 courses, and holding/throwing items by hand.
