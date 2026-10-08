@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
-import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS } from './kart.js';
+import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -26,11 +26,16 @@ const battle = !!(trackDef && trackDef.battle);   // battle arena: balloons, no 
 // Engine class from the GAME SELECT cc rows (?cc=50|100|150|extra, gCCSelection); links without one race 150cc.
 // EXTRA is MK64's mirror mode at 100cc speeds: the 3D frame is flipped left-right and so is steering.
 // Assumption: the flip is a CSS mirror of the canvas, so kart sprites mirror with the course (the ROM flips the course).
-const ccParam = params.get('cc');
-const cc = CC_INDEX[ccParam] ?? CC_INDEX[150];
-const mirror = !!trackDef && ccParam === 'extra';
 // GAME SELECT mode (?mode=mario_gp|vs|time_trials|battle); links without one race as Grand Prix (two CPU rivals).
 const raceMode = params.get('mode') || 'mario_gp';
+// The console has no cc choice for TIME TRIALS or BATTLE (menus.c setup_selected_game_mode): time trials always race
+// CC_100 and never mirror (so records compare); battle never mirrors and its karts take the CC_BATTLE row (topSpeed
+// 245 for everyone, spawn_players.c), so ?cc= is ignored in both. engine: the gTopSpeedTable row (ccSpeedScale).
+const fixedCc = raceMode === 'time_trials' || battle;
+const ccParam = fixedCc ? '100' : params.get('cc');
+const cc = CC_INDEX[ccParam] ?? CC_INDEX[150];
+const engine = battle ? CC_BATTLE : cc;
+const mirror = !!trackDef && ccParam === 'extra';
 // ?autopilot (or window.__game.autopilot = true): the CPU driver (Kart.think / Items.aiUse) drives your kart - for testing
 let autopilot = params.has('autopilot');
 const th = (trackDef || TRACKS[0]).theme;
@@ -177,7 +182,7 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
     const [d, back] = slots[i];
     const k = new Kart(track, {
       color: PALETTE[ci], s: track.length - back, d, isPlayer: c === playerChar,
-      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(cc, c), cc,
+      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(engine, c), cc,
       spawn: battle ? battleSpawn(trackDef.id, i) : null,
     });
     k.aiOffset = d * 0.8;
@@ -244,7 +249,7 @@ function startCountdown() {
   lakitu.startCountdown(countdownLight);
 }
 function revEngine(dt, inp) {
-  const r = revs, top = 320 * Math.sqrt(ccSpeedScale(cc, playerChar)), accel = START_ACCEL[playerChar] || START_ACCEL.mario;
+  const r = revs, top = 320 * Math.sqrt(ccSpeedScale(engine, playerChar)), accel = START_ACCEL[playerChar] || START_ACCEL.mario;
   for (r.acc += dt * 60; r.acc >= 1; r.acc--) {
     const a = inp.throttle > 0;
     if (r.ready !== null) r.ready++;
@@ -784,7 +789,7 @@ function setupOnline() {
     const [d, back] = slots[i];
     const mine = p.id === net.myId;
     const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c,
-      spawn: battle ? battleSpawn(trackDef.id, i) : null, speedScale: ccSpeedScale(cc, c), cc });
+      spawn: battle ? battleSpawn(trackDef.id, i) : null, speedScale: ccSpeedScale(engine, c), cc });
     k.netId = p.id; k.remote = !mine; k.poses = [];
     k.prevS = k.s; k.crossings = -1;   // gLapCountByPlayerId starts at -1: crossing the line from the grid begins lap 1
     scene.add(k.mesh); karts.push(k);

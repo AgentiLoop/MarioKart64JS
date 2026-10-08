@@ -6,12 +6,14 @@ const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
 // Engine classes: gTopSpeedTable (src/data/kart_attributes.c), per gCCSelection and characterId
 // (Mario Luigi Yoshi Toad DK Wario Peach Bowser). MAX_SPEED is the 150cc Mario 320; Extra (mirror) races 100cc.
-export const CC_INDEX = { 50: 0, 100: 1, 150: 2, extra: 3 };
+// CC_BATTLE (defines.h 4) is only a top speed row (gTopSpeedBattle, 245); the CPU tables stop at CC_EXTRA.
+export const CC_INDEX = { 50: 0, 100: 1, 150: 2, extra: 3 }, CC_BATTLE = 4;
 const TOP_SPEED = [
   [290, 290, 294, 294, 290, 290, 294, 290],
   [310, 310, 314, 314, 310, 310, 314, 310],
   [320, 320, 324, 324, 320, 320, 324, 320],
   [310, 310, 314, 314, 310, 310, 314, 310],
+  [245, 245, 245, 245, 245, 245, 245, 245],
 ];
 const CHARACTER_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
 // Top velocity is the drive force currentSpeed^2 / 25 over the drag 0.12 * kartFriction (5800), so it scales with
