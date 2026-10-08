@@ -126,6 +126,10 @@ export function togglePhysics() {
 }
 export const physicsLabel = () => `Kart physics: ${PHYSICS.glue ? 'Glue' : 'Jumps'}`;
 const GLUE_DROP = 1, UP = new THREE.Vector3(0, 1, 0);
+// Ground-normal (tilt) easing: 0.25 per 1/120 s substep (the 60 Hz feel), the same per second at any refresh rate;
+// dt 0 (puppets, resets) keeps one 0.25 step. Pooled temporaries: syncMesh runs per kart per substep (no GC churn).
+const tiltEase = dt => dt ? 1 - Math.pow(0.75, dt * 120) : 0.25;
+const _right = new THREE.Vector3(), _back = new THREE.Vector3(), _basis = new THREE.Matrix4(), _spinQ = new THREE.Quaternion();
 // Battle balloons (Kart.makeBalloons). render_battle_balloon prim / env colours per characterId, prim alpha 0xD8;
 // update_player_one_balloon_position sp80 heights; update_player_balloons_position (x, z) offsets.
 const BALLOON_PRIM = [0xC80100, 0x007001, 0x107951, 0x005970, 0x705500, 0x7A7E00, 0x772C24, 0x301458];
@@ -594,16 +598,15 @@ export class Kart {
     this.world.set(x, this.y, z);
     this.groundY = this.y;
     const n = g && !this.air ? g.normal : null;
-    this.groundN = n ? (this.groundN || n.clone()).lerp(n, 0.25).normalize() : (this.groundN || new THREE.Vector3(0, 1, 0));
+    this.groundN = n ? (this.groundN || n.clone()).lerp(n, tiltEase(dt)).normalize() : (this.groundN || new THREE.Vector3(0, 1, 0));
     this.up.copy(this.groundN);
     this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
-    const right = new THREE.Vector3().crossVectors(this.fwd, this.up).normalize();
+    const right = _right.crossVectors(this.fwd, this.up).normalize();
     this.up.crossVectors(right, this.fwd).normalize();
-    const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
-    this.mesh.quaternion.setFromRotationMatrix(m);
+    this.mesh.quaternion.setFromRotationMatrix(_basis.makeBasis(right, this.up, _back.copy(this.fwd).negate()));
     this.mesh.userData.lean = this.steerVis * 0.08 + (this.drift ? this.drift * 0.12 : 0);
     this.mesh.userData.spinning = this.spin > 0;
-    if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
+    if (this.spinAngle) this.mesh.quaternion.multiply(_spinQ.setFromAxisAngle(UP, this.spinAngle));
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
@@ -838,7 +841,7 @@ export class Kart {
     if (g && !this.air) {
       this.groundY = g.y; this.world.y = PHYSICS.glue ? g.y : this.y + this.lead;
       if (!this.ramp) this.lastGroundS = this.s;   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
-      this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
+      this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, tiltEase(dt)).normalize();
       this.up.copy(this.groundN);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope
     } else if (this.air) {
@@ -851,14 +854,13 @@ export class Kart {
       this.groundY = this.world.y; this.groundN = null;
       this.up.copy(f.U);
     }
-    const right = new THREE.Vector3().crossVectors(this.fwd, this.up).normalize();
+    const right = _right.crossVectors(this.fwd, this.up).normalize();
     this.up.crossVectors(right, this.fwd).normalize();
-    const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
-    this.mesh.quaternion.setFromRotationMatrix(m);
+    this.mesh.quaternion.setFromRotationMatrix(_basis.makeBasis(right, this.up, _back.copy(this.fwd).negate()));
     // body-roll when drifting / steering
     this.mesh.userData.lean = this.steerVis * 0.08 + (this.drift ? this.drift * 0.12 : 0);
     this.mesh.userData.spinning = this.spin > 0;
-    if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
+    if (this.spinAngle) this.mesh.quaternion.multiply(_spinQ.setFromAxisAngle(UP, this.spinAngle));
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1

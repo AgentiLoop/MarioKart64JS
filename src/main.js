@@ -11,7 +11,8 @@ import { Lakitu } from './lakitu.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+// high-performance: ask dual-GPU Macs / laptops for the discrete GPU, which keeps frame pacing steady
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(1);
 HD.setRenderer(renderer);
 renderer.shadowMap.enabled = true;
@@ -956,6 +957,8 @@ function sendKartPose(k, id) {   // id: a CPU kart the host drives (a human's po
 // an item-hit tumble rides along as its gKartTextureTumbles frame (unk_0A8 >> 8) and hop height, so the puppet shows it
 const tumblePose = k => k.tumble ? { tu: k.tumble.a8, tl: k.tumble.lift } : {};
 const puppetTumble = (k, src) => { k.tumble = src.tu != null ? { a8: src.tu, lift: src.tl } : null; };
+// seconds since this puppet's last step, so its spin turns at the same rate as a local kart's (dt * 11) at any refresh rate
+const puppetDt = (k, now) => { const dt = Math.min(0.05, Math.max(0, (now - (k.puppetT ?? now)) / 1000)); k.puppetT = now; return dt; };
 function puppetStepArena(k, now) {
   const P = k.poses;
   if (!P.length) return;
@@ -973,7 +976,7 @@ function puppetStepArena(k, now) {
     x += Math.sin(h) * e; z += Math.cos(h) * e;
   }
   k.x = x; k.z = z; k.h = h; k.v = v; k.y = y;
-  k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 / 60) : 0; k.steerVis = src.sv;
+  k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 * puppetDt(k, now)) : 0; k.steerVis = src.sv;
   k.balloons = src.bl; k.out = !!src.o; k.rescue = src.r ? 1 : 0;
   k.air = !!src.air;
   puppetTumble(k, src);
@@ -999,7 +1002,7 @@ function puppetStep(k, now) {
     s += v * Math.min(0.3, Math.max(0, (t - a.rx) / 1000));   // dead reckoning along the road
   }
   k.s = ((s % L) + L) % L; k.d = d; k.psi = k.phi = psi; k.v = v;
-  k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 / 60) : 0; k.steerVis = src.sv;
+  k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 * puppetDt(k, now)) : 0; k.steerVis = src.sv;
   k.crossings = src.c;
   if (src.f >= 0 && !k.finished) { k.finished = true; k.finishTime = src.f; finishOrder.push(k); }
   puppetTumble(k, src);
