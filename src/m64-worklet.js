@@ -9,7 +9,7 @@ class M64Processor extends AudioWorkletProcessor {
       else if (!this.engine) return;
       else if (m.type === 'play') this.engine.play(m.player, m.seq);
       else if (m.type === 'stop') this.engine.stop(m.player, m.frames);
-      else if (m.type === 'sfx') this.engine.sfx(m.bank, m.id);
+      else if (m.type === 'sfx') this.engine.sfx(m.bank, m.id, m.vol, m.pan);
       else if (m.type === 'sfxStop') this.engine.sfxStop(m.bank, m.id);
     };
   }

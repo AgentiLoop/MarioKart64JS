@@ -9,6 +9,9 @@
 // reflection under themselves when a camera is near.
 // update_penguins / func_80089820: penguins 1-14 (box 4) bonk the karts they touch (Kart.bonk, sound 0x1900A046 for
 // a human); a kart under a star sends one spinning instead (func_800850B0: 0x96 ticks, + 0x2000 a tick).
+// func_80084B7C squawks (flag 0x80): every 90-179 ticks while looping its animation, every 16 while spinning, and as
+// a slider drops onto its belly; ice penguins (0x10) play 0x19007049, swimmers 0x19007017, heard from where they are
+// (func_800C98B8: volume func_800C1480 by distance, pan func_800C16E8).
 // Model: src/animation.c render_armature / mtxf_translate_rotate2 per limb under the object's
 // mtxf_set_matrix_transformation, each limb lit like F3DEX (ambient + colour x max(0, n . dir), dir (40, 40, 40)
 // in world space because MK64 loads the object matrix straight into the modelview).
@@ -88,7 +91,7 @@ function stepTowards(v, target, step) {
 
 export class Penguins {
   constructor(scene, track, audio = null) {
-    this.scene = scene; this.audio = audio; this.acc = 0; this.data = null;
+    this.scene = scene; this.audio = audio; this.acc = 0; this.data = null; this.mirror = !!track.mirror;
     this.group = new THREE.Group(); this.group.matrixAutoUpdate = false;
     scene.add(this.group);
     const m = track.mirror ? -1 : 1;   // EXTRA flips the camera, so mirrored angles turn the other way here
@@ -97,7 +100,7 @@ export class Penguins {
       spline: { active: false, idx: 0, p: 0, timer: 0 } };
     this.small = [];
     const common = { scale: 0.08, anim: 0, frame: 0, step: 2, state: 2, animOn: false, flags: 0, sub: 1, timerOn: false,
-      timer: 0, cc: 0, dir: 0, speed: 0, offset: [0, 0, 0], vel: [0, 0, 0], yaw: 0, spinT: 0 };
+      timer: 0, cc: 0, dir: 0, speed: 0, offset: [0, 0, 0], vel: [0, 0, 0], yaw: 0, spinT: 0, call: 0 };
     for (let i = 1; i <= 8; i++) {
       const [x, z, c6, r] = SWIMMERS[(i - 1) >> 1];
       this.small.push({ ...common, offset: [0, 0, 0], vel: [0, 0, 0], kind: 'swim', origin: [x, -80, z], pos: [x, -80, z],
@@ -222,7 +225,10 @@ export class Penguins {
         break;
       case 2:
         o.speed = stepTowards(o.speed, 0.8, 0.02);
-        if (this.wait(o, 15)) { o.flags |= 1 | 2; o.step = 1; this.setAnim(o, 1, 3); this.nextSub(o); }
+        if (this.wait(o, 15)) {
+          o.flags |= 1 | 2; o.step = 1; this.setAnim(o, 1, 3); this.nextSub(o);
+          if (!(o.flags & 0x20)) o.flags |= 0x80;
+        }
         break;
       case 3: {
         const target = SLIDE_SPEED[o.mode];
@@ -266,6 +272,40 @@ export class Penguins {
     }
     o.yaw = o.dir;
   }
+  // func_80084B7C's tail: when to squawk
+  call(o) {
+    if (o.flags & 0x20) {
+      if (o.call === 0) { o.flags |= 0x80; o.call = 0x10; } else o.call--;
+    } else if (o.state === 2) {
+      if (o.call === 0) { o.call = Math.floor(Math.random() * 0x5A) + 0x5A; o.flags |= 0x80; } else o.call--;
+    }
+  }
+  // func_800C98B8 once per screen: XZ distance d from that camera sets the volume (func_800C1480, sound bits
+  // & 0x30000 = 0: 400 near, silent past 2000); 1P pans by where it sits across the camera (func_800C16E8), more
+  // screens pan each camera hard left / right ((cameraId & 1) * 0x7F)
+  squawk(o, cams) {
+    if (!(o.flags & 0x80)) return;
+    o.flags &= ~0x80;
+    const id = o.flags & 0x10 ? 0x49 : 0x17;
+    cams.forEach((cam, i) => {
+      const x = o.pos[0] - cam.position.x / NATIVE_SCALE, z = o.pos[2] - cam.position.z / NATIVE_SCALE;
+      const d = Math.hypot(x, z);
+      if (d > 2000) return;
+      let vol = d < 400 ? (400 - d) / 400 * 0.5 + 0.5 : (1 - (d - 400) / 1600) * 0.5;
+      vol *= vol;
+      let pan = (i & 1) * 0x7F;
+      if (cams.length === 1) {
+        const e = cam.matrixWorld.elements;   // camera right (column 0) and forward (-column 2) on the ground
+        const side = (x * e[0] + z * e[2]) * (this.mirror ? -1 : 1), ahead = -(x * e[8] + z * e[10]);
+        const ax = Math.min(Math.abs(side), 100), az = Math.min(Math.abs(ahead), 100);
+        let p = side === 0 && ahead === 0 ? 0.5 : side >= 0 && az <= ax ? 1 - (200 - ax) / (5 * (200 - az))
+          : side < 0 && az <= ax ? (200 - ax) / (5 * (200 - az)) : side / (3.3333333 * az) + 0.5;
+        p = Math.min(1, Math.max(0, p));
+        pan = Math.floor(p * 127 + 0.5);
+      }
+      this.audio?.playSound(1, id, vol, pan);
+    });
+  }
   // func_80089820 (penguin 0 has no 0x200 flag, so only 1-14): a kart within the boxes (has_collided_horizontally_
   // with_player) and not under a boo is bonked, or under a star sets 0x02000000, which starts a spin unless one runs
   collide(o, karts) {
@@ -294,6 +334,8 @@ export class Penguins {
           if (p.kind === 'swim') this.swim(p); else this.slide(p);
           this.spinStep(p);
           this.collide(p, karts);
+          this.call(p);
+          this.squawk(p, cams);
         }
       }
     }

@@ -115,11 +115,12 @@ export class AudioSys {
     if (!on && this.wantMusic) this.playMusic(this.wantMusic);
   }
   // ROM sound effect: sequence 0 on player 2 (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id))
-  playSound(bank, id) {
+  // vol (0-1) / pan (0-127): a sound placed in the world (func_800C98B8), see Penguins.squawk
+  playSound(bank, id, vol, pan) {
     const ctx = this.init();
     if (!ctx) return;
     if (ctx.state !== 'running') ctx.resume();
-    this.sequencer().then(n => n.port.postMessage({ type: 'sfx', bank, id }));
+    this.sequencer().then(n => n.port.postMessage({ type: 'sfx', bank, id, vol, pan }));
   }
   stopSound(bank, id) {
     if (this.seqNode) this.seqNode.then(n => n.port.postMessage({ type: 'sfxStop', bank, id }));

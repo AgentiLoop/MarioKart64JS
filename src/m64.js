@@ -139,13 +139,14 @@ export class M64 {
   // Sound effect: sequence 0 runs on player 2 with one channel per bank slot; external.c func_800C4FE4 starts
   // a sound by writing io[3] = volume, io[0] = 1, io[4] = sound id to the bank's next channel.
   // Slots per bank are D_800EA188[0] (1P): 4, 2, 2, 2, 2, 1.
-  sfx(bank, id) {
+  // vol / pan: func_800C19D0's io[3] volume (0-1) and channel pan (0-127) for a sound heard from a position
+  sfx(bank, id, vol = 1, pan) {
     const p = this.players[2];
     if (!p.enabled || p.seqId !== 0) this.play(2, 0);
     const slots = [4, 2, 2, 2, 2, 1], base = slots.slice(0, bank).reduce((a, b) => a + b, 0);
     this.sfxNext = this.sfxNext || [];
     const i = this.sfxNext[bank] = ((this.sfxNext[bank] ?? -1) + 1) % slots[bank];
-    (this.sfxQueue = this.sfxQueue || []).push([base + i, id]);
+    (this.sfxQueue = this.sfxQueue || []).push([base + i, id, vol, pan]);
     (this.sfxIds = this.sfxIds || [])[base + i] = id;
   }
   // Stop a looping sound (external.c func_800C5578 -> io[0] = 0 on its channel), if it still owns one.
@@ -735,10 +736,13 @@ export class M64 {
   update() {
     const sp = this.players[2];
     if (this.sfxQueue?.length && sp.enabled && sp.channels.length) {
-      for (const [ch, id] of this.sfxQueue.splice(0)) {
+      for (const [ch, id, vol = 1, pan] of this.sfxQueue.splice(0)) {
         const c = sp.channels[ch];
         if (c && id < 0) c.io[0] = 0;
-        else if (c) { c.io[3] = 127; c.io[0] = 1; c.io[4] = id; }
+        else if (c) {
+          c.io[3] = Math.round(vol * 127); c.io[0] = 1; c.io[4] = id;
+          if (pan !== undefined) { c.newPan = pan; c.changes |= 4; }
+        }
       }
     }
     for (const p of this.players) if (p.enabled) { this.processSequence(p); if (p.enabled) this.processSound(p); }
