@@ -15,6 +15,7 @@ swift build --package-path "$HERE" -c release --arch arm64 --arch x86_64
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$(swift build --package-path "$HERE" -c release --arch arm64 --arch x86_64 --show-bin-path)/MarioKart64JS" "$APP/Contents/MacOS/"
 rsync -a --exclude .DS_Store "$GAME/" "$APP/Contents/Resources/game/"
+cp "$HERE/MK64JS.icns" "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -22,6 +23,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
   <key>CFBundleName</key><string>MarioKart64JS</string>
   <key>CFBundleExecutable</key><string>MarioKart64JS</string>
+  <key>CFBundleIconFile</key><string>MK64JS</string>
   <key>CFBundleIdentifier</key><string>games.gokart.mariokart64js.webkit</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
