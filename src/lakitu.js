@@ -325,7 +325,7 @@ export class Lakitu {
       const r = new Referee(this.scene, 1 + i, this.textures);
       r.kart = v.kart; r.cam = v.cam;
       r.sound = (bank, id) => this.onSound?.(bank, id);
-      r.shards = k => this.ice?.shatter(k, views.length);
+      r.shards = k => this.ice?.shatter(k, views.length, 1 + i);
       return r;
     });
     this.syncHum();
@@ -482,8 +482,8 @@ function letGo(k, r) {
 // d_course_sherbet_land_dl_ice_block at scale 0.02 on the kart) and the shards it breaks into (func_80083FD0 /
 // func_80083F18, D_0D005BD0). Both are lit like the console: D_800E4620's ambient plus a white light whose direction
 // D_80165834 turns every tick (func_800419F8), so the ice glints; the shards all share one spin (D_8016582C).
-// G_RM_AA_ZB_XLU_SURF, G_CC TEXEL0 x SHADE, culling off. Assumption: the shards show on every screen (the console
-// keeps them to their own player's screen in 3P / 4P).
+// G_RM_AA_ZB_XLU_SURF, G_CC TEXEL0 x SHADE, culling off. In 3P / 4P the shards show only on their own player's
+// screen (that referee's layer); with 1-2 screens on every screen (layer 0).
 const MAX_SHARDS = 4 * 80, _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
 const _n = new THREE.Vector3(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 const binary = a => a * Math.PI / 32768, rnd = n => Math.floor(Math.random() * n);
@@ -515,9 +515,13 @@ class Ice {
     const sg = new THREE.BufferGeometry();
     sg.setAttribute('position', new THREE.Float32BufferAttribute(d.shard.positions.flat(), 3));
     sg.setAttribute('uv', new THREE.Float32BufferAttribute(d.shard.uvs.flatMap(([u, v]) => [u, 1 - v]), 2));
-    this.shardMesh = new THREE.InstancedMesh(sg, mat(), MAX_SHARDS);
-    this.shardMesh.count = 0; this.shardMesh.frustumCulled = false;
-    this.scene.add(this.shardMesh);
+    this.shardMat = mat();
+    this.shardMeshes = [0, 1, 2, 3, 4].map(l => {
+      const m = new THREE.InstancedMesh(sg, this.shardMat, MAX_SHARDS);
+      m.count = 0; m.frustumCulled = false; m.layers.set(l);
+      this.scene.add(m);
+      return m;
+    });
     this.ambient = d.lights.ambient.map(c => c / 255); this.color = d.lights.color.map(c => c / 255);
     this.data = d;
   }
@@ -532,11 +536,12 @@ class Ice {
   }
 
   // func_8008421C: D_8018D3C0 shards (80 / 40 / 30 for 1 / 2 / 3-4 screens) fanned out D_801657A2 apart
-  shatter(k, screens) {
+  shatter(k, screens, layer) {
+    const l = screens >= 3 ? layer : 0;
     const [n, step] = screens <= 1 ? [80, 4.5] : screens === 2 ? [40, 9] : [30, 12];
     for (let i = 0; i < n && this.shards.length < MAX_SHARDS; i++) {
       const a = i * step * Math.PI / 180, speed = 1 + rnd(10) * 0.1;
-      this.shards.push({ scale: 0.04 + rnd(500) * 0.0002, vy: 1 + rnd(50) * 0.05, vx: speed * Math.sin(a), vz: speed * Math.cos(a), life: 100,
+      this.shards.push({ scale: 0.04 + rnd(500) * 0.0002, vy: 1 + rnd(50) * 0.05, vx: speed * Math.sin(a), vz: speed * Math.cos(a), life: 100, l,
         x: k.world.x + (rnd(20) - 10) * K, y: k.world.y + KART_MID + (rnd(10) - 10) * K, z: k.world.z + (rnd(20) - 10) * K });
     }
   }
@@ -571,16 +576,18 @@ class Ice {
       mc.needsUpdate = true;
       this.mirror.position.set(mr.kart.world.x, mr.kart.rescue.road - 6.5 * K, mr.kart.world.z);
     }
-    const mesh = this.shardMesh;
-    mesh.count = this.shards.length;
-    if (!mesh.count) return;
+    for (const m of this.shardMeshes) m.count = 0;
+    if (!this.shards.length) return;
     _e.set(binary(this.spin[0]), binary(this.spin[1]), binary(this.spin[2]));
     _q.setFromEuler(_e);
     _n.set(0, 0, 1).applyQuaternion(_q);
     const c = [0, 0, 0];
     this.shade(_n.x, _n.y, _n.z, c);
-    mesh.material.color.setRGB(c[0], c[1], c[2]);
-    this.shards.forEach((s, i) => mesh.setMatrixAt(i, _m.compose(_p.set(s.x, s.y, s.z), _q, _s.setScalar(s.scale * K))));
-    mesh.instanceMatrix.needsUpdate = true;
+    this.shardMat.color.setRGB(c[0], c[1], c[2]);
+    for (const s of this.shards) {
+      const m = this.shardMeshes[s.l];
+      m.setMatrixAt(m.count++, _m.compose(_p.set(s.x, s.y, s.z), _q, _s.setScalar(s.scale * K)));
+    }
+    for (const m of this.shardMeshes) m.instanceMatrix.needsUpdate = true;
   }
 }
