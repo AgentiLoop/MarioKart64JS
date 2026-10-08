@@ -14,6 +14,7 @@ h3{margin:0 0 6px;font-size:21px}
 .sub{color:var(--mut);margin:0 0 36px;max-width:720px}
 .muted{color:var(--mut);font-size:15px}
 .center{text-align:center;margin-top:28px}
+.center .sub{margin-left:auto;margin-right:auto}
 .nav{position:fixed;inset:0 0 auto 0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:10px 22px;background:rgba(11,10,34,.8);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:800;font-size:20px}
 .nav nav{display:flex;align-items:center;gap:22px}
