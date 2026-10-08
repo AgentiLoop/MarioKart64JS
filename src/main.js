@@ -1070,6 +1070,7 @@ function frame(now) {
         }
       }
       collide();
+      if (!battle) for (const k of karts) if (!k.remote && !k.finished) track.bumpSigns(k);
       items.update(h, karts);
     }
     if (battle) battleStep();

@@ -41,3 +41,19 @@ test('wario stadium signs: 3 static actors, four 64x32 head textures', () => {
   for (const g of s.data.model) assert.equal(g.triangles.length, 12);
   for (const t of Object.values(s.data.textures)) assert.deepEqual([t.width, t.height], [64, 32]);
 });
+
+// collision_mario_sign (query_and_resolve_collision_player_actor): a sphere of radius 7 padded by the kart box 5.5.
+test('bumpActor: no contact outside 12.5 units or in height, otherwise pushed half the overlap out and slowed', async () => {
+  const { bumpActor } = await import('../src/track.js');
+  const near = { t: 1.0, r: 0, y: 0 }, fast = { t: 40, r: 0 };
+  assert.equal(bumpActor({ t: 1.3, r: 0, y: 0 }, fast, 5.5), null);                 // 13 units > 12.5
+  assert.equal(bumpActor({ t: 0.6, r: 0, y: 1.2 }, fast, 5.5), null);               // 3D distance 13.4
+  assert.equal(bumpActor({ t: 0, r: 0, y: 0 }, fast, 5.5), null);                   // exactly on the sign: ignored (< 0.1)
+  const hit = bumpActor(near, fast, 5.5);
+  assert.ok(Math.abs(hit.dt - (-0.25 * 0.5)) < 1e-9 && hit.dr === 0, 'half of the 0.25 overlap, away from the sign');
+  assert.ok(Math.abs(hit.vt - (40 - 40 * 0.8 * 1.3)) < 1e-9 && hit.vr === 0, 'the into-sign speed is cut by 0.8 x 1.3');
+  assert.ok(bumpActor(near, fast, 6)?.dt < hit.dt, 'a bigger kart box reaches further');
+  const slow = bumpActor(near, { t: 0.5, r: 0.2 }, 5.5);                           // below 0.25 native units per frame
+  assert.deepEqual([slow.vt, slow.vr], [0, 0]);
+  assert.ok(Math.abs(1.0 - slow.dt - 1.25 * 1.2) < 1e-9, 'snapped to 1.2 x the contact distance from the sign');
+});

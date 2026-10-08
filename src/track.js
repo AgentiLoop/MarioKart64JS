@@ -192,6 +192,28 @@ export async function loadNativeCourse(def) {
 const SIGN_COURSES = ['mario', 'wario'];
 // update_actor_mario_sign turns the sign DEGREES(1) = 182 binary angles per object update (30 Hz assumed, as for clouds).
 const SIGN_SPIN = 30 * 182 * 2 * Math.PI / 65536;
+// collision_mario_sign -> query_and_resolve_collision_player_actor(player, pos, 7, 200, 0.8): the sign is a sphere of
+// radius 7 around its position, padded by the kart's bounding box (gKartBoundingBoxSizeTable: Wario/Bowser 6, the rest
+// 5.5; native units, scaled to the scene). `rel` = sign position minus kart position along the route's tangent / right
+// (x, z of the original) and up (y); `vel` the kart velocity on the same two axes. Returns null on no contact, else the
+// kart's displacement and new velocity. Speeds below 0.25 native units per frame (MK64's 9 = our top speed 44) snap the
+// kart out to 1.2x the radius and stop it; faster ones lose the velocity component into the sign (x 0.8 x 1.3) and are
+// moved half the overlap out. The star effect, which the original answers with a knock-off, does not exist in the port.
+export const KART_BOX = { wario: 6, bowser: 6 };   // gKartBoundingBoxSizeTable, default 5.5
+export const SIGN_RADIUS = 7, SIGN_HEIGHT = 200, SIGN_BOUNCE = 0.8;
+const BOUNCE_SLOW = 0.25 * 44 / 9;
+export function bumpActor(rel, vel, kartBox, radius = SIGN_RADIUS, height = SIGN_HEIGHT, bounce = SIGN_BOUNCE) {
+  const min = (kartBox + radius) * NATIVE_SCALE, tall = (kartBox + height) * NATIVE_SCALE;
+  const { t: xd, r: zd, y: yd } = rel;
+  if (xd > min || xd < -min || yd > tall || yd < -tall || zd > min || zd < -min) return null;
+  const dist = xd * xd + yd * yd + zd * zd;
+  if (dist < 0.1 * NATIVE_SCALE * NATIVE_SCALE || min * min < dist) return null;   // the original's 0.1 floor, on native units
+  const root = Math.sqrt(dist), over = root - min, ux = xd / root, uz = zd / root;
+  const speed = Math.hypot(vel.t, vel.r);
+  if (speed < BOUNCE_SLOW) return { dt: -(ux * min * 1.2) + xd, dr: -(uz * min * 1.2) + zd, vt: 0, vr: 0 };
+  const cut = speed * ((ux * vel.t + uz * vel.r) / speed) * bounce * 1.3;
+  return { dt: ux * over * 0.5, dr: uz * over * 0.5, vt: vel.t - ux * cut, vr: vel.r - uz * cut };
+}
 // Rainbow Road neon signs (tools/extract-neon.py): update_neon runs once per object update, 30 Hz assumed as for clouds.
 const NEON_TICK = 1 / 30;
 // The object-animation helpers of update_objects.c:339-620 that the neon state machines use, on a plain object:
@@ -437,6 +459,7 @@ export class Track {
   _buildSigns() {
     const data = this.def.signs;
     this.spinners = [];
+    this.sign_spots = [];   // the Mario signs, the only sign actors with a collision (collision_mario_sign)
     if (!data) return;
     const dir = this.def.dir, meshes = [];
     for (const g of data.model) {
@@ -474,7 +497,7 @@ export class Track {
         root.add(copy);
       }
       this.group.add(root);
-      if (data.spin) this.spinners.push(root);
+      if (data.spin) { this.spinners.push(root); this.sign_spots.push(root.position); }
     }
   }
 
@@ -544,6 +567,26 @@ export class Track {
       for (let n = 0; this._neonClock >= NEON_TICK && n < 4; n++) { this._neonClock -= NEON_TICK; this._neonStep(); }
       if (this._neonClock >= NEON_TICK) this._neonClock = 0;
     }
+  }
+
+  // collision_mario_sign for one kart on the route: a bump with a Mario sign moves the kart out (s / d) and
+  // redirects its velocity (v, phi). Returns true on contact.
+  bumpSigns(kart) {
+    let hit = false;
+    const box = KART_BOX[kart.mesh?.userData.character] ?? 5.5;
+    for (const p of this.sign_spots ?? []) {
+      const f = kart.frame, w = kart.world;
+      const vt = kart.v * Math.cos(kart.phi), vr = kart.v * Math.sin(kart.phi);
+      const dx = p.x - w.x, dz = p.z - w.z;
+      const r = bumpActor({ t: dx * f.T.x + dz * f.T.z, r: dx * f.R.x + dz * f.R.z, y: p.y - w.y }, { t: vt, r: vr }, box);
+      if (!r) continue;
+      hit = true;
+      kart.s += r.dt / Math.max(0.3, 1 - f.k * kart.d); kart.d += r.dr;
+      const sp = Math.hypot(r.vt, r.vr), back = r.vt < 0 ? -1 : 1;   // v < 0: rolling back, phi stays within +-90 deg
+      kart.v = back * sp;
+      if (sp > 1e-6) kart.phi = Math.atan2(r.vr * back, r.vt * back);
+    }
+    return hit;
   }
 
   // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).
