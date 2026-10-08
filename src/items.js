@@ -403,7 +403,7 @@ export class Items {
         this.audio.playSound(...SND_THUNDER); this.audio.playSound(...SND_THUNDER_LOOP); this.thunder = true;
         break;
       case 'star': kart.star = STAR_TIME; kart.spin = 0; this.snd(kart, SND_STAR); break;
-      case 'boo': kart.boo = BOO_TIME; this.steal(kart, karts); break;
+      case 'boo': kart.boo = BOO_TIME; if (kart.fx) kart.fx.other = 255; this.steal(kart, karts); break;
     }
   }
 
@@ -470,7 +470,7 @@ export class Items {
   // trigger_lightning_strike / apply_lightning_effect: spin, lose the held item, shrink
   strike(k) {
     if (k.remote || k.star > 0 || k.boo > 0 || k.out || k.rescue > 0) return;
-    k.spin = 1.5; k.v *= 0.6; k.drift = 0; k.boost = 0; k.shrink = SHRINK_TIME;
+    k.spin = 1.5; k.v *= 0.6; k.drift = 0; k.boost = 0; k.shrink = SHRINK_TIME; k.zap = 0x78 / FPS;   // unk_0B0 < 0x78: flashing
     this.clearTrail(k);
     if (k.item) { k.item = null; this.showItem(k); }
     if (this.arena) k.balloons = Math.max(0, k.balloons - 1);
@@ -721,7 +721,7 @@ export class Items {
       if (k.star <= 0 && k.isPlayer) this.audio.stopSound(...SND_STAR);   // func_800CAACC
       for (const o of karts) if (o !== k && !(o.star > 0) && this.touch(o, k, 2.5)) this.hit(o, 'star', k);
     }
-    if (k.boo > 0) k.boo -= dt;
+    if (k.boo > 0) k.boo = Math.max(1e-9, k.boo - dt);   // held just above 0 while it fades back in (fxStep ends it)
     if (k.gold > 0) { k.gold -= dt; if (k.gold <= 0 && k.item === 'super_mushroom') { k.item = null; this.showItem(k); } }
     if (k.shrink > 0) {
       k.shrink -= dt;
@@ -734,11 +734,37 @@ export class Items {
     k.mesh.scale.setScalar(s);
     const sprite = k.mesh.children.find(c => c.isSprite);
     if (!sprite) return;
-    const m = sprite.material;
-    if (k.star > 0) m.color.setHSL((this.clock * 4) % 1, 1, 0.65); else m.color.set(0xffffff);
-    const boo = k.boo > 0, opacity = boo ? (k.isPlayer ? 0.4 : 0) : 1;
-    if (m.opacity !== opacity) { m.opacity = opacity; m.transparent = boo; m.alphaTest = boo ? 0.05 : 0.5; m.needsUpdate = true; }
-    if (k.balloonMeshes) k.balloonMeshes.forEach(b => { b.material.opacity = opacity; b.material.transparent = boo; });
+    const m = sprite.material, f = k.fx || (k.fx = { acc: 0, n: 0, rgb: [0, 0, 0], own: 255, other: 255 });
+    if (k.zap > 0) k.zap -= dt;
+    for (f.acc += dt; f.acc >= 1 / FPS; f.acc -= 1 / FPS) this.fxStep(k, f);
+    // func_8004B614: G_CC (1 - ENV) * TEXEL0 + PRIM, ENV 0 here -> the texel plus the prim colour
+    if (m.userData.prim) m.userData.prim.value.setRGB(f.rgb[0] / 255, f.rgb[1] / 255, f.rgb[2] / 255);
+    // own screen sees player->alpha, the other screens gPlayerOtherScreensAlpha (ZMODE_XLU blend)
+    const opacity = (k.isPlayer ? f.own : f.other) / 255, see = opacity < 1;
+    m.opacity = opacity;
+    if (m.transparent !== see) { m.transparent = see; m.alphaTest = see ? 0.05 : 0.5; m.needsUpdate = true; }
+    if (k.balloonMeshes) k.balloonMeshes.forEach(b => { b.material.opacity = opacity; b.material.transparent = see; });
+  }
+  // One 30 Hz step of the kart's colour and alpha (render_player.c func_80022E84 colour effects, effects.c
+  // apply_boo_effect). Struck by lightning (unk_0B0 < 0x78): counter +5, wrapping at 0x1E, grey 0x808080 / blue 0x70 /
+  // yellow 0x8F8F00. Star, its first 8 whole seconds: counter +5 (+10 from 7 s), wrapping at 40, blue 0x70 / yellow
+  // 0x707000 / red 0x700000 / green 0x7000. Each moves 0.8 of the way there a step; otherwise 0.3 back to black.
+  // Boo: alpha -2 a step to 0x60 on its own screen and to 0 on the others; after 7 s +4 / +8 until either >= 0xF0.
+  fxStep(k, f) {
+    if (k.boo > 0) {
+      if (k.boo > 1e-6) { f.own = Math.max(0x60, f.own - 2); f.other = Math.max(0, f.other - 2); }
+      else { f.own += 4; f.other += 8; if (f.own >= 0xF0 || f.other >= 0xF0) { f.own = f.other = 255; k.boo = 0; } }
+    } else f.own = f.other = 255;
+    let target = 0, rate = 0.8;
+    const sec = Math.floor(STAR_TIME - k.star);
+    if (k.zap > 0) {
+      f.n += 5; if (f.n >= 0x1E) f.n = 0;
+      target = f.n < 0xB ? 0x808080 : f.n < 0x15 ? 0x70 : 0x8F8F00;
+    } else if (k.star > 0 && sec <= 8) {
+      f.n += sec >= 7 ? 10 : 5; if (f.n >= 40) f.n = 0;
+      target = f.n <= 10 ? 0x70 : f.n <= 20 ? 0x707000 : f.n <= 30 ? 0x700000 : 0x7000;
+    } else { f.n = 0; rate = 0.3; }
+    for (let i = 0; i < 3; i++) f.rgb[i] = Math.trunc(f.rgb[i] - (f.rgb[i] - ((target >> (16 - 8 * i)) & 0xFF)) * rate);
   }
 
   // held bananas trail behind the kart, triple shells circle it; anyone else touching one is hit and it is gone

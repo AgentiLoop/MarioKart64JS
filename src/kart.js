@@ -121,6 +121,15 @@ export function buildKartMesh(character = 'mario') {
   const map = HD.loadTexture(`karts/${character}.png`);   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
   map.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
+  // func_8004B614's combiner (1 - ENV) * TEXEL0 + PRIM with ENV 0: the item effects' prim colour added to the
+  // texel in the N64's gamma space (items.js fxStep sets it)
+  const prim = { value: new THREE.Color(0, 0, 0) };
+  material.userData.prim = prim;
+  material.onBeforeCompile = shader => {
+    shader.uniforms.uPrim = prim;
+    shader.fragmentShader = 'uniform vec3 uPrim;\n' + shader.fragmentShader.replace('#include <map_fragment>',
+      '#include <map_fragment>\n  diffuseColor.rgb = pow(min(pow(diffuseColor.rgb, vec3(1.0 / 2.2)) + uPrim, 1.0), vec3(2.2));');
+  };
   const sprite = new THREE.Sprite(material);
   sprite.center.set(0.5, 0);
   sprite.scale.set(4.5, 4.5, 1);
