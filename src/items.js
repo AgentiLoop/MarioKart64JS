@@ -168,6 +168,7 @@ function faceCamera(renderer, scene, camera) {
   if (_z.lengthSq() < 1e-8) return;
   _z.normalize();
   _x.crossVectors(_u, _z);
+  if (camera.userData.mirror) _x.negate();   // EXTRA: undo the mirrored projection so the actor reads the right way round
   this.matrixWorld.makeBasis(_x.multiplyScalar(sx), _u.multiplyScalar(su), _z.multiplyScalar(sx)).setPosition(_p);
 }
 
@@ -633,6 +634,7 @@ export class Items {
         _z.normalize();
         _p.addScaledVector(_z, 10 * BOX_SCALE * k.scale.x);
         _x.crossVectors(_z, up);   // the quads' +x is screen-left (lightning_zap_0 left of _1)
+        if (camera.userData.mirror) _x.negate();   // EXTRA: still screen-left under the mirrored projection
         mesh.matrixWorld.makeBasis(_x.multiplyScalar(size), _u.copy(up).multiplyScalar(size), _z.multiplyScalar(-size)).setPosition(_p);
       };
       b = { kart, mesh };

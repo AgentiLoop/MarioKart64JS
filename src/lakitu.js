@@ -288,7 +288,8 @@ class Referee {
     const col = this.frame % COLS, row = Math.floor(this.frame / COLS), iu = 0.5 / (fw * cols), iv = 0.5 / (fh * rows);
     const u0 = col / cols + iu, u1 = (col + 1) / cols - iu, v1 = 1 - row / rows - iv, v0 = 1 - (row + 1) / rows + iv;
     const uv = this.mesh.geometry.attributes.uv;
-    uv.array.set([u0, v0, u1, v0, u1, v1, u0, v1]); uv.needsUpdate = true;
+    const [ul, ur] = cam.userData.mirror ? [u1, u0] : [u0, u1];   // EXTRA: flipped back so his signs read under the mirrored projection
+    uv.array.set([ul, v0, ur, v0, ur, v1, ul, v1]); uv.needsUpdate = true;
     this.material.opacity = this.alpha;
     this.mesh.visible = true;
     this.mesh.updateMatrixWorld();

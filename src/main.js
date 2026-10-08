@@ -25,7 +25,8 @@ const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show t
 const battle = !!(trackDef && trackDef.battle);   // battle arena: balloons, no laps (rules below)
 // Engine class from the GAME SELECT cc rows (?cc=50|100|150|extra, gCCSelection); links without one race 150cc.
 // EXTRA is MK64's mirror mode at 100cc speeds: the 3D frame is flipped left-right and so is steering.
-// Assumption: the flip is a CSS mirror of the canvas, so kart sprites mirror with the course (the ROM flips the course).
+// The flip is in each camera's projection (mirrorCamera), not a CSS flip of the canvas, so the course is mirrored
+// while camera-facing sprites (karts, item actors, Lakitu, clouds) flip themselves back and read the right way round.
 // GAME SELECT mode (?mode=mario_gp|vs|time_trials|battle); links without one race as Grand Prix (two CPU rivals).
 const raceMode = params.get('mode') || 'mario_gp';
 // The console has no cc choice for TIME TRIALS or BATTLE (menus.c setup_selected_game_mode): time trials always race
@@ -42,7 +43,27 @@ const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
 scene.fog = new THREE.Fog(th.skyBot, 160, 750);
-const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2500);
+// EXTRA: negate clip-space x in the camera's projection (camera.userData.mirror tells the billboards to flip back).
+// That reverses every triangle's winding, so the on-screen pass swaps the cull side; shadow maps render to their
+// own target with an unflipped camera and keep it.
+function mirrorCamera(cam) {
+  if (!mirror) return cam;
+  cam.userData.mirror = true;
+  const update = cam.updateProjectionMatrix.bind(cam);
+  cam.updateProjectionMatrix = () => {
+    update();
+    const e = cam.projectionMatrix.elements;
+    e[0] = -e[0]; e[4] = -e[4]; e[8] = -e[8]; e[12] = -e[12];
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+  };
+  cam.updateProjectionMatrix();
+  return cam;
+}
+if (mirror) {
+  const setMaterial = renderer.state.setMaterial;
+  renderer.state.setMaterial = (material, frontFaceCW, ...rest) => setMaterial(material, renderer.getRenderTarget() === null ? !frontFaceCW : frontFaceCW, ...rest);
+}
+const camera = mirrorCamera(new THREE.PerspectiveCamera(70, 1, 0.5, 2500));
 
 scene.add(new THREE.HemisphereLight(th.hemiSky, th.hemiGround, 1.35));
 const sun = new THREE.DirectionalLight(th.sun, 2.5);
@@ -58,7 +79,7 @@ let sky;
 if (nativeSky) {
   const c = a => new THREE.Vector3(...a.map(v => v / 255));
   sky = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, fog: false,
+    depthTest: false, depthWrite: false, fog: false, side: THREE.DoubleSide,   // screen-space: never culled, EXTRA or not
     uniforms: { horizon: { value: 0 }, top: { value: c(nativeSky.top) }, hor: { value: c(nativeSky.horizon) },
       below: { value: c(nativeSky.below) }, bottom: { value: c(nativeSky.bottom) } },
     vertexShader: 'varying float y; void main(){ y = position.y; gl_Position = vec4(position.xy, 1., 1.); }',
@@ -128,7 +149,7 @@ if (cloudSet) {
   map.flipY = false;
   map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
   clouds = new THREE.Mesh(geo, new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, fog: false,
+    depthTest: false, depthWrite: false, fog: false, side: THREE.DoubleSide,
     blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
     uniforms: { map: { value: map }, horizon: sky.material.uniforms.horizon, clipBelow: { value: (trackDef || TRACKS[0]).id === 'rainbow' ? 0 : 1 } },
     vertexShader: 'attribute float alpha; varying vec2 vUv; varying float a, y; void main(){ vUv = uv; a = alpha; y = position.y; gl_Position = vec4(position.xy, 0., 1.); }',
@@ -149,7 +170,8 @@ function updateClouds(vw, vh) {
   const [hw, hh] = cloudSet.stars ? [8, 8] : [32, 16];
   cloudSet.objects.forEach((o, i) => {
     const x = Math.trunc(cloudScreenX(cameraYaw, o.rotY)), y = row - o.posY;
-    const X = d => (x - 160 + d * o.scale) * kx, Y = d => 1 - (y + d * o.scale) / 120;
+    // EXTRA: screen-space quads skip the mirrored projection, so mirror where they sit but not their image
+    const X = d => ((mirror ? 160 - x : x - 160) + d * o.scale) * kx, Y = d => 1 - (y + d * o.scale) / 120;
     pos.array.set([X(-hw), Y(-hh), 0, X(hw - 1), Y(-hh), 0, X(hw - 1), Y(hh - 1), 0, X(-hw), Y(hh - 1), 0], i * 12);
     if (cloudSet.stars) al.array.fill(STAR_TWINKLE[i % 5][tick & 1] / 255, i * 4, i * 4 + 4);
   });
@@ -1153,7 +1175,7 @@ let views = [mkView(camera, null)];
 const miniEl = $('mini'), hudEl = $('hud');
 function setViews(list) {
   for (const v of views) if (v.hud) v.hud.remove();
-  views = list.map((k, i) => mkView(i === 0 ? camera : new THREE.PerspectiveCamera(70, 1, 0.5, 2500), k));
+  views = list.map((k, i) => mkView(i === 0 ? camera : mirrorCamera(new THREE.PerspectiveCamera(70, 1, 0.5, 2500)), k));
   views.forEach((v, i) => {
     if (!v.kart || v.kart === player) return;
     v.hud = document.createElement('div');
@@ -1204,8 +1226,7 @@ function renderViews() {
   if (views.length === 1) { updateSky(camera); renderer.render(scene, camera); return; }
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   renderer.setScissorTest(true);
-  // EXTRA: the CSS flip swaps the left/right quadrants, so draw each view on the opposite side to land in place
-  const rect = r => [Math.round((mirror ? 1 - r[0] - r[2] : r[0]) * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
+  const rect = r => [Math.round(r[0] * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
   for (const v of views) {
     const [x, y, w, h] = rect(v.rect);
     renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
@@ -1228,7 +1249,7 @@ function resize() {
   layoutViews();
 }
 addEventListener('resize', resize); resize();
-if (mirror) canvas.style.transform = miniEl.style.transform = 'scaleX(-1)';
+if (mirror) miniEl.style.transform = 'scaleX(-1)';   // the course map follows the mirrored course
 HD.onChange(resize);
 let resTimer = 0;
 function showRes(text = `${HD.presetLabel()} · textures ${HD.tier()}×`) {

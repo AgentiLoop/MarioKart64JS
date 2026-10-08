@@ -70,7 +70,9 @@ async function race(name, query, check = () => [], limit = 8 * 60) {
   try {
     await w.page.goto(`${BASE}?${query}&autopilot`);
     await waitPlayer(w.page);
-    const extra = await w.page.evaluate(() => ({ mirrored: getComputedStyle(document.querySelector('canvas')).transform !== 'none',
+    // EXTRA mirrors in the camera projection (clip x negated), never with a CSS flip of the canvas
+    const extra = await w.page.evaluate(() => ({ mirrored: window.__game.camera.projectionMatrix.elements[0] < 0
+        && getComputedStyle(document.querySelector('canvas')).transform === 'none',
       karts: window.__game.karts.length, chars: window.__game.karts.map(k => k.char || k.name) }));
     const r = { ...await raceWatch(w.page, limit), ...extra };
     const bad = [];

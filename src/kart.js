@@ -203,12 +203,15 @@ export function buildKartMesh(character = 'mario') {
     camera.getWorldPosition(cameraPosition);
     g.getWorldQuaternion(inverse).invert();
     local.copy(cameraPosition).sub(g.position).applyQuaternion(inverse);
-    // unmirrored MK64 frames show the kart's left flank (nose to screen-left), i.e. camera on local -x
-    const view = kartSpriteFrame(Math.atan2(-local.x, local.z), g.userData.spinning);
+    // unmirrored MK64 frames show the kart's left flank (nose to screen-left), i.e. camera on local -x.
+    // EXTRA (camera.userData.mirror): the frame for the mirrored course's view, pre-flipped so the mirrored
+    // projection draws it the way the ROM's sprite reads
+    const flip = !!camera.userData.mirror;
+    const view = kartSpriteFrame(Math.atan2(flip ? local.x : -local.x, local.z), g.userData.spinning);
     if (g.userData.tumble != null) view.frame = 289 + g.userData.tumble;   // gKartTextureTumbles, still mirrored by view
-    const column = view.frame % 21, row = Math.floor(view.frame / 21);
-    map.repeat.set((view.mirrored ? -1 : 1) / 21, 1 / 16);
-    map.offset.set((column + (view.mirrored ? 1 : 0)) / 21, 1 - (row + 1) / 16);
+    const column = view.frame % 21, row = Math.floor(view.frame / 21), back = view.mirrored !== flip;
+    map.repeat.set((back ? -1 : 1) / 21, 1 / 16);
+    map.offset.set((column + (back ? 1 : 0)) / 21, 1 - (row + 1) / 16);
     material.rotation = g.userData.lean || 0;
     sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
     sprite.userData.frame = view.frame;
