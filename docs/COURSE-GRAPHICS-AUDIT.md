@@ -31,7 +31,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | Royal Raceway | trees + castle-garden trees (32) | **done** |
 | | piranha plants (`spawn_piranha_plants`, 16) | **done** (src/piranha.js) |
 | Luigi Raceway | trees (20) | **done** |
-| | hot-air balloon (`render_object_hot_air_balloon`) | — |
+| | hot-air balloon (`render_object_hot_air_balloon`, after a player's first lap, not in time trials) | **done** (tools/extract-balloon.py, src/balloon.js) |
+| | the item box under the balloon (`ACTOR_HOT_AIR_BALLOON_ITEM_BOX`), the balloon's shadow | — |
 | Moo Moo Farm | trees (21, not in 4P) | **done** |
 | | cows (`render_cows`, 37 from `d_course_moo_moo_farm_cow_spawn`, 5 kinds) | **done** (tools/extract-foliage.py → cows.json, src/foliage.js) |
 | | moles (`render_object_moles`) | — |
@@ -184,3 +185,22 @@ lights a vertex when it is loaded, so each lit vertex keeps its normal and the l
   egg) and past 3000 x/z; vertex colours re-lit (ambient + colour × max(0, n·l), light in world space) as it turns.
 EXTRA flips the model back in its own x, as the train. Not ported yet: its smoke (`spawn_ferry_smoke`) and karts
 tumbling when it hits them (`handle_paddle_boats_interactions`, HIT_PADDLE_BOAT_TRIGGER).
+## Luigi Raceway hot-air balloon (done)
+tools/extract-balloon.py walks `d_course_luigi_raceway_dl_F960` (balloon + basket) + `dl_F650` (ropes) and the low-detail
+`dl_FBE0` + `dl_FA20` with the tools/extract-props.py walker in its normals mode (vertex arrays and RGBA16 textures
+verified byte-for-byte; every list sets `d_course_luigi_raceway_light1`), and checks common_data `D_0D0077D0`, the render
+setup `func_80043328` runs first (G_LIGHTING | G_CULL_BACK), as raw F3DEX words. src/balloon.js:
+- D_80165898: set when a player's lap counter reaches 1 (the HUD lap code), never in time trials; until then nothing is
+  updated or drawn;
+- `update_hot_air_balloon` (once a frame = every other 60 Hz tick): `init_hot_air_balloon` origin (-176, 0, -2323)
+  (x × xOrientation), offset y 300, velocity y -2; `func_80085534` sinks to offset 18, eases the velocity to 0 (± 0.05
+  a frame), waits, eases to +1, rises 90 frames, eases to 0 then -1, sinks 90 frames, eases to 0 and holds 90, then
+  repeats from the wait: offset 298 down to 16, then between -23 and 88 (the ground under it is at -50);
+  direction_angle[1] + 0x100 a frame;
+- `render_object_hot_air_balloon` / `func_80055CCC`: `func_8008A1D0(0x5DC, 0xBB8)`, the near model turned by
+  direction_angle under 1500 x/z, the far model turned to face the camera (`func_800418AC` + 0x8000) out to 3000; in 1P
+  the spin is put back to 0 while it is far; lit (F3DEX, light in world space) and re-shaded as it turns. The far
+  model's shading follows screen 1's camera (assumption: one vertex colour set for every screen).
+EXTRA flips the model back in its own x and turns it the other way, as the ferry. Not ported yet: the item box hanging
+10 below it (`ACTOR_HOT_AIR_BALLOON_ITEM_BOX`, `update_actor_item_box_hot_air_balloon`) and its ground shadow
+(`func_8004A6EC`, common `D_0D007B20` within 300, at the surface found by `func_800886F4`).
