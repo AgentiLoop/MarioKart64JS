@@ -648,8 +648,23 @@ if (!trackDef) {
   fitScreen();
   buildGameSelect();
   buildCourseMenu();
-  backToTitle();
-  audio.welcome();   // menu_items.c:2618 plays SOUND_INTRO_WELCOME as the title screen comes up
+  if (params.get('menu') === 'course') {   // M from a race: back on the course menu, that race's course picked
+    pcount = Math.min(3, Math.max(0, (+params.get('players') || 1) - 1));
+    pmode = Math.max(0, PMODES[pcount].indexOf(raceMode));
+    const cc = ccParam === 'extra' ? 'extra' : `${ccParam}cc`;
+    ccSel = CC_ROWS.includes(cc) ? CC_ROWS.indexOf(cc) : 0;
+    gameMode = hasCc() ? 'cc' : 'mode';
+    updateGameSelect();
+    const ti = Math.max(0, TRACKS.findIndex(t => t.id === params.get('from')));
+    cupSel = Math.floor(ti / 4); courseIdx = ti % 4;
+    showScreen(menuEl, cupSel === 4 ? 'Battle course select: ↑/↓ pick an arena, Enter · Enter on OK starts · Esc goes back'
+      : 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
+    cupMode('course');
+    audio.playMusic(2);   // SEQ_MENU_MAIN_MENU
+  } else {
+    backToTitle();
+    audio.welcome();   // menu_items.c:2618 plays SOUND_INTRO_WELCOME as the title screen comes up
+  }
 } else if (!params.get('players')) {
   $('hud').style.display = 'block';   // online: the HUD comes up with GO (startRace)
 }
@@ -919,7 +934,8 @@ addEventListener('keydown', e => {
   if (trackDef) audio.start();   // menu: no engine hum (audio.update never runs there, so it droned)
   // Mac "delete" is Backspace, forward-delete is Delete; L/R are kept for the menu's L OPTION / R DATA
   if ((e.code === 'Backspace' || e.code === 'Delete') && trackDef && !online) { e.preventDefault(); setup(); }
-  if (e.code === 'KeyM') location.search = '';
+  // M in a race goes back to the course menu with the same players / mode / cc; on the menus it goes to the title
+  if (e.code === 'KeyM') location.search = trackDef ? `?menu=course&from=${trackDef.id}&mode=${raceMode}${ccParam ? `&cc=${ccParam}` : ''}${PLAYERS_WANTED ? `&players=${PLAYERS_WANTED}` : ''}` : '';
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
