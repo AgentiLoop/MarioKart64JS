@@ -26,6 +26,27 @@ MODELS = {
     'banana': (0x3298, 5, [[0, 1, 2], [3, 1, 4]], 0x3348, 32, 32),
     'flat-banana': (0x32E8, 6, [[0, 1, 2], [3, 4, 5]], 0x3B48, 64, 32),
 }
+# Shells (render_actor_shell): eight 32x32 CI8 spin frames, each its own MIO0 block (assets/greenshell.json,
+# blueshell.json), drawn with a 256-colour RGBA16 TLUT from common_data. The red shell has no texture of its own:
+# init_red_shell_texture swaps the red and green fields of the green TLUT (as s16, so a set top red bit
+# sign-extends into the red and green fields). Quads D_0D005338 (vtx 0x5238) and mirrored D_0D005368 (vtx 0x5278),
+# gSPTexture scale 0.5 (D_0D005308).
+SHELL_FRAMES = {
+    'green': (0x4E38, [0x68EB50, 0x68EDA0, 0x68EFF0, 0x68F248, 0x68F4A8, 0x68F700, 0x68F96C, 0x68FBCC]),
+    'blue': (0x5038, [0x68FE20, 0x69004C, 0x690284, 0x6904C4, 0x690708, 0x690960, 0x690BBC, 0x690DF8]),
+}
+SHELL_QUADS = {'shell': 0x5238, 'shellMirrored': 0x5278}
+
+
+def red_tlut(green):
+    out = bytearray()
+    for (c,) in struct.iter_unpack('>H', green):
+        r = c & 0xF800
+        if r & 0x8000:
+            r -= 0x10000
+        out += struct.pack('>H', ((r >> 5) | ((c & 0x7C0) << 5) | (c & 0x3E) | (c & 1)) & 0xFFFF)
+    return bytes(out)
+
 
 
 def main():
@@ -50,6 +71,25 @@ def main():
         out['models'][name] = dict(image=image, width=w, height=h, texture=tex, vertices=vertices, triangles=triangles,
                                    rgbaSha256=hashlib.sha256(rgba).hexdigest())
         print('%-12s vtx 0x%04X tex 0x%04X %dx%d' % (name, vtx, tex, w, h))
+    for name, vtx in SHELL_QUADS.items():
+        vertices = [list(struct.unpack('>3hH2h4B', common[vtx + 16 * i:vtx + 16 * i + 16])) for i in range(4)]
+        out.setdefault('shellQuads', {})[name] = dict(vertices=[v[:3] + v[4:] for v in vertices], triangles=[[0, 1, 2], [0, 2, 3]],
+                                   textureScale=0.5)
+    tluts = {name: common[tlut:tlut + 0x200] for name, (tlut, _) in SHELL_FRAMES.items()}
+    tluts['red'] = red_tlut(tluts['green'])
+    out['shells'] = {}
+    for name, tlut in tluts.items():
+        palette = karts.rgba16(tlut)
+        frames = [karts.mio0(rom[o:]) for o in SHELL_FRAMES['blue' if name == 'blue' else 'green'][1]]
+        rows = []
+        for y in range(32):
+            rows.append(b''.join(palette[f[y * 32 + x]] for f in frames for x in range(32)))
+        rgba = b''.join(rows)
+        image = name + '-shell.png'
+        (args.output / image).write_bytes(karts.png(32 * len(frames), 32, rgba))
+        out['shells'][name] = dict(image=image, frameWidth=32, frameHeight=32, frames=len(frames),
+                                   rgbaSha256=hashlib.sha256(rgba).hexdigest())
+        print('%-12s %d frames' % (name + ' shell', len(frames)))
     (args.output / 'items.json').write_text(json.dumps(out, indent=1) + '\n')
 
 

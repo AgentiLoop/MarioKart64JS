@@ -37,7 +37,6 @@ const SHRINK_SPEED = 0.75;   // assumption: shrunk top speed (MK64 scales its sp
 const SHELL_MIN = 8 / 5.885;
 const MUSHROOMS = new Set(['mushroom', 'double_mushroom', 'triple_mushroom', 'super_mushroom']);
 const TRAIL = { banana_bunch: ['banana', 5], triple_green_shell: ['green_shell', 3], triple_red_shell: ['red_shell', 3] };
-const SHELL_COLOR = { green_shell: 0x2fbf3a, red_shell: 0xe8312b, blue_shell: 0x3a6cf0 };
 
 // One mesh per display list: vertices [x, y, z, s, t, r, g, b, a] in MK64 units.
 function listMesh(list, material, tile) {
@@ -75,8 +74,8 @@ async function loadBoxModel() {
 // G_CC_MODULATERGBA, G_CULL_BACK cleared; its vertices span y -3..4, so it stands 3 units up.
 async function loadItemModels() {
   const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/items/items.json`);
-  const { models } = await res.json();
-  const out = {};
+  const { models, shells, shellQuads } = await res.json();
+  const out = { shells: {} };
   for (const [name, m] of Object.entries(models)) {
     const map = HD.loadTexture(`items/${m.image}`);
     map.colorSpace = THREE.SRGBColorSpace; map.flipY = false;
@@ -84,8 +83,41 @@ async function loadItemModels() {
     mesh.position.y = 3 * BOX_SCALE;
     out[name] = mesh;
   }
+  // Shells (render_actor_shell): a 6x6 CI8 sprite strip of 8 spin frames per colour (red = the green TLUT with red
+  // and green swapped), one geometry per frame on quad D_0D005338 and per frame on the mirrored D_0D005368, texture
+  // scale 0.5. Its base sits at pos - boundingBoxSize (4) + 1, i.e. 1 unit above the ground.
+  for (const [color, sh] of Object.entries(shells)) {
+    const map = HD.loadTexture(`items/${sh.image}`);
+    map.colorSpace = THREE.SRGBColorSpace; map.flipY = false;
+    const material = new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false });
+    const geos = [];
+    for (const q of [shellQuads.shell, shellQuads.shellMirrored]) for (let f = 0; f < sh.frames; f++) {
+      const vertices = q.vertices.map(([x, y, z, s, t, ...c]) => [x, y, z, s * q.textureScale + f * sh.frameWidth * 32, t * q.textureScale, ...c]);
+      geos.push(listMesh({ vertices, triangles: q.triangles }, material, [sh.frameWidth * sh.frames, sh.frameHeight]).geometry);
+    }
+    const mesh = new THREE.Mesh(geos[0], material);
+    mesh.position.y = BOX_SCALE;
+    out.shells[`${color}_shell`] = { mesh, geos, frames: sh.frames };
+  }
   return out;
 }
+
+// D_801502C0: actors drawn facing the camera, turned about their up axis only
+const _p = new THREE.Vector3(), _u = new THREE.Vector3(), _z = new THREE.Vector3(), _x = new THREE.Vector3();
+function faceCamera(renderer, scene, camera) {
+  const e = this.matrixWorld.elements;
+  _p.set(e[12], e[13], e[14]);
+  _u.set(e[4], e[5], e[6]);
+  const su = _u.length(), sx = Math.hypot(e[0], e[1], e[2]);
+  _u.divideScalar(su);
+  _z.setFromMatrixPosition(camera.matrixWorld).sub(_p);
+  _z.addScaledVector(_u, -_z.dot(_u));
+  if (_z.lengthSq() < 1e-8) return;
+  _z.normalize();
+  _x.crossVectors(_u, _z);
+  this.matrixWorld.makeBasis(_x.multiplyScalar(sx), _u.multiplyScalar(su), _z.multiplyScalar(sx)).setPosition(_p);
+}
+
 
 export class Items {
   constructor(track, scene, audio) {
@@ -118,14 +150,11 @@ export class Items {
       return m;
     });
     // prototypes cloned into every dropped / fired / held item
-    const shell = (color) => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 10), new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.35 }));
-      m.scale.y = 0.7; m.position.y = 0.65;
-      return m;
-    };
-    this.protos = Object.fromEntries(Object.entries(SHELL_COLOR).map(([k, c]) => [k, shell(c)]));
+    this.protos = {}; this.sprites = {}; this.spinning = [];
     this.protosReady = Promise.all([loadItemModels(), this.boxModel]).then(([models, box]) => {
       this.protos.banana = models.banana;
+      this.sprites = models.shells;
+      for (const [k, s] of Object.entries(models.shells)) this.protos[k] = s.mesh;
       // fake item box: the box with its "?" upside down (common_model_fake_itembox)
       const fake = new THREE.Group(), b = box.box.clone(), c = box.card.clone();
       b.position.y = c.position.y = BOX_HOVER; c.rotation.z = Math.PI; b.renderOrder = 2;
@@ -150,9 +179,24 @@ export class Items {
   makeMesh(kind) {
     const g = new THREE.Group();
     this.group.add(g);
-    if (this.protos[kind]) g.add(this.protos[kind].clone());
-    else this.protosReady.then(() => g.add(this.protos[kind].clone()));
+    const add = () => {
+      const m = this.protos[kind].clone();
+      g.add(m);
+      const sprite = this.sprites[kind];
+      if (sprite) { m.onBeforeRender = faceCamera; this.spinning.push({ m, g, sprite, rot: 0 }); }
+    };
+    if (this.protos[kind]) add(); else this.protosReady.then(add);
     return g;
+  }
+  // render_actor_shell: rotVelocity grows 10 degrees a frame; frame rotVelocity / 24 degrees (0..15) shows
+  // sprites 0..7, then 7..1 mirrored (index 15 reads past the table; shown here as sprite 0 mirrored)
+  spinShells(dt) {
+    this.spinning = this.spinning.filter(p => p.g.parent);
+    for (const p of this.spinning) {
+      p.rot = (p.rot + 10 * FPS * dt) % 360;
+      const i = Math.floor(p.rot / 24), n = p.sprite.frames;
+      p.m.geometry = p.sprite.geos[i < 8 ? i : n + (i === 15 ? 0 : 15 - i)];
+    }
   }
 
   // Player item window: update_objects.c func_8007B34C (1P), one step per 30 Hz frame. win.slide is
@@ -467,6 +511,7 @@ export class Items {
       for (k.win.acc += dt; k.win && k.win.acc >= 1 / FPS; ) { k.win.acc -= 1 / FPS; this.windowStep(k, karts); }
     }
     this.updateTrails(karts, dt);
+    this.spinShells(dt);
     // bananas and fake item boxes sit where dropped until someone runs into them
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.safe -= dt;

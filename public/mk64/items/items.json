@@ -165,5 +165,152 @@
    ],
    "rgbaSha256": "b6fb054d1b738262092e63f42072c7cf917b5cffd7f72786bf36342b3f895315"
   }
+ },
+ "shellQuads": {
+  "shell": {
+   "vertices": [
+    [
+     3,
+     6,
+     0,
+     1984,
+     0,
+     255,
+     255,
+     255,
+     255
+    ],
+    [
+     -3,
+     6,
+     0,
+     0,
+     0,
+     255,
+     255,
+     255,
+     255
+    ],
+    [
+     -3,
+     0,
+     0,
+     0,
+     1920,
+     255,
+     255,
+     255,
+     255
+    ],
+    [
+     3,
+     0,
+     0,
+     1984,
+     1920,
+     255,
+     255,
+     255,
+     255
+    ]
+   ],
+   "triangles": [
+    [
+     0,
+     1,
+     2
+    ],
+    [
+     0,
+     2,
+     3
+    ]
+   ],
+   "textureScale": 0.5
+  },
+  "shellMirrored": {
+   "vertices": [
+    [
+     3,
+     6,
+     0,
+     0,
+     0,
+     255,
+     255,
+     255,
+     255
+    ],
+    [
+     -3,
+     6,
+     0,
+     1984,
+     0,
+     255,
+     255,
+     255,
+     255
+    ],
+    [
+     -3,
+     0,
+     0,
+     1984,
+     1920,
+     255,
+     255,
+     255,
+     255
+    ],
+    [
+     3,
+     0,
+     0,
+     0,
+     1920,
+     255,
+     255,
+     255,
+     255
+    ]
+   ],
+   "triangles": [
+    [
+     0,
+     1,
+     2
+    ],
+    [
+     0,
+     2,
+     3
+    ]
+   ],
+   "textureScale": 0.5
+  }
+ },
+ "shells": {
+  "green": {
+   "image": "green-shell.png",
+   "frameWidth": 32,
+   "frameHeight": 32,
+   "frames": 8,
+   "rgbaSha256": "00e2f114115245ebb4a58d79a080c26841dfc42d36650faffccb10157d031777"
+  },
+  "blue": {
+   "image": "blue-shell.png",
+   "frameWidth": 32,
+   "frameHeight": 32,
+   "frames": 8,
+   "rgbaSha256": "4cbc7ffcae216437746a6de6ee2a833dfc4a9ffc4684a4c1f5629443f9a59f4f"
+  },
+  "red": {
+   "image": "red-shell.png",
+   "frameWidth": 32,
+   "frameHeight": 32,
+   "frames": 8,
+   "rgbaSha256": "0891c656661a9398a962a2fd5f76ad845524cb0c1c8f3032a19158c7f8ebd915"
+  }
  }
 }

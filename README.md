@@ -32,7 +32,7 @@ Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to
 - **Native courses** — all 16 MK64 tracks reconstructed from the ROM's course geometry + textures (MIO0/CI8/RGBA16 decoders in `tools/`), plus the four battle courses (Big Donut, Block Fort, Double Deck, Skyscraper).
 - **Battle mode** — free-roam driving on the arena's collision mesh (ramps, decks, walls; fall into the lava or off the edge and Lakitu puts you back), three balloons per kart, item boxes at the ROM's spots, last kart standing wins.
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls. Karts go airborne off ramps and crests with the decomp's gravity and air drag, and the boost ramps (Royal Raceway, D.K.'s Jungle Parkway) launch long, floaty jumps.
-- **Items** — the 15 MK64 items rolled from the ROM's `gen_random_item` curves (Grand Prix by rank, VS by player count, battle): bananas and banana bunches (the ROM banana model), green / red / blue shells, triple shells circling the kart, fake item boxes, lightning (spin + shrink), star, boo (steals an item), single / double / triple and super mushrooms.
+- **Items** — the 15 MK64 items rolled from the ROM's `gen_random_item` curves (Grand Prix by rank, VS by player count, battle): bananas and banana bunches (the ROM banana model), green / red / blue shells (the ROM's spinning shell sprites), triple shells circling the kart, fake item boxes, lightning (spin + shrink), star, boo (steals an item), single / double / triple and super mushrooms.
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars, kart exhaust smoke.
 - **HUD** — position, lap, race timer, speedometer, minimap.
 - **Sound** — the ROM's "Welcome to Mario Kart" voice on the title screen, and the ROM's own music: `src/m64.js` ports the decomp's sequence player (seqplayer.c / playback.c / effects.c), decodes the VADPCM instruments and plays the .m64 sequences in an AudioWorklet — title, menu and per-course race themes.
@@ -81,7 +81,7 @@ own kart and sending its position and heading, hits decided by the player who ge
 - `extract-course.py` — course geometry, textures and track path (`--course big_donut|block_fort|double_deck|skyscraper` for the pathless battle arenas, with their item box spawns)
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
-- `extract-items.py` — banana actor models (`common_model_banana` / `common_model_flat_banana`) and their textures
+- `extract-items.py` — banana actor models (`common_model_banana` / `common_model_flat_banana`) and their textures, plus the green / red / blue shell spin-frame sprites (`texture_green_shell_*` / `texture_blue_shell_*` with their TLUTs; red is the green TLUT with red and green swapped, as `init_red_shell_texture` does)
 - `extract-smoke.py` — kart exhaust smoke puff frames (`src/smoke.js`)
 - `extract-sounds.py` — "Welcome to Mario Kart" voice WAV plus the raw audio banks, sample tables, sequences and bank sets that `src/m64.js` plays
 - `extract-mainmenu.py` — GAME SELECT banner, 1P–4P GAME cards, mode plates, OPTION / DATA and the cursor triangle
