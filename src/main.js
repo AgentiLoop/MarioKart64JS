@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
-import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS } from './kart.js';
+import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS, speedKmh, togglePhysics } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -164,22 +164,30 @@ const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf
 const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario', 'Bowser'];
 const characters = ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'];
 let karts = [], player, raceTime = 0, state = 'countdown', finishOrder = [];
+let lapTimes = [], lapStart = 0, lapsDone = -1;   // the player's lap splits (time trial records)
 
-function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P; 2-4 when an online room falls back to the CPU)
+const GRID_SLOTS = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];   // [d, back] per start spot
+function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P; MAX_ONLINE_KARTS when an online room falls back to the CPU)
   for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
   karts = []; finishOrder = []; raceTime = 0; state = 'countdown';
-  const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];
+  lapTimes = []; lapStart = 0; lapsDone = -1;
+  const slots = GRID_SLOTS;
   // start line is at s=0; grid sits behind it so lap 1 begins on crossing
   // player takes their character (URL ?char= / localStorage), AI fill the rest in native order.
-  // With playerChar=mario this reproduces the old [7,0,1,2,3,4,5,6] grid exactly.
+  // Grand Prix (spawn_players_gp_one_player, func_80039DA4): every race here is a cup's first course, so the
+  // player starts last (D_80165270 = 7, 6, .. 0: player 1 on spot 7, CPU n on spot 7 - n). Time trials
+  // (spawn_players.c TIME_TRIALS) is the player alone on the middle of the first row. VS / an online room
+  // falling back to CPU karts keep the old order (the player second).
   // Battle (assumption, the console has no 1P battle): the player is P1 on the first start spot and up to three
   // CPU karts take the other spots (spawn_players_4p_battle order).
   const rest = characters.filter(c => c !== playerChar);
   const order = battle ? [playerChar, ...rest].slice(0, Math.min(4, count))
+    : timeTrial ? [playerChar]
+    : raceMode === 'mario_gp' && count === 8 ? [...rest].reverse().concat(playerChar)
     : [rest[6], playerChar, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5]].slice(0, count);
   order.forEach((c, i) => {
     const ci = characters.indexOf(c);
-    const [d, back] = slots[i];
+    const [d, back] = order.length === 1 ? [0, slots[0][1]] : slots[i];
     const k = new Kart(track, {
       color: PALETTE[ci], s: track.length - back, d, isPlayer: c === playerChar,
       skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(engine, c), cc,
@@ -194,6 +202,8 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
   setViews([player]);
   banner.textContent = '';
   items.reset();
+  // func_8005995C: a time trial hands player 1 a mushroom twice more once it is used, i.e. three mushrooms
+  if (timeTrial) items.give(player, 'triple_mushroom');
   startCountdown();
 }
 
@@ -222,6 +232,8 @@ const exhaust = new Exhaust(scene);
 const lakitu = new Lakitu(scene, track);
 // his cloud's hum while he fishes a kart out or shows the reverse sign: 0x0100FA28 = SOUND_ARG_LOAD(0x01, 0x00, 0xFA, 0x28), bank 0
 lakitu.onHum = on => on ? audio.playSound(0, 0x28) : audio.stopSound(0, 0x28);
+// Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
+lakitu.onSound = (bank, id) => audio.playSound(bank, id);
 // Lakitu's start signal: two red lights, then blue starts the race (update_object_lakitu_countdown). The ROM's
 // SOUND_ACTION_COUNTDOWN_LIGHT 0x49008003 / SOUND_ACTION_GREEN_LIGHT 0x49008004 (bank 4)
 function countdownLight(light) {
@@ -232,8 +244,6 @@ function countdownLight(light) {
   rocketStart();
 }
 // Rocket start (player_accelerate_during_start_sequence / player_decelerate_during_start_sequence): holding A through
-// Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
-lakitu.onSound = (bank, id) => audio.playSound(bank, id);
 // the countdown revs the engine, currentSpeed against the gTopSpeedTable top speed, + gKartAccelerationTables[band]
 // x 3 (x 2.5 from 60%) a frame, - 5 a frame let go. From the end of Lakitu's blue-light animation (D_801656F0) a
 // fresh press within 8 frames (20 in time trials) sets START_BOOST_TRIGGER, kept only while A stays down; revs at
@@ -276,10 +286,13 @@ function rocketStart() {
   if (r.spin) { player.spin = 1.1; player.v /= 3; player.drift = 0; player.boost = 0; items.voice(player, 3); }
 }
 const itemEl = $('item'), itemWin = $('itemWin'), itemName = $('itemName');
-// gItemWindowTextures order (tools/extract-item-window.py); preloaded so the roulette never waits on a fetch
+// gItemWindowTextures order (tools/extract-item-window.py); preloaded at the current HD tier so the roulette never waits on a fetch
 const ITEM_WINDOW = ['none', 'banana', 'banana_bunch', 'green_shell', 'triple_green_shell', 'red_shell', 'triple_red_shell',
   'blue_shell', 'thunder_bolt', 'fake_item_box', 'star', 'boo', 'mushroom', 'double_mushroom', 'triple_mushroom',
-  'super_mushroom'].map((n, i) => { const img = new Image(); img.src = `mk64/item-window/${String(i).padStart(2, '0')}-${n}.png`; return img.src; });
+  'super_mushroom'].map((n, i) => `item-window/${String(i).padStart(2, '0')}-${n}.png`);
+const preloadItemWindow = () => ITEM_WINDOW.forEach(rel => { new Image().src = HD.hdSource(rel).url; });
+preloadItemWindow();
+HD.onChange(preloadItemWindow);
 const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
@@ -289,13 +302,13 @@ const screenEl = $('screen'), hintEl = $('hint');
 const titleEl = $('title'), pushStart = $('pushStart'), gameEl = $('gameSel'), menuEl = $('menu'), charEl = $('char');
 let curScreen = null;
 function showScreen(el, hint) {
-  for (const s of [titleEl, gameEl, menuEl, charEl]) s.style.display = s === el ? 'block' : 'none';
+  for (const s of [titleEl, gameEl, menuEl, charEl, $('opt'), $('data')]) s.style.display = s === el ? 'block' : 'none';
   curScreen = el;
   hintEl.textContent = hint;
 }
 function fitScreen() {
   const s = Math.min(innerWidth / 320, innerHeight / 240);
-  screenEl.style.transform = `translate(-50%, -50%) scale(${s})`;
+  screenEl.style.zoom = s;   // laid out (and rasterized) at full size, so 2x/4x menu art stays sharp
 }
 addEventListener('resize', fitScreen);
 const atTitle = () => curScreen === titleEl;
@@ -316,9 +329,8 @@ const SND = { move: 0x00, select: 0x01, back: 0x02, okClicked: 0x16, enter: 0x1a
 const snd = name => audio.menuSound(SND[name]);
 function enterMenus() {
   if (!atTitle()) return;
-  // Browsers keep audio suspended until a gesture; on the console the voice and title music start with
-  // the title screen, so the first press only unlocks audio (playing them here) and the next one advances.
-  if (audio.ctx && audio.ctx.state !== 'running') { audio.ctx.resume(); return; }
+  // Browsers keep audio suspended until a gesture: the first press unlocks audio and advances in one go.
+  if (audio.ctx && audio.ctx.state !== 'running') audio.ctx.resume();
   snd('enter');   // splash_menu_act: A/Start plays SOUND_INTRO_ENTER_MENU
   enterGameSelect();
   audio.playMusic(2);   // SEQ_MENU_MAIN_MENU (menus.c:1861)
@@ -341,7 +353,8 @@ function backToTitle() {
 // BATTLE goes to the battle course select (SUB_MENU_MAP_SELECT_BATTLE_COURSE: the four arenas, no cups); 1P GAME
 // also offers it here (assumption: the console has no solo battle, this port battles three CPU karts).
 const PCOL_X = [21, 92, 163, 234];
-const PMODES = [['mario_gp', 'time_trials', 'battle'], ['mario_gp', 'vs', 'battle'], ['vs', 'battle'], ['vs', 'battle']];
+// 2P-4P all get MARIO GP / VS / BATTLE (this port's choice, not the console's): online the CPU fills the grid up to MAX_ONLINE_KARTS.
+const PMODES = [['mario_gp', 'time_trials', 'battle'], ['mario_gp', 'vs', 'battle'], ['mario_gp', 'vs', 'battle'], ['mario_gp', 'vs', 'battle']];
 const CC_ROWS = ['50cc', '100cc', '150cc', 'extra'];   // gCCSelection CC_50..CC_EXTRA
 let pcount = 0, pmode = 0, ccSel = 0, gameMode = 'player';   // 'player' | 'mode' | 'cc'
 const hasCc = () => ['mario_gp', 'vs'].includes(PMODES[pcount][pmode]);
@@ -390,7 +403,7 @@ function updateGameSelect() {
 }
 function enterGameSelect() {
   gameMode = 'player'; pmode = 0;
-  showScreen(gameEl, 'Game select: ←/→ number of players, Enter · ↑/↓ mode, Enter · ↑/↓ 50cc/100cc/150cc/Extra, Enter · Esc goes back · 2P-4P race online');
+  showScreen(gameEl, 'Game select: ←/→ number of players, Enter · ↑/↓ mode, Enter · ↑/↓ 50cc/100cc/150cc/Extra, Enter · Esc goes back · L option · R data · 2P-4P race online');
   updateGameSelect();
 }
 function pickMode() {
@@ -419,6 +432,89 @@ function gameStep(now) {
   });
   [...$('ccrows').children].forEach((b, i) => { b.querySelector('.box').style.background = boxColour(i === ccSel, false); });
 }
+
+// ------- L OPTION / R DATA (main_menu_act: L_TRIG -> MAIN_MENU_OPTION, R_TRIG -> MAIN_MENU_DATA, menus.c:1323-1334) -------
+// OPTIONS_MENU (options_menu_act): RETURN TO GAME SELECT, SOUND MODE (stereo/headphones/mono), COPY CONTROLLER PAK,
+// ERASE ALL DATA. DATA_MENU (data_menu_act): the 16 courses as 4 cup columns x 4 rows; A opens COURSE_DATA_MENU, the
+// course's time trial records (best 5 times and best lap). The "save data" here is localStorage. Layout is plain text,
+// not the ROM's screens.
+const optEl = $('opt'), dataEl = $('data');
+const SOUND_MODES = ['STEREO', 'HEADPHONES', 'MONO'];
+const SOUND_MODE_SND = [0x24, 0x25, 0x29];   // SOUND_MENU_STEREO / _HEADPHONES / _MONO
+const OPT_ROWS = ['RETURN TO GAME SELECT', 'SOUND MODE', 'COPY CONTROLLER PAK', 'ERASE ALL DATA'];
+let optSel = 0, optMsg = '', eraseAsk = false, dataSel = 0, dataCourse = false;
+function enterOption() {
+  optSel = 0; optMsg = ''; eraseAsk = false;
+  audio.menuSound(0x10);   // SOUND_MENU_OPTION
+  showScreen(optEl, 'Option: ↑/↓ choose, Enter · Esc goes back to game select');
+  drawOption();
+}
+function drawOption() {
+  $('optList').innerHTML = OPT_ROWS.map((r, i) => `<div class="row${i === optSel ? ' on' : ''}">${r}${i === 1 ? ` : ${SOUND_MODES[audio.soundMode]}` : ''}${i === 3 && eraseAsk ? ' — ARE YOU SURE? ENTER = YES, ESC = NO' : ''}</div>`).join('') + `<div class="msg">${optMsg}</div>`;
+}
+function optionKey(code, enter, back) {
+  if (eraseAsk) {
+    if (enter) { eraseRecords(); localStorage.removeItem('mk64sound'); audio.setSoundMode(0); eraseAsk = false; optMsg = 'ALL DATA ERASED'; audio.menuSound(0x1d); }   // SOUND_MENU_EXPLOSION
+    else if (back) { eraseAsk = false; snd('back'); }
+    drawOption(); return;
+  }
+  optMsg = '';
+  if (code === 'ArrowUp' && optSel > 0) { optSel--; snd('move'); }
+  else if (code === 'ArrowDown' && optSel < OPT_ROWS.length - 1) { optSel++; snd('move'); }
+  else if (back) { enterGameSelect(); snd('back'); return; }
+  else if (enter) {
+    if (optSel === 0) { enterGameSelect(); snd('back'); return; }
+    if (optSel === 1) { const m = (audio.soundMode + 1) % 3; audio.setSoundMode(m); audio.menuSound(SOUND_MODE_SND[m]); }
+    if (optSel === 2) { optMsg = 'NO CONTROLLER PAK (records are kept in this browser)'; audio.menuSound(0x07); }   // SOUND_MENU_FILE_NOT_FOUND
+    if (optSel === 3) { eraseAsk = true; snd('select'); }
+  }
+  drawOption();
+}
+// time trial records per course id: { times: [{ t, char }] best 5, lap: { t, char } }
+const loadRecords = () => { try { return JSON.parse(localStorage.getItem('mk64records')) || {}; } catch { return {}; } };
+const eraseRecords = () => localStorage.removeItem('mk64records');
+const recFmt = t => t == null ? "-'--\"--" : `${Math.floor(t / 60)}'${String(Math.floor(t % 60)).padStart(2, '0')}"${String(Math.floor(t * 100) % 100).padStart(2, '0')}`;
+function enterData() {
+  dataCourse = false;
+  audio.menuSound(0x11);   // SOUND_MENU_DATA
+  drawData();
+}
+function drawData() {
+  const recs = loadRecords();
+  if (!dataCourse) {
+    showScreen(dataEl, 'Data: arrows pick a course, Enter shows its records · Esc goes back to game select');
+    $('dataHead').textContent = 'DATA';
+    $('dataList').innerHTML = `<div id="dataGrid">${TRACKS.slice(0, 16).map((t, i) =>
+      `<div class="row${i === dataSel ? ' on' : ''}" data-i="${i}">${t.name}<b>${recFmt(recs[t.id]?.times?.[0]?.t)}</b></div>`).join('')}</div>
+      <div class="msg">Records come from TIME TRIALS (1P GAME).</div>`;
+    $('dataList').querySelectorAll('[data-i]').forEach(d => { d.onclick = () => { dataSel = +d.dataset.i; dataCourse = true; snd('okClicked'); drawData(); }; });
+    return;
+  }
+  const t = TRACKS[dataSel], r = recs[t.id] || {};
+  showScreen(dataEl, 'Course records: Enter / Esc goes back to data');
+  $('dataHead').textContent = t.name.toUpperCase();
+  const rows = [0, 1, 2, 3, 4].map(i => { const e = r.times?.[i]; return `<tr><td>${i + 1}</td><td>${recFmt(e?.t)}</td><td>${e ? NAMES[e.char] || e.char : ''}</td></tr>`; }).join('');
+  $('dataList').innerHTML = `<div class="row on">RETURN</div><table>${rows}<tr><td>LAP</td><td>${recFmt(r.lap?.t)}</td><td>${r.lap ? NAMES[r.lap.char] || r.lap.char : ''}</td></tr></table>`;
+  $('dataList').querySelector('.row').onclick = () => { dataCourse = false; snd('back'); drawData(); };
+}
+function dataKey(code, enter, back) {
+  if (dataCourse) { if (enter || back) { dataCourse = false; snd('back'); drawData(); } return; }
+  // data_menu_act: down/up inside a cup column (index % 4), right/left across cups (index / 4)
+  const move = { ArrowDown: dataSel % 4 !== 3 ? 1 : 0, ArrowUp: dataSel % 4 !== 0 ? -1 : 0, ArrowRight: dataSel < 12 ? 4 : 0, ArrowLeft: dataSel >= 4 ? -4 : 0 }[code];
+  if (move) { dataSel += move; snd('move'); drawData(); }
+  else if (enter) { dataCourse = true; snd('okClicked'); drawData(); }
+  else if (back) { enterGameSelect(); snd('back'); }
+}
+// a finished time trial: keep the best 5 race times and the best lap for the course
+function saveRecord(id, time, laps, char) {
+  const recs = loadRecords(), r = recs[id] || (recs[id] = { times: [] });
+  r.times = [...r.times, { t: time, char }].sort((a, b) => a.t - b.t).slice(0, 5);
+  const best = Math.min(...laps);
+  if (laps.length && (!r.lap || best < r.lap.t)) r.lap = { t: best, char };
+  localStorage.setItem('mk64records', JSON.stringify(recs));
+}
+$('optionBtn').onclick = () => { if (curScreen === gameEl) enterOption(); };
+$('dataBtn').onclick = () => { if (curScreen === gameEl) enterData(); };
 
 // ------- course select: COURSE_SELECT_MENU at the ROM's pixel positions (single-course / VS style) -------
 // Cup icons 65x40 at D_800E7148 (x 23/93/162/232, y 59); the chosen cup slides to x 128 once a cup is
@@ -699,6 +795,8 @@ addEventListener('keydown', e => {
       const enter = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space';
       const back = e.code === 'Escape' || e.code === 'Backspace';
       if (e.code.startsWith('Arrow') || enter || back) e.preventDefault();
+      if (e.code === 'KeyL' && !e.repeat) { enterOption(); return; }   // L_TRIG -> MAIN_MENU_OPTION (from any game select step)
+      if (e.code === 'KeyR' && !e.repeat) { enterData(); return; }     // R_TRIG -> MAIN_MENU_DATA
       if (gameMode === 'player') {
         if (e.code === 'ArrowLeft' && pcount > 0) { pcount--; snd('move'); }
         else if (e.code === 'ArrowRight' && pcount < 3) { pcount++; snd('move'); }
@@ -715,6 +813,13 @@ addEventListener('keydown', e => {
         else if (enter) pickCc();
         else if (back) { gameMode = 'mode'; snd('back'); updateGameSelect(); }
       }
+      return;
+    }
+    if (curScreen === optEl || curScreen === dataEl) {
+      const enter = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space';
+      const back = e.code === 'Escape' || e.code === 'Backspace';
+      if (e.code.startsWith('Arrow') || enter || back) e.preventDefault();
+      (curScreen === optEl ? optionKey : dataKey)(e.code, enter, back);
       return;
     }
     if (curScreen === menuEl) {
@@ -748,10 +853,18 @@ addEventListener('keydown', e => {
 // second; the other karts are puppets replaying those poses 0.1 s in the past. Items: you roll and use your own,
 // every banana / shell / star / boo / lightning you use appears in the other games, and only the player who gets hit decides it (their spin
 // arrives in their pose). The lowest id is the host: each game says READY once its mesh is up, the host answers
-// GO and all run Lakitu's start countdown together. Multiplayer is 2-4 karts total, never 8: the humans who showed up,
-// and only when nobody comes (Enter on the lobby) CPU karts fill the seats up to the player count that was picked.
-const PLAYERS_WANTED = Math.min(4, Math.max(0, +params.get('players') || 0));
+// GO and all run Lakitu's start countdown together. Every online grid is MAX_ONLINE_KARTS karts: the humans who showed up,
+// then CPU karts in the empty seats. The host (lowest id) drives the CPU karts and sends their poses and items like
+// its own (they carry an `id`); the other games show them as puppets. If the host leaves, the next one takes them over.
+// Enter on the lobby (nobody came) races MAX_ONLINE_KARTS offline with CPU karts.
+// MAX_ONLINE_KARTS can go up to 8 (GRID_SLOTS has 8 spots). Raising it: also MAX_ROOM_PLAYERS in website/src/lobby.js
+// if more than 4 humans, viewRects (split screen has 4 panes) and battleSpawn (4 arena spots) / setup's battle cap.
+const MAX_ONLINE_KARTS = 4;
+const PLAYERS_WANTED = Math.min(MAX_ONLINE_KARTS, Math.max(0, +params.get('players') || 0));
 const online = !!trackDef && PLAYERS_WANTED >= 2;
+// TIME TRIALS (1P): the player alone (setup) with three mushrooms and no item boxes (actors.c spawn_item_box_actors)
+const timeTrial = raceMode === 'time_trials' && !online;
+if (timeTrial) { for (const b of items.boxes) items.group.remove(b.mesh); items.boxes = []; }
 const net = online ? new Net() : null;
 const lobbyEl = $('lobby'), lobbyCount = $('lobbyCount'), lobbyList = $('lobbyList'), lobbyMsg = $('lobbyMsg');
 const SEND_INTERVAL = 1 / 30, PUPPET_DELAY = 0.1;
@@ -778,36 +891,44 @@ function lobbyShow(players, countdown, max) {
   }
   for (let i = players.length; i < max; i++) { const d = document.createElement('div'); d.textContent = '· · ·'; d.style.opacity = .5; lobbyList.appendChild(d); }
 }
-// Grid in id order (the same on every peer).
+// Grid in id order, then the CPU karts (unpicked drivers in native order, ids 'c1'..) - the same on every peer.
 function setupOnline() {
   for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
   karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; raceGo = false;
-  const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24]];
   const chars = resolveChars(net.players);
-  net.players.forEach((p, i) => {
-    const c = chars.get(p.id), ci = characters.indexOf(c);
-    const [d, back] = slots[i];
-    const mine = p.id === net.myId;
+  const seats = net.players.map(p => ({ id: p.id, c: chars.get(p.id) }));
+  const free = characters.filter(c => ![...chars.values()].includes(c));
+  while (seats.length < MAX_ONLINE_KARTS && free.length) seats.push({ id: `c${seats.length + 1}`, c: free.shift(), cpu: true });
+  seats.forEach(({ id, c, cpu }, i) => {
+    const ci = characters.indexOf(c);
+    const [d, back] = GRID_SLOTS[i];
+    const mine = id === net.myId;
     const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c,
+      skill: cpu ? 0.6 + 0.4 * Math.random() : 1,
       spawn: battle ? battleSpawn(trackDef.id, i) : null, speedScale: ccSpeedScale(engine, c), cc });
-    k.netId = p.id; k.remote = !mine; k.poses = [];
+    k.netId = id; k.cpu = !!cpu; k.remote = cpu ? !net.hostIsMe : !mine; k.poses = [];
+    k.aiOffset = d * 0.8;
     k.prevS = k.s; k.crossings = -1;   // gLapCountByPlayerId starts at -1: crossing the line from the grid begins lap 1
     scene.add(k.mesh); karts.push(k);
     if (mine) player = k;
   });
-  setViews(karts);   // every player's view, in grid order, like the console's split screen
+  if (raceMode === 'mario_gp' && net.hostIsMe) pickRivals(karts);
+  setViews(karts.filter(k => !k.cpu));   // every human player's view, in grid order, like the console's split screen
   banner.textContent = '';
   items.reset();
   startCountdown();
 }
 function sendPose() {
-  const k = player;
+  sendKartPose(player);
+  if (net.hostIsMe) for (const k of karts) if (k.cpu && !k.remote) sendKartPose(k, k.netId);
+}
+function sendKartPose(k, id) {   // id: a CPU kart the host drives (a human's pose is known by who sent it)
   if (battle) {   // arena: world position and heading; balloons left and out ride along (the victim decides hits)
-    net.send({ t: 'p', x: k.x, z: k.z, h: k.h, v: k.v, y: k.y, air: k.air ? 1 : 0, dr: k.drift, b: k.boost, sp: k.spin,
+    net.send({ t: 'p', id, x: k.x, z: k.z, h: k.h, v: k.v, y: k.y, air: k.air ? 1 : 0, dr: k.drift, b: k.boost, sp: k.spin,
       sv: k.steerVis, bl: k.balloons, o: k.out ? 1 : 0, r: k.rescue > 0 ? 1 : 0, ...tumblePose(k) }, false);
     return;
   }
-  net.send({ t: 'p', s: k.s, d: k.d, psi: k.psi, v: k.v, y: k.world.y, air: k.air ? 1 : 0,
+  net.send({ t: 'p', id, s: k.s, d: k.d, psi: k.psi, v: k.v, y: k.world.y, air: k.air ? 1 : 0,
     dr: k.drift, b: k.boost, sp: k.spin, sv: k.steerVis, c: k.crossings, f: k.finished ? k.finishTime : -1, ...tumblePose(k) }, false);
 }
 // an item-hit tumble rides along as its gKartTextureTumbles frame (unk_0A8 >> 8) and hop height, so the puppet shows it
@@ -867,11 +988,14 @@ function useItem() { sendItem(items.use(player, karts)); }
 // item button let go: a held banana / fake box / shell leaves (stick up throws a banana ahead, stick down sends a green
 // shell back; on the keyboard Down / S holds the stick down)
 function releaseItem(stickY = (keys.ArrowDown || keys.KeyS) ? -80 : 0) { if (player) sendItem(items.release(player, karts, stickY)); }
-function sendItem(item) {   // what was fired: the other games replay it with items.fire
-  if (online && item) net.send(battle ? { t: 'item', item, x: player.x, z: player.z, h: player.h, y: player.y } : { t: 'item', item, s: player.s, d: player.d });
+function sendItem(item, k = player) {   // what was fired: the other games replay it with items.fire
+  const id = k.cpu ? k.netId : undefined;
+  if (online && item) net.send(battle ? { t: 'item', id, item, x: k.x, z: k.z, h: k.h, y: k.y } : { t: 'item', id, item, s: k.s, d: k.d });
 }
+// the host's CPU karts fire from Items (aiUse / cpuStrategy), not from useItem
+items.onFire = (k, kind) => { if (online && k.cpu && !k.remote) sendItem(kind, k); };
 function onlineData(from, m) {
-  const k = peerKart(from);
+  const k = m.id != null ? peerKart(m.id) : peerKart(from);
   switch (m.t) {
     case 'p': if (k) { m.rx = performance.now(); k.poses.push(m); if (k.poses.length > 30) k.poses.shift(); } break;
     case 'item': if (k) { if (battle) { k.x = m.x; k.z = m.z; k.h = m.h; k.y = m.y; } else { k.s = m.s; k.d = m.d; } items.fire(k, m.item, karts); } break;
@@ -889,9 +1013,9 @@ function startRace() {
   lobbyEl.style.display = 'none';
   $('hud').style.display = 'block';
 }
-function raceCpuInstead() {   // Enter on the lobby: nobody came, so CPU karts fill the empty seats (2-4 karts, never 8)
+function raceCpuInstead() {   // Enter on the lobby: nobody came, so CPU karts fill the empty seats (MAX_ONLINE_KARTS karts)
   net.leave();
-  setup(PLAYERS_WANTED);
+  setup(MAX_ONLINE_KARTS);
   startRace();
 }
 if (online) {
@@ -901,7 +1025,7 @@ if (online) {
   net.addEventListener('start', e => {
     const m = e.detail;
     if (m.course !== trackDef.id) {   // the room races the host's course: reload onto it, then rejoin
-      location.search = `?track=${m.course}&char=${playerChar}${ccParam ? `&cc=${ccParam}` : ''}&players=${PLAYERS_WANTED}&room=${m.code}&you=${m.you}`;
+      location.search = `?track=${m.course}&char=${playerChar}${ccParam ? `&cc=${ccParam}` : ''}&mode=${raceMode}&players=${PLAYERS_WANTED}&room=${m.code}&you=${m.you}`;
       return;
     }
     lobbyShow(m.players, -1, m.players.length);
@@ -919,12 +1043,13 @@ if (online) {
   net.addEventListener('left', e => {
     const k = peerKart(e.detail.id);
     if (k) { scene.remove(k.mesh); k.mesh.userData.dispose(); karts = karts.filter(q => q !== k); }
-    if (karts.length <= 1 && state !== 'finished') { banner.textContent = 'OPPONENT LEFT'; setTimeout(() => { if (banner.textContent === 'OPPONENT LEFT') banner.textContent = ''; }, 3000); }
+    if (net.hostIsMe) for (const q of karts) if (q.cpu && q.remote) { q.remote = false; q.poses = []; q.prevS = q.s; }   // new host: drive the CPU karts
+    if (karts.filter(q => !q.cpu).length <= 1 && state !== 'finished') { banner.textContent = 'OPPONENT LEFT'; setTimeout(() => { if (banner.textContent === 'OPPONENT LEFT') banner.textContent = ''; }, 3000); }
     hostCheckGo();
   });
   net.addEventListener('error', e => { lobbyMsg.textContent = e.detail.message; lobbyCount.textContent = ''; });
   if (params.get('room')) net.rejoin(params.get('room'), +params.get('you'));
-  else net.quickMatch({ name: NAMES[playerChar] || playerChar, course: trackDef.id, char: playerChar, players: PLAYERS_WANTED });
+  else net.quickMatch({ name: NAMES[playerChar] || playerChar, course: trackDef.id, char: playerChar, players: PLAYERS_WANTED, mode: raceMode });
   addEventListener('keydown', e => {
     if (lobbyEl.style.display !== 'block' || raceGo) return;
     if (e.code === 'Escape' || e.code === 'Backspace') { net.leave(); location.search = ''; }
@@ -943,6 +1068,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') location.search = trackDef ? `?menu=course&from=${trackDef.id}&mode=${raceMode}${ccParam ? `&cc=${ccParam}` : ''}${PLAYERS_WANTED ? `&players=${PLAYERS_WANTED}` : ''}` : '';
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
+  if (e.code === 'KeyJ' && !e.repeat) showRes(togglePhysics());   // jump mode Jumps / Glue, saved
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -1022,7 +1148,7 @@ function drawMini() {
 // bottom-left, P4 bottom-right (SCREEN_MODE_3P_4P_SPLITSCREEN); in 3P the fourth quadrant draws no course, only
 // its HUD (render_player_four_3p_4p_screen), which here holds the course map. Online every game shows every
 // player's view, so the screen matches the console's; only the local player's view carries the full HUD.
-const mkView = (cam, kart) => ({ cam, kart, pos: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), look: new THREE.Vector3(), init: false, rect: [0, 0, 1, 1], hud: null });
+const mkView = (cam, kart) => { cam.userData.kart = kart; return { cam, kart, pos: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), look: new THREE.Vector3(), init: false, rect: [0, 0, 1, 1], hud: null }; };   // userData.kart: the battle balloons' own screen
 let views = [mkView(camera, null)];
 const miniEl = $('mini'), hudEl = $('hud');
 function setViews(list) {
@@ -1106,9 +1232,9 @@ if (mirror) canvas.style.transform = miniEl.style.transform = 'scaleX(-1)';
 HD.onChange(resize);
 let resTimer = 0;
 $('help').textContent = $('help').textContent.replace('1×/2×/4×/Native', HD.PRESETS.map(p => p.label.split(' ')[0]).join('/'));   // the web build has no 4x
-function showRes() {
+function showRes(text = `${HD.presetLabel()} · textures ${HD.tier()}×`) {
   const el = $('res');
-  el.textContent = `${HD.presetLabel()} · textures ${HD.tier()}×`;
+  el.textContent = text;
   el.style.display = 'block';
   clearTimeout(resTimer); resTimer = setTimeout(() => { el.style.display = 'none'; }, 1500);
 }
@@ -1147,10 +1273,13 @@ function rank() {
   const sorted = [...karts].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.finishTime - b.finishTime : b.progress - a.progress));
   return sorted;
 }
-// Battle rules: every hit pops a balloon (items.js hit); a kart with none left is out and sits where it stopped
-// (assumption: no bomb kart). The last kart with balloons wins; the player's result shows on their banner.
+// Battle rules: every item hit (items.js hit / strike) and every Lakitu rescue (Kart.updateFree) pops a balloon; a
+// kart with none left is out and sits where it stopped (assumption: no bomb kart). The last kart with balloons wins;
+// the player's result shows on their banner. pop_player_balloon plays 0x19009051 for a human.
 function battleStep() {
   for (const k of karts) {
+    if (k.isPlayer && k.balloons < (k.shownBalloons ?? 3)) audio.playSound(1, 0x51);
+    k.shownBalloons = k.balloons;
     if (!k.out && k.balloons <= 0) { k.out = true; k.outAt = raceTime; if (k.isPlayer && state === 'race') { banner.textContent = 'LOSER'; } }
   }
   const alive = karts.filter(k => !k.out);
@@ -1211,9 +1340,11 @@ function frame(now) {
         const inp = k.isPlayer && !autopilot ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
+        if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }
         if (!battle && !k.finished && k.crossings >= LAPS) {
           k.finished = true; k.finishTime = raceTime; finishOrder.push(k);
-          if (k.isPlayer) { state = 'finished'; banner.textContent = `${finishOrder.length}${ordinal(finishOrder.length)} PLACE!`; }
+          if (k.isPlayer) { state = 'finished'; banner.textContent = timeTrial ? fmt(raceTime) : `${finishOrder.length}${ordinal(finishOrder.length)} PLACE!`; }   // a time trial has no places
+          if (k.isPlayer && raceMode === 'time_trials' && !online && !autopilot) saveRecord(track.def.id, raceTime, lapTimes, playerChar);   // R DATA's course records
         }
       }
       collide();
@@ -1228,7 +1359,8 @@ function frame(now) {
     const s = Math.min(innerWidth / 320, innerHeight / 240);
     itemEl.style.top = `${(win.slide - 48) * s}px`;   // centre y = itemBoxY (-32) + slideItemBoxY, 32 px tall
     itemWin.style.width = `${40 * s}px`; itemWin.style.height = `${32 * s}px`;
-    if (itemWin.getAttribute('src') !== ITEM_WINDOW[win.tex]) itemWin.setAttribute('src', ITEM_WINDOW[win.tex]);
+    const winSrc = HD.hdSource(ITEM_WINDOW[win.tex]).url;
+    if (itemWin.getAttribute('src') !== winSrc) itemWin.setAttribute('src', winSrc);
     itemName.textContent = player.item ? ITEM_LABELS[player.item] : '';
   }
   const order = rank();
@@ -1242,7 +1374,7 @@ function frame(now) {
     v.hud.children[1].textContent = battle ? balloonText(v.kart) : `LAP ${Math.max(1, Math.min(LAPS, v.kart.crossings + 1))}/${LAPS}`;
   }
   timeEl.textContent = fmt(raceTime);
-  speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;
+  speedEl.innerHTML = `${Math.round(speedKmh(player.v))}<small> km/h</small>`;
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
   for (const v of views) updateCamera(dt, v);
   lakitu.update(dt, karts, battle ? 0 : LAPS);
