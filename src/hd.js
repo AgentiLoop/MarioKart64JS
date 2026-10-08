@@ -59,6 +59,9 @@ function loadImage(tex) {
   const img = new Image();
   img.onload = () => {
     if (hd.url !== url) return;   // tier changed again while loading
+    // New size: drop the GL texture so three reallocates it (2x -> 4x keeps the same filters,
+    // so three would texSubImage2D into the old, smaller storage and fail).
+    if (tex.image && (tex.image.width !== img.width || tex.image.height !== img.height)) { tex.dispose(); textures.add(tex); }
     tex.image = img; hd.scale = scale;
     tex.needsUpdate = true;
     hd.onLoad?.(tex, scale);
