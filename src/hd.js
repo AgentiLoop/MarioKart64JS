@@ -4,17 +4,16 @@
 // MK64 Reloaded pack by tools/build-hd-textures.py); the tier follows the preset (native picks
 // 2x below 720 lines, else 4x) and falls back to the highest tier that exists, or the ROM image.
 // 1x keeps hard N64 pixels; HD tiers use smooth filtering with mipmaps + anisotropy.
-// The hosted build (vite --mode web, see vite.config.js) ships only the 2x tier: no 4x preset, native capped at 2x.
+// The hosted build (vite --mode web, see vite.config.js) ships every tier too: same presets as the desktop apps.
 import * as THREE from 'three';
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
-const MAX_TIER = import.meta.env?.MODE === 'web' ? 2 : 4;
 export const PRESETS = [
   { id: '1x', label: '1× 240p', lines: 240 },
   { id: '2x', label: '2× 480p', lines: 480 },
   { id: '4x', label: '4× 960p', lines: 960 },
   { id: 'native', label: 'Native', lines: 0 },
-].filter(p => p.lines <= 240 * MAX_TIER);
+];
 let preset = Math.max(0, PRESETS.findIndex(p => p.id === globalThis.localStorage?.getItem('mk64res')));   // no storage under node tests
 let files = {};            // 'mario-raceway/gMRTextureRoad0.png' -> highest tier built
 let maxAniso = 1;
@@ -23,7 +22,7 @@ const listeners = [];
 
 export const presetLabel = () => PRESETS[preset].label;
 export const renderLines = () => PRESETS[preset].lines || Math.round(innerHeight * devicePixelRatio);
-export const tier = () => { if (preset === 0) return 1; const t = Math.round(renderLines() / 240); return Math.min(MAX_TIER, t <= 1 ? 1 : t === 2 ? 2 : 4); };
+export const tier = () => { if (preset === 0) return 1; const t = Math.round(renderLines() / 240); return t <= 1 ? 1 : t === 2 ? 2 : 4; };
 export const smooth = () => tier() > 1;
 export function onChange(fn) { listeners.push(fn); }
 export function setRenderer(renderer) { maxAniso = renderer.capabilities.getMaxAnisotropy(); textures.forEach(applyFilter); }

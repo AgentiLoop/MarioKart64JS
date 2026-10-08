@@ -3,6 +3,8 @@
 A browser clone of **Mario Kart 64** (built for testing purposes — to see how far AI/LLM tech can duplicate the game). Three.js + Vite, no emulator: the original N64 ROM's assets are extracted and re-used directly.
 
 - Fan site + multiplayer lobby: https://mk64js.gokart.games (`website/`, a Cloudflare Worker: static assets plus the `/api/mp` lobby Durable Object — `cd website && npx wrangler deploy`)
+- Play in the browser: https://mk64js.gokart.games/play (`npm run deploy:web`), the same 1×/2×/4×/Native resolutions as the desktop apps, online races included
+- Desktop apps (`desktop/`, `npm run game` first): macOS = WebKit app (`webkit/build.sh notarize`), Windows + Linux = Electron (`npm run dist:win` / `dist:linux`), Raspberry Pi = WebKitGTK webview app (`raspberrypi/build.sh`); all open a 1280×960 window
 - `npm install && npm run dev` → http://localhost:5173
 - Title screen → GAME SELECT (1P / 2P / 3P / 4P GAME) → SELECT COURSE → PLAYER SELECT → race (Enter / click / arrows)
 - 2P–4P GAME races **online, peer-to-peer, with the console's split screen** (see [Online play](#online-play))

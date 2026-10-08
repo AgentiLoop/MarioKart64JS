@@ -1231,7 +1231,6 @@ addEventListener('resize', resize); resize();
 if (mirror) canvas.style.transform = miniEl.style.transform = 'scaleX(-1)';
 HD.onChange(resize);
 let resTimer = 0;
-$('help').textContent = $('help').textContent.replace('1×/2×/4×/Native', HD.PRESETS.map(p => p.label.split(' ')[0]).join('/'));   // the web build has no 4x
 function showRes(text = `${HD.presetLabel()} · textures ${HD.tier()}×`) {
   const el = $('res');
   el.textContent = text;
