@@ -857,7 +857,8 @@ const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (trackDef) audio.start();   // menu: no engine hum (audio.update never runs there, so it droned)
-  if (e.code === 'KeyR' && !online) setup();
+  // Mac "delete" is Backspace, forward-delete is Delete; L/R are kept for the menu's L OPTION / R DATA
+  if ((e.code === 'Backspace' || e.code === 'Delete') && trackDef && !online) { e.preventDefault(); setup(); }
   if (e.code === 'KeyM') location.search = '';
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
