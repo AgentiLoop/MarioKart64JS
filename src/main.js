@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE } from './track.js';
-import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl } from './kart.js';
+import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -203,6 +203,7 @@ const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
 const items = new Items(track, scene, audio);
+items.gp = raceMode === 'mario_gp';   // GP CPUs draw items on a timer (cpu_use_item_strategy), not from boxes
 const exhaust = new Exhaust(scene);
 const itemEl = $('item'), itemWin = $('itemWin'), itemName = $('itemName');
 // gItemWindowTextures order (tools/extract-item-window.py); preloaded so the roulette never waits on a fetch
@@ -1019,10 +1020,12 @@ function frame(now) {
     for (const k of karts) if (k.remote) puppetStep(k, now);
     for (let s = 0; s < steps; s++) {
       // VS / battle have no CPU karts on the console, so the CPUs that fill online seats just drive (no bands)
-      if (raceMode === 'mario_gp') cpuSpeedControl(karts, rank(), track, cc);
-      for (const k of karts) {
+      const order = raceMode === 'mario_gp' ? rank() : null;
+      if (order) cpuSpeedControl(karts, order, track, cc);
+      for (const [id, k] of karts.entries()) {
         if (k.remote) continue;
-        if (!k.isPlayer) items.aiUse(k, karts, h);
+        if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
+        else if (!k.isPlayer) items.aiUse(k, karts, h);
         const inp = k.isPlayer ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);

@@ -21,7 +21,7 @@ export const ccSpeedScale = (cc, character) => (TOP_SPEED[cc][CHARACTER_ID[chara
 // CPU personalities, cpu_vehicles_camera_path/cpu_speed_control.inc.c regulate_cpu_speed: every frame a CPU
 // accelerates normally, accelerates with CPU_FAST_EFFECT or decelerates 1 currentSpeed unit per frame.
 // Path points per lap: yamls/courses/*_metadata.yml path_sizes[0] (gPathCountByPathIndex[0]).
-const PATH_POINTS = { luigi: 0x2DA, moomoo: 0x230, koopa: 0x2BC, kalimari: 0x2BC, toad: 0x3E8, frappe: 0x2EE, choco: 0x2BC,
+export const PATH_POINTS = { luigi: 0x2DA, moomoo: 0x230, koopa: 0x2BC, kalimari: 0x2BC, toad: 0x3E8, frappe: 0x2EE, choco: 0x2BC,
   mario: 0x258, wario: 0x640, sherbet: 0x2BC, royal: 0x3E8, bowser: 0x30C, dk: 0x370, yoshi: 0x2B2, banshee: 0x2EE, rainbow: 0x76C };
 // Pack bands in path points, [lap * 8 + slot] at lap start, [+ 8] at lap end (D_800DCBB4: Mario Raceway D_800DCB34, rest D_800DCAF4)
 const PACK_BAND = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 50, 75, 100, 125, 150, 175, 40, 30, 60, 90, 120, 150, 180, 210, 50, 40, 80, 120, 160, 200, 240, 280];
