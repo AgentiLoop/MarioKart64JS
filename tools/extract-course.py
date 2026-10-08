@@ -36,6 +36,13 @@ COURSES = {
     'yoshi_valley': dict(name='Yoshi Valley', prefix='gYVTexture', root='8150', edge=[]),
     'rainbow_road': dict(name='Rainbow Road', prefix='gRRTexture', root='20F8', edge=[]),
     'dks_jungle_parkway': dict(name="D.K.'s Jungle Parkway", prefix='gDKJTexture', root='9C18', edge=[]),
+    # Battle courses: no track path; roots follow render_<course> (render_courses.c): Block Fort's dl_15C0 adds
+    # the shade-only floor (dl_14C8) to the course_data wrapper, Big Donut's shade-only lava floor (dl_DE8, drawn
+    # when the camera looks down into the hole) is always included.
+    'big_donut': dict(name='Big Donut', prefix='gBDTexture', root='d_course_big_donut_dl', edge=[], extra=['DE8'], battle=True),
+    'block_fort': dict(name='Block Fort', prefix='gBFTexture', root='15C0', edge=[], battle=True),
+    'double_deck': dict(name='Double Deck', prefix='gDDTexture', root='d_course_double_deck_dl', edge=[], battle=True),
+    'skyscraper': dict(name='Skyscraper', prefix='gSSTexture', root='d_course_skyscraper_dl', edge=[], battle=True),
 }
 # Per-section arrays render_<course>/render_course_segments walks, with the render mode set
 # before the call, and lists the translucent second pass (G_RM_AA_ZB_XLU_*) submits.
@@ -149,8 +156,9 @@ def convert(source, rom, course_id):
     inputs = [f'courses/{course_id}/course_vertices.inc.c',
               f'courses/{course_id}/course_displaylists.inc.c',
               f'courses/{course_id}/course_data.c', f'courses/{course_id}/course_offsets.c',
-              'assets.json', 'data/other_textures.s', 'src/racing/render_courses.c',
-              f'assets/courses/{course_id}.json']
+              'assets.json', 'data/other_textures.s', 'src/racing/render_courses.c']
+    if (source / f'assets/courses/{course_id}.json').exists():   # named course textures (race courses only)
+        inputs.append(f'assets/courses/{course_id}.json')
     texts = {name: (source / name).read_text() for name in inputs}
     vertices = []
     packed = bytearray()
@@ -171,29 +179,34 @@ def convert(source, rom, course_id):
                 break
     if vertex_offset is None:
         raise ValueError('Course vertices do not match the ROM')
-    path_body = re.search(rf'TrackPathPoint d_course_{course_id}_track_path\[\] = \{{(.*?)\}};',
-                          texts[inputs[2]], re.S).group(1)
-    route = [numbers(row) for row in re.findall(r'\{([^{}]+)\}', path_body)]
-    path_bytes = b''.join(struct.pack('>4h', *point) for point in route)
-    # The course data segment is a MIO0 block; locate the one that holds this exact path.
+    path_match = re.search(rf'TrackPathPoint d_course_{course_id}_track_path\[\] = \{{(.*?)\}};',
+                           texts[inputs[2]], re.S)
     path_block = path_offset = None
-    for match in re.finditer(b'MIO0', rom):
-        try:
-            found = karts.mio0(rom[match.start():]).find(path_bytes)
-        except Exception:
-            continue
-        if found >= 0:
-            path_block, path_offset = match.start(), found
-            break
-    if path_block is None or route[-1][0] != -32768:
-        raise ValueError('Course path does not match the ROM')
+    if cfg.get('battle'):   # battle arenas have no track path
+        if path_match:
+            raise ValueError('Battle course unexpectedly has a track path')
+        route, path_bytes = [[-32768, 0, 0, 0]], b''
+    else:
+        route = [numbers(row) for row in re.findall(r'\{([^{}]+)\}', path_match.group(1))]
+        path_bytes = b''.join(struct.pack('>4h', *point) for point in route)
+        # The course data segment is a MIO0 block; locate the one that holds this exact path.
+        for match in re.finditer(b'MIO0', rom):
+            try:
+                found = karts.mio0(rom[match.start():]).find(path_bytes)
+            except Exception:
+                continue
+            if found >= 0:
+                path_block, path_offset = match.start(), found
+                break
+        if path_block is None or route[-1][0] != -32768:
+            raise ValueError('Course path does not match the ROM')
     # Packed course lists plus the course_data wrappers the race renderer reaches through
     # its per-section arrays (render_course_segments); wrappers set render mode/texture state.
     lists = dict(re.findall(r'Gfx (\w+)\[\] = \{(.*?)\};', texts[inputs[1]] + texts[inputs[2]], re.S))
     arrays = dict(re.findall(r'Gfx\* (\w+)\[\] = \{(.*?)\};', texts[inputs[2]] + texts[inputs[3]], re.S))
     batches = {}
     state = {'texture': None, 'format': 'rgba16', 'enabled': True, 'wrapS': 'repeat', 'wrapT': 'repeat',
-             'width': 32, 'height': 32, 'origin': (0, 0), 'mode': 'opaque'}
+             'width': 32, 'height': 32, 'origin': (0, 0), 'mode': 'opaque', 'shade': False}
     cache = {}
     visited = set()
     seen = set()
@@ -232,6 +245,8 @@ def convert(source, rom, course_id):
             elif command == 'gsDPSetRenderMode':
                 state['mode'] = ('xlu' if 'XLU' in a[0] + a[1] else
                                  'edge' if 'TEX_EDGE' in a[1] else 'opaque')
+            elif command == 'gsDPSetCombineMode':
+                state['shade'] = a[0] == 'G_CC_SHADE'   # shade-only combine ignores the texture
             elif command == 'gsDPSetTextureImage':
                 texture_image(a[0], a[1], a[3])
             elif command == 'gsDPLoadTextureBlock':
@@ -255,7 +270,7 @@ def convert(source, rom, course_id):
                         raise ValueError('Vertex out of range')
                     cache[start + i] = first + i
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
-                texture = state['texture'] if state['enabled'] else None
+                texture = state['texture'] if state['enabled'] and not state['shade'] else None
                 if texture:
                     formats[texture] = state['format']
                 key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'],
@@ -303,9 +318,10 @@ def convert(source, rom, course_id):
     sections = cfg.get('sections', [])
     passes = ([s for s in sections if s[1] != 'xlu'] + [(n, 'edge') for n in cfg['edge']] +
               [(n, 'xlu') for n in cfg.get('xlu', [])] + [s for s in sections if s[1] == 'xlu'] +
-              [(cfg['root'], 'opaque')])
+              [(cfg['root'], 'opaque')] + [(n, 'opaque') for n in cfg.get('extra', [])])
     for name, mode in passes:
         state['mode'] = mode
+        state['shade'] = False
         cull = state['cull'] = resolve(name) not in no_cull
         if name in arrays:
             for entry in re.findall(r'\w+', arrays[name]):
@@ -345,7 +361,7 @@ def convert(source, rom, course_id):
         split[(key, layer)]['indices'].extend(tri)
     batches = split
     assets = json.loads(texts['assets.json'])
-    course_assets = json.loads(texts[inputs[7]])
+    course_assets = json.loads(texts[inputs[7]]) if len(inputs) > 7 else {}
     symbols = dict(re.findall(r'glabel (\w+)\s*\.incbin "([^"]+)"', texts['data/other_textures.s']))
     textures, images = {}, {}
     for batch in batches.values():
@@ -407,12 +423,22 @@ def convert(source, rom, course_id):
                 elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
                     for j in range(0, len(a), 4):
                         ramps.setdefault(kind, []).extend(slots[int(v, 0)] for v in a[j:j + 3])
+    extra = {}
+    if cfg.get('battle'):
+        provenance['battle'] = True
+        # Item box actors (course_data.c d_course_<course>_item_box_spawns): [x, y, z, quadrant]
+        spawns = re.search(rf'ActorSpawnData d_course_{course_id}_item_box_spawns\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
+        boxes = [numbers(row) for row in re.findall(r'\{\s*\{([^{}]+)\}\s*,\s*\{([^{}]+)\}\s*\}', spawns.group(1)) for row in [row[0] + ',' + row[1]]]
+        if boxes[-1][0] != -32768:
+            raise ValueError('Item box spawn list is not terminated')
+        extra['itemBoxes'] = boxes[:-1]
+    else:
+        provenance.update(pathBlockRomOffset=path_block, pathBlockOffset=path_offset,
+                          pathBytesSha256=hashlib.sha256(path_bytes).hexdigest())
     course = dict(name=cfg['name'], vertices=vertices, path=route[:-1], batches=list(batches.values()),
-                  **({'ramps': ramps} if ramps else {}),
+                  **({'ramps': ramps} if ramps else {}), **extra,
                   textures=textures, provenance=dict(**provenance,
                   vertexRomOffset=vertex_offset, vertexBytesSha256=hashlib.sha256(packed).hexdigest(),
-                  pathBlockRomOffset=path_block, pathBlockOffset=path_offset,
-                  pathBytesSha256=hashlib.sha256(path_bytes).hexdigest(),
                   sources={name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}))
     return course, images
 
