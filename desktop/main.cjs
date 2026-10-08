@@ -19,6 +19,7 @@ app.whenReady().then(() => {
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   const win = new BrowserWindow({
     width: 1280, height: 960, backgroundColor: '#000000', title: 'MarioKart64JS',
+    icon: path.join(__dirname, 'icon', 'MK64JS.png'),   // the window / taskbar icon on Linux (Windows takes the exe's)
     webPreferences: { contextIsolation: true, sandbox: true, autoplayPolicy: 'no-user-gesture-required' },
   });
   win.on('page-title-updated', e => e.preventDefault()); // keep "MarioKart64JS" instead of the page <title>
