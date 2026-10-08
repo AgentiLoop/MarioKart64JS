@@ -13,7 +13,7 @@ Status: **done** = ported from ROM data; **—** = missing.
 | Course | Actors / objects the console draws | Port |
 |---|---|---|
 | Mario Raceway | trees (`spawn_foliage`, 27) | **done** (tools/extract-foliage.py, src/foliage.js) |
-| | piranha plants (`spawn_piranha_plants`, 9-frame animation) | — |
+| | piranha plants (`spawn_piranha_plants`, 10, 9-frame animation) | **done** (tools/extract-piranha.py, src/piranha.js) |
 | | Mario signs (`ACTOR_MARIO_SIGN` ×2) | **done** (tools/extract-props.py, src/props.js) |
 | | GP balloons (`render_object_grand_prix_balloons`) | — |
 | Choco Mountain | falling rocks (`spawn_falling_rocks`) | — |
@@ -29,7 +29,7 @@ Status: **done** = ported from ROM data; **—** = missing.
 | Koopa Troopa Beach | palm trees (`spawn_palm_trees`, 12) | **done** (src/props.js) |
 | | crabs, seagulls, hot-air-balloon item box | — |
 | Royal Raceway | trees + castle-garden trees (32) | **done** |
-| | piranha plants (`spawn_piranha_plants`) | — |
+| | piranha plants (`spawn_piranha_plants`, 16) | **done** (src/piranha.js) |
 | Luigi Raceway | trees (20) | **done** |
 | | hot-air balloon (`render_object_hot_air_balloon`) | — |
 | Moo Moo Farm | trees (21, not in 4P) | **done** |
@@ -83,3 +83,14 @@ and RGBA16 texture against the ROM's course data segment, and writes `props.json
 In EXTRA the console only negates x positions, so the port flips each model back in its own x (and spins the signs
 the other way). Not ported yet: palm tree shadows, kart collisions, and signs / trees flying away when a kart hits
 them (flag 0x400).
+
+## Piranha plants (done)
+tools/extract-piranha.py reads `d_course_<course>_dl_piranha_plant`, its 30x30 quad, its TLUT and the spawn list from
+the course data segment (each verified byte-for-byte) and decodes `gTexturePiranhaPlant1-9` (MIO0, CI8 32x64) through
+that TLUT into `piranha-1..9.png` plus `piranha.json`. src/piranha.js draws them like `render_actor_piranha_plant`:
+- turned to the camera's yaw (D_801502C0), not lifted onto the ground, drawn within 1000 x/z;
+- the list's tile mirrors S at 32 texels (`G_TX_MIRROR | G_TX_WRAP`, mask 5), so the 64-texel-wide quad shows the
+  frame and its mirror image (the frames only fill their right half);
+- each camera has its own timer (`update_actor_piranha_plant`): + 1 a tick while the plant is in the camera's
+  view wedge within 300, > 60 -> 6, otherwise 0; frame = min(8, timer / 6).
+Not ported yet: kart collisions (`collision_piranha_plant`) and a hit plant flying up (flag 0x400).
