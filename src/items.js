@@ -13,6 +13,11 @@ const BOX_D = [-6, 0, 6];
 // Native item box (tools/extract-item-boxes.py, common_data D_0D003090 / itemBoxQuestionMarkModel /
 // D_0D002EE8): MK64 units scaled to the kart sprites; it hovers 8.66 units up (update_actor_item_box).
 const BOX_SCALE = 0.25, BOX_HOVER = 8.66 * BOX_SCALE, DEG = Math.PI / 180, FPS = 30;
+// main.c (1P): the race loop runs gTickSpeed = 2 times per 30 fps frame, so the actor update_* steps
+// (update_course_actors: item boxes, bananas, shells, fake item boxes), the item window (func_80059AC8 ->
+// func_8007B34C) and player effects (unk_0B0) are 60 Hz; cpu_use_item_strategy (every other player update) and
+// the kart colour effects (func_80022744, after the loop) stay at 30 Hz (FPS).
+const ACTOR_HZ = 60;
 // sounds (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id)): func_8007ABFC 0x19008406 box hit,
 // func_8007B254 0x0100FE1C roulette loop, func_8007B34C state 6 0x0100FE47 item decided
 const SND_BOX = [1, 0x06], SND_ROULETTE = [0, 0x1c], SND_DECIDED = [0, 0x47];
@@ -226,22 +231,31 @@ export class Items {
       g.add(m);
       const sprite = this.sprites[kind];
       if (sprite) { m.onBeforeRender = faceCamera; this.spinning.push({ m, g, sprite, rot: 0 }); }
+      if (kind === 'fake_item_box') this.spinning.push({ m, g, fake: new THREE.Euler(0, 0, 0, 'YXZ'), acc: 0 });
     };
     if (this.protos[kind]) add(); else this.protosReady.then(add);
     return g;
   }
-  // render_actor_shell: rotVelocity grows 10 degrees a frame; frame rotVelocity / 24 degrees (0..15) shows
-  // sprites 0..7, then 7..1 mirrored (index 15 reads past the table; shown here as sprite 0 mirrored)
+  // render_actor_shell: rotVelocity grows 10 degrees an update; frame rotVelocity / 24 degrees (0..15) shows
+  // sprites 0..7, then 7..1 mirrored (index 15 reads past the table; shown here as sprite 0 mirrored).
+  // A fake item box (update_actor_fake_item_box states 0 / 1) turns its box -1 / +2 / -1 degrees an update; its
+  // upside-down "?" (common_model_fake_itembox) only follows the yaw (render_actor_fake_item_box).
   spinShells(dt) {
     this.spinning = this.spinning.filter(p => p.g.parent);
     for (const p of this.spinning) {
-      p.rot = (p.rot + 10 * FPS * dt) % 360;
+      if (p.fake) {
+        for (p.acc += dt; p.acc >= 1 / ACTOR_HZ; p.acc -= 1 / ACTOR_HZ) { p.fake.x -= DEG; p.fake.y += 2 * DEG; p.fake.z -= DEG; }
+        const [, card, box] = p.m.children;
+        box.rotation.copy(p.fake); card.rotation.y = p.fake.y;
+        continue;
+      }
+      p.rot = (p.rot + 10 * ACTOR_HZ * dt) % 360;
       const i = Math.floor(p.rot / 24), n = p.sprite.frames;
       p.m.geometry = p.sprite.geos[i < 8 ? i : n + (i === 15 ? 0 : 15 - i)];
     }
   }
 
-  // Player item window: update_objects.c func_8007B34C (1P), one step per 30 Hz frame. win.slide is
+  // Player item window: update_objects.c func_8007B34C (1P), one step per 60 Hz race update. win.slide is
   // playerHUD.slideItemBoxY (0..64), win.tex the gItemWindowTextures index on screen.
   startRoulette(k) {
     k.win = { state: 2, slide: k.win ? k.win.slide : 0, tex: 0, skip: 50, ready: 0, acc: 0, item: null, init: false };
@@ -374,11 +388,11 @@ export class Items {
     this.clearTrail(kart);
     const at = p || this.spot(kart, -3.2);
     if (kind === 'fake_item_box') { this.drop(kart, kind, at); return kind; }
-    const u = (kart.top || 60) / 5.885 / FPS;   // our units per MK64 unit a frame
+    const u = (kart.top || 60) / 5.885 / ACTOR_HZ;   // our units per MK64 unit (top speed 5.885 units an update)
     let vs = 0, vh = 1.5;
     if (stickY > 30) {
       vh = (stickY - 30) / 20 + 0.5;
-      const speed = Math.abs(kart.v) / u / FPS;
+      const speed = Math.abs(kart.v) / u / ACTOR_HZ;
       vs = (speed < 2 ? 4 : speed * 0.75 + 3.5 + vh) * u;
     }
     this.drop(kart, kind, at, { vs, vh, alt: 0, h: kart.h });
@@ -427,9 +441,9 @@ export class Items {
     this.hazards.push({ kind, ...p, mesh, owner: kart, safe: 0.5, ...(toss && { toss, acc: 0 }) });
     this.snd(kart, SND_DROP);
   }
-  // one 30 Hz step at a time until it lands (BANANA_ON_GROUND); true when it fell off the arena
+  // one 60 Hz update at a time until it lands (BANANA_ON_GROUND); true when it fell off the arena
   flight(h, dt) {
-    for (h.acc += dt; h.toss && h.acc >= 1 / FPS; h.acc -= 1 / FPS) {
+    for (h.acc += dt; h.toss && h.acc >= 1 / ACTOR_HZ; h.acc -= 1 / ACTOR_HZ) {
       const t = h.toss;
       if (t.vh > -1) t.vh -= 0.15;
       t.alt += t.vh * BOX_SCALE;
@@ -474,7 +488,7 @@ export class Items {
   // trigger_lightning_strike / apply_lightning_effect: spin, lose the held item, shrink
   strike(k) {
     if (k.remote || k.star > 0 || k.boo > 0 || k.out || k.rescue > 0) return;
-    k.spin = 1.5; k.v *= 0.6; k.drift = 0; k.boost = 0; k.shrink = SHRINK_TIME; k.zap = 0x78 / FPS;   // unk_0B0 < 0x78: flashing
+    k.spin = 1.5; k.v *= 0.6; k.drift = 0; k.boost = 0; k.shrink = SHRINK_TIME; k.zap = 0x78 / ACTOR_HZ;   // unk_0B0 < 0x78: flashing
     this.clearTrail(k);
     if (k.item) { k.item = null; this.showItem(k); }
     if (this.arena) k.balloons = Math.max(0, k.balloons - 1);
@@ -507,14 +521,14 @@ export class Items {
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
       if (d.shatter) {
-        for (d.acc += dt; d.acc >= 1 / FPS && d.t < BREAK_FRAMES; d.acc -= 1 / FPS) {
+        for (d.acc += dt; d.acc >= 1 / ACTOR_HZ && d.t < BREAK_FRAMES; d.acc -= 1 / ACTOR_HZ) {
           d.t++; d.rot.x += 6 * DEG; d.rot.y -= 4 * DEG; d.rot.z += 2 * DEG;
         }
         poseShatter(d.shatter, d.t, d.rot, this.boxParts);
         if (d.t >= BREAK_FRAMES) { this.group.remove(d.mesh); this.debris.splice(i, 1); }
         continue;
       }
-      for (d.acc += dt; d.acc >= 1 / FPS && d.t > 0; d.acc -= 1 / FPS) {
+      for (d.acc += dt; d.acc >= 1 / ACTOR_HZ && d.t > 0; d.acc -= 1 / ACTOR_HZ) {
         d.vy = Math.max(-5, d.vy - 0.3); d.y += d.vy; d.t--;
         d.rot.x += 2 * DEG; d.rot.y -= 8 * DEG; d.rot.z += 5 * DEG;
       }
@@ -643,12 +657,12 @@ export class Items {
   update(dt, karts) {
     this.clock += dt;
     for (const b of this.boxes) {
-      // update_actor_item_box, one step per 30 Hz frame. State 2: hovering, rot x +1, y -2, z +1 degrees a frame.
+      // update_actor_item_box, one step per 60 Hz actor update. State 2: hovering, rot x +1, y -2, z +1 degrees a frame.
       // State 3 (run into): broken for 20 frames, rot +6 / -4 / +2 a frame. Then it comes back from 20 units below
       // the ground (state 0/1), rising 0.45 a frame to 8.66 up, the box alone; the "?" card and shadow only
       // show in state 2. The card turns about Y at twice the box's yaw, the shadow at its yaw.
       b.state ??= 2;
-      for (b.acc = (b.acc || 0) + dt; b.acc >= 1 / FPS; b.acc -= 1 / FPS) {
+      for (b.acc = (b.acc || 0) + dt; b.acc >= 1 / ACTOR_HZ; b.acc -= 1 / ACTOR_HZ) {
         if (b.state === 2) { b.rot.x += DEG; b.rot.y -= 2 * DEG; b.rot.z += DEG; }
         else if (b.state === 3) {
           if (b.t === BREAK_FRAMES) { b.state = 1; b.lift = -20 - 8.66; }
@@ -684,7 +698,7 @@ export class Items {
       k.invuln = Math.max(0, k.invuln - dt);
       this.effects(k, karts, dt);
       if (!k.win) continue;
-      for (k.win.acc += dt; k.win && k.win.acc >= 1 / FPS; ) { k.win.acc -= 1 / FPS; this.windowStep(k, karts); }
+      for (k.win.acc += dt; k.win && k.win.acc >= 1 / ACTOR_HZ; ) { k.win.acc -= 1 / ACTOR_HZ; this.windowStep(k, karts); }
     }
     this.updateTrails(karts, dt);
     this.spinShells(dt);
@@ -782,11 +796,11 @@ export class Items {
     for (const k of this.trails) {
       const t = k.trail; t.t += dt;
       if (t.swing !== undefined) {   // RELEASED_SHELL: round from behind to the front, then MOVING_SHELL
-        for (t.acc += dt; t.acc >= 1 / FPS && t.swing > 0; t.acc -= 1 / FPS) t.swing -= t.kind === 'green_shell' ? 20 : 10;
+        for (t.acc += dt; t.acc >= 1 / ACTOR_HZ && t.swing > 0; t.acc -= 1 / ACTOR_HZ) t.swing -= t.kind === 'green_shell' ? 20 : 10;
         if (t.swing <= 0) { const kind = t.kind; this.clearTrail(k); this.launch(k, kind, karts); continue; }
       }
       t.meshes.forEach((m, i) => {
-        const a = t.t * 6 + i * 2 * Math.PI / 3;
+        const a = t.t * 8 * DEG * ACTOR_HZ + i * 2 * Math.PI / 3;   // triple shells: parent rotVelocity 8 degrees an update
         // held: a shell sits boundingBoxSize + 6 behind, a banana / fake box ~10 MK64 units back; swinging: 8 out
         const p = t.swing !== undefined ? this.spot(k, Math.cos(t.swing * DEG) * 2, Math.sin(t.swing * DEG) * 2 * t.side)
           : t.held ? this.spot(k, t.kind.endsWith('shell') ? -2.75 : -3.2)
