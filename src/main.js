@@ -259,6 +259,7 @@ const exhaust = new Exhaust(scene);
 const lakitu = new Lakitu(scene, track);
 const penguins = trackDef?.id === 'sherbet' ? new Penguins(scene, track, audio) : null;   // Sherbet Land's penguins
 const foliage = track.arena ? null : new Foliage(scene, track, trackDef || TRACKS[0]);   // spawn_foliage trees / bushes / cacti
+const cows = trackDef?.dir === 'moo-moo-farm' ? new Foliage(scene, track, trackDef, 'cows') : null;   // render_cows
 const props = track.arena ? null : new Props(scene, trackDef || TRACKS[0], { mirror });   // palm trees, spinning signs, DK trees
 const piranha = ['mario', 'royal'].includes(trackDef?.id) ? new PiranhaPlants(scene, trackDef) : null;   // spawn_piranha_plants
 const yoshiEgg = trackDef?.id === 'yoshi' ? new YoshiEgg(scene, trackDef, { mirror }) : null;   // ACTOR_YOSHI_EGG
@@ -1196,6 +1197,7 @@ function setViews(list) {
   layoutViews();
   lakitu.setViews(views);
   foliage?.setScreens(views.length);
+  cows?.setScreens(views.length);
 }
 // Viewport rects as fractions of the frame (x, y from the top-left, w, h).
 function viewRects(n) {
@@ -1419,5 +1421,5 @@ function frame(now) {
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, lakitu, penguins, foliage, props, piranha, yoshiEgg, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
   get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };

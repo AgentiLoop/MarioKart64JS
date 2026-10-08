@@ -58,14 +58,24 @@ COURSES = {
                         {5: ('d_course_kalimari_desert_dl_cactus1', 2000), 6: ('d_course_kalimari_desert_dl_cactus2', 2000),
                          7: ('d_course_kalimari_desert_dl_cactus3', 2000)}, []),
 }
+# Moo Moo Farm cows (written to cows.json): render_course_actors -> render_cows walks d_course_moo_moo_farm_cow_spawn
+# itself (no actors, so no ground snap and no 4P skip), x * gCourseDirection, D_801502C0, someId 0-4 -> dl_cow1-5,
+# distance_if_visible 4000000 (2000). The cow textures follow the two tree halves in segment 3 (dma_textures order);
+# dl_13B88 loads the 12x17 d_course_moo_moo_farm_cow_tlut with gsDPLoadTLUT_pal256, so its last 52 entries are the
+# bytes after it in the segment, as on the console.
+MMF_SEG3 = ['gTextureTrees4Left', 'gTextureTrees4Right'] + [f'gTextureCow0{i}{s}' for i in range(1, 6) for s in ('Left', 'Right')]
+COWS = {
+    'moo_moo_farm': ('d_course_moo_moo_farm_cow_spawn', MMF_SEG3,
+                     {i: (f'd_course_moo_moo_farm_dl_cow{i + 1}', 2000) for i in range(5)}, []),
+}
 
 
 def numbers(text):
     return [int(n, 0) for n in re.findall(r'-?0x[0-9a-fA-F]+|-?\d+', text)]
 
 
-def convert(source, rom, course_id, course_json):
-    spawn_name, seg3, kinds, skip = COURSES[course_id]
+def convert(source, rom, course_id, course_json, table=COURSES):
+    spawn_name, seg3, kinds, skip = table[course_id]
     data_c = (source / f'courses/{course_id}/course_data.c').read_text()
     assets = json.loads((source / 'assets.json').read_text())
     tex_meta = json.loads((source / 'assets/trees.json').read_text())
@@ -110,8 +120,14 @@ def convert(source, rom, course_id, course_json):
     for some_id, (dl, max_distance) in kinds.items():
         tlut = common[COMMON_TREE_TLUT:COMMON_TREE_TLUT + 0x200]   # gDPLoadTLUT_pal256(common_tlut_trees_import)
         parts, cache, current, combine = [], {}, None, None
-        for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[dl], re.S):
-            a = [v.strip() for v in args.split(',')]
+        def commands(name):   # gsSPDisplayList calls inlined
+            for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[name], re.S):
+                a = [v.strip() for v in args.split(',')]
+                if command == 'gsSPDisplayList':
+                    yield from commands(a[0])
+                else:
+                    yield command, a
+        for command, a in commands(dl):
             if command == 'gsDPLoadTLUT_pal256':
                 meta = tex_meta[tluts[a[0]]]
                 at = int(meta['rom_offset'], 16)
@@ -149,7 +165,7 @@ def convert(source, rom, course_id, course_json):
     spawn_at = verify(b''.join(struct.pack('>3hH', x, y, z, i & 0xffff) for x, y, z, i in rows), spawn_name)
     actors = [dict(model=kinds[i if i in kinds else None][0], pos=[x, y, z]) for x, y, z, i in rows[:-1]]
     out = dict(romSha1=karts.US_SHA1, courseDataRomOffset=block_offset, spawnList=spawn_name, spawnListOffset=spawn_at,
-               skipPlayerCounts=skip, models=models, actors=actors)
+               skipPlayerCounts=skip, onGround=table is COURSES, models=models, actors=actors)
     return out, images
 
 
@@ -165,11 +181,14 @@ def main():
     for course_id in args.course or sorted(COURSES):
         folder = Path('public/mk64') / course_id.replace('_', '-')
         course_json = json.loads((folder / 'course.json').read_text())
-        out, images = convert(args.source, rom, course_id, course_json)
-        for name, data in images.items():
-            (folder / name).write_bytes(data)
-        (folder / 'foliage.json').write_text(json.dumps(out, separators=(',', ':')) + '\n')
-        print(f'{course_id:18} {len(out["actors"]):3} actors, {len(out["models"])} models, {len(images)} textures')
+        for table, file in ((COURSES, 'foliage.json'), (COWS, 'cows.json')):
+            if course_id not in table:
+                continue
+            out, images = convert(args.source, rom, course_id, course_json, table)
+            for name, data in images.items():
+                (folder / name).write_bytes(data)
+            (folder / file).write_text(json.dumps(out, separators=(',', ':')) + '\n')
+            print(f'{course_id:18} {file:12} {len(out["actors"]):3} actors, {len(out["models"])} models, {len(images)} textures')
 
 
 if __name__ == '__main__':

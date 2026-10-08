@@ -6,6 +6,8 @@
 // (distance_if_visible). Combine G_CC_MODULATEIA / MODULATEIDECALA, G_RM_AA_ZB_TEX_EDGE: texel x shade, alpha-tested.
 // Moo Moo Farm has no trees in 4P (spawn_course_actors). Not ported: the ground shadow (func_8029794C, D_0D007B20)
 // and kart collisions with trees (actor bounding boxes).
+// Moo Moo Farm's cows (cows.json, render_cows) use the same drawing: D_801502C0 within 2000, but straight from the
+// spawn list with no ground snap (onGround false) and in every player count.
 import * as THREE from 'three';
 import * as HD from './hd.js';
 import { NATIVE_SCALE } from './track.js';
@@ -31,11 +33,11 @@ export function billboard(renderer, scene, camera) {
 }
 
 export class Foliage {
-  constructor(scene, track, def) {
+  constructor(scene, track, def, file = 'foliage') {
     this.group = new THREE.Group();
-    this.group.name = 'foliage';
+    this.group.name = file;
     scene.add(this.group);
-    this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/foliage.json`)
+    this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/${file}.json`)
       .then(r => (r.ok ? r.json().catch(() => null) : null))   // no file: the dev server answers with index.html
       .then(data => data && this._build(data, track, def.dir));
   }
@@ -65,7 +67,7 @@ export class Foliage {
       });
     }
     for (const { model, pos: [x, y, z] } of data.actors) {
-      const ground = track.groundAt?.(x * S, z * S, y * S);
+      const ground = data.onGround !== false && track.groundAt?.(x * S, z * S, y * S);
       const py = ground && ground.y > y * S ? ground.y : y * S;
       for (const part of meshes[model]) {
         const mesh = new THREE.Mesh(part.geometry, part.material);

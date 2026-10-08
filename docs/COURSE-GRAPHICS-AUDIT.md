@@ -33,7 +33,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | Luigi Raceway | trees (20) | **done** |
 | | hot-air balloon (`render_object_hot_air_balloon`) | — |
 | Moo Moo Farm | trees (21, not in 4P) | **done** |
-| | cows (`ACTOR_COW`), moles (`render_object_moles`) | — |
+| | cows (`render_cows`, 37 from `d_course_moo_moo_farm_cow_spawn`, 5 kinds) | **done** (tools/extract-foliage.py → cows.json, src/foliage.js) |
+| | moles (`render_object_moles`) | — |
 | Toad's Turnpike | box trucks, school buses, tanker trucks, cars | — |
 | Kalimari Desert | cacti (44, three kinds) | **done** |
 | | train (engine, tender, carriages) and its smoke, railroad crossings ×4 | — |
@@ -68,6 +69,16 @@ Not ported yet: the ground shadow under each tree (`func_8029794C` → common `D
 karts bumping into trees (the actor bounding boxes), and HD replacements for the CI8 textures
 (tools/build-hd-textures.py only matches RGBA16 / IA16 CRCs).
 
+## Moo Moo Farm cows (done)
+`render_course_actors` calls `render_cows` on Moo Moo Farm, which walks `d_course_moo_moo_farm_cow_spawn` itself
+(37 entries; no actors are spawned, so there's no ground snap and no 4P skip). Each cow is drawn with D_801502C0
+at its spawn position (x × `gCourseDirection`), `someId` 0-4 → `dl_cow1`-`dl_cow5`, within 2000
+(`distance_if_visible` 4000000). Every list is two 20×40 quads with CI8 32×64 halves from segment 3: the cow
+textures follow the two tree halves (`dma_textures` order, 0x0300A000 on). `dl_13B88` loads the 12×17
+`d_course_moo_moo_farm_cow_tlut` with `gsDPLoadTLUT_pal256`, so the last 52 palette entries are whatever bytes follow
+it in the segment, as on the console. tools/extract-foliage.py writes them to `cows.json`, and src/foliage.js draws
+them with the tree code.
+Not ported: the moo (sound 0x1901904D from the nearest cow within 400 units, at most every 240 ticks, player 1 only).
 ## Props from the course data segment (done)
 
 tools/extract-props.py walks each model's display lists in `course_data.c`, checks every vertex array, spawn list
