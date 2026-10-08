@@ -148,7 +148,7 @@ const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario
 const characters = ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'];
 let karts = [], player, raceTime = 0, state = 'countdown', countdown = 3.4, finishOrder = [];
 
-function setup() {
+function setup(count = 8) {   // count: karts on the grid (8 for 1P; 2-4 when an online room falls back to the CPU)
   for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
   karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4;
   const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24], [-6, 34], [6, 34], [-6, 44], [6, 44]];
@@ -156,7 +156,7 @@ function setup() {
   // player takes their character (URL ?char= / localStorage), AI fill the rest in native order.
   // With playerChar=mario this reproduces the old [7,0,1,2,3,4,5,6] grid exactly.
   const rest = characters.filter(c => c !== playerChar);
-  const order = [rest[6], playerChar, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5]];
+  const order = [rest[6], playerChar, rest[0], rest[1], rest[2], rest[3], rest[4], rest[5]].slice(0, count);
   order.forEach((c, i) => {
     const ci = characters.indexOf(c);
     const [d, back] = slots[i];
@@ -609,7 +609,8 @@ addEventListener('keydown', e => {
 // second; the other karts are puppets replaying those poses 0.1 s in the past. Items: you roll and use your own,
 // every slick / seeker you drop appears in the other games, and only the player who gets hit decides it (their spin
 // arrives in their pose). The lowest id is the host: each game says READY once its mesh is up, the host answers
-// GO and all run the 3-2-1 countdown together. VS rules: no CPU karts.
+// GO and all run the 3-2-1 countdown together. Multiplayer is 2-4 karts total, never 8: the humans who showed up,
+// and only when nobody comes (Enter on the lobby) CPU karts fill the seats up to the player count that was picked.
 const PLAYERS_WANTED = Math.min(4, Math.max(0, +params.get('players') || 0));
 const online = !!trackDef && PLAYERS_WANTED >= 2;
 const net = online ? new Net() : null;
@@ -710,9 +711,9 @@ function startRace() {
   lobbyEl.style.display = 'none';
   $('hud').style.display = 'block';
 }
-function raceCpuInstead() {   // Enter on the lobby: give up waiting and race the CPU alone
+function raceCpuInstead() {   // Enter on the lobby: nobody came, so CPU karts fill the empty seats (2-4 karts, never 8)
   net.leave();
-  setup();
+  setup(PLAYERS_WANTED);
   startRace();
 }
 if (online) {
