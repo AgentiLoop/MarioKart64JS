@@ -591,21 +591,24 @@ export class Track {
     course.batches.forEach((batch, bi) => {
       const positions = [], colors = [], uvs = [], flipped = signs.get(bi);
       const [u0, v0] = batch.tileOrigin ?? [0, 0];   // gsDPSetTileSize upper-left, in texels
+      // vertex alpha (find_vtx_and_set_colours, e.g. Sherbet Land's see-through ice); unpacked default 0xFF
+      const rgba = batch.indices.some(i => course.vertices[i].length > 8);
       for (let k = 0; k < batch.indices.length; k += 3) {
         const sign = flipped?.get(k), p = sign?.p;
         for (const j of p ? [0, 2, 1] : [0, 1, 2]) {   // reflected sign: put the winding back
-          const [x, y, z, s, t, r, g, b] = course.vertices[batch.indices[k + j]];
+          const [x, y, z, s, t, r, g, b, a = 255] = course.vertices[batch.indices[k + j]];
           if (p) positions.push(p[j].x * NATIVE_SCALE, p[j].y * NATIVE_SCALE, p[j].z * NATIVE_SCALE);
           else positions.push(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
           color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
           colors.push(color.r, color.g, color.b);
+          if (rgba) colors.push(a / 255);
           const u = (s / 32 - u0) / batch.width;   // S10.5 texels; PNG rows stay top-down
           uvs.push(sign?.flipU ? 1 - u : u, (t / 32 - v0) / batch.height);
         }
       }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, rgba ? 4 : 3));
       geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
       let map = null;
       if (batch.texture) {

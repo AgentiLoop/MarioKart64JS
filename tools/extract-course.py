@@ -69,6 +69,9 @@ for _id, _sections in {
 COURSES['banshee_boardwalk']['xlu'] = ['878']
 COURSES['wario_stadium']['xlu'] = ['EC0']
 COURSES['wario_stadium']['unused'] = ['3B0']  # only under the unreferenced aggregate list F20
+# init_course (render_courses.c) find_vtx_and_set_colours(list, alpha, r, g, b): rewrites the unpacked
+# vertices (alpha 0xFF) of a list, colour too when red != 0. Sherbet Land's see-through ice.
+COURSES['sherbet_land']['vtxColours'] = [('1EB8', 180, 255, 255, 255), ('2308', 150, 255, 255, 255)]
 
 
 def numbers(text):
@@ -423,6 +426,18 @@ def convert(source, rom, course_id):
                 elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
                     for j in range(0, len(a), 4):
                         ramps.setdefault(kind, []).extend(slots[int(v, 0)] for v in a[j:j + 3])
+    for name, alpha, red, green, blue in cfg.get('vtxColours', []):   # vertex [8] = alpha (default 255)
+        stack = [dl + name]
+        while stack:
+            for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[stack.pop()], re.S):
+                a = [v.strip() for v in args.split(',')]
+                if command == 'gsSPDisplayList':
+                    stack.append(a[0])
+                elif command == 'gsSPVertex':
+                    address, count, _ = [int(v, 0) for v in a]
+                    for i in range((address & 0xffffff) // 16, (address & 0xffffff) // 16 + count):
+                        vertices[i][5:] = [red, green, blue, alpha] if red else [*vertices[i][5:8], alpha]
+        provenance.setdefault('vertexColourLists', []).append([dl + name, alpha, red, green, blue])
     extra = {}
     if cfg.get('battle'):
         provenance['battle'] = True
