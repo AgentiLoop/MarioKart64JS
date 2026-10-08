@@ -186,12 +186,14 @@ class Referee {
         }
         break;
       case 'fishing': {   // update_object_lakitu_fishing + func_80079A5C (offset 80 down to 5, later up to 100)
-        const r = this.kart.rescue;
-        if (this.state === 1) { this.offset = [0, 80, 0]; this.stage = 1; this.state++; }
+        // race karts carry the rescueTick object; arena karts a plain countdown (Kart.updateFree), already hanging
+        // over their start spot, so he comes down from 30 instead of 80 to catch it before the 1.5 s drop
+        const r = typeof this.kart.rescue === 'object' ? this.kart.rescue : null, held = r || this.kart.rescue > 0;
+        if (this.state === 1) { this.offset = [0, r || !this.kart.free ? 80 : 30, 0]; this.stage = 1; this.state++; }
         else if (this.state === 2) { this.visible = true; this.state++; }
         else this.pingpong(0, 3, 2);
         if (this.stage === 1 && (this.offset[1] = Math.max(5, this.offset[1] - 1)) === 5) { if (r) r.held = true; this.stage = 2; }
-        else if (this.stage === 2 && !r) this.stage = 3;
+        else if (this.stage === 2 && !held) this.stage = 3;
         else if (this.stage === 3 && (this.offset[1] = Math.min(100, this.offset[1] + 1)) === 100) { this.stop(); return; }
         this.alpha = r ? r.alpha : 1;   // func_8007993C: fades with the kart (LAKITU_FIZZLE)
         break;
@@ -263,6 +265,8 @@ export class Lakitu {
       }
       this.referees.forEach((r, i) => {
         const k = r.kart;
+        // battle: his player fell into the lava / off the arena (Kart.updateFree's rescue timer), he fishes it out
+        if (k?.free && k.rescue > 0 && (r.mode !== 'countdown' || r.state > 12) && (r.mode !== 'fishing' || r.stage === 3)) r.start('fishing', k);
         if (k && r.seen && r.mode !== 'countdown') {   // lap signs and the finish flag (func_80079084 / func_800790B4 / func_80079054)
           const lap = Math.min(laps, k.crossings + 1);
           if (k.finished && !r.seen.finished) { r.seen.finished = true; if (!k.rescue) r.start('flag', k); }
