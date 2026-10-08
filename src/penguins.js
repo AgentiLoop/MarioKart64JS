@@ -7,6 +7,8 @@
 // Penguins 1-14 (func_800845C8, every player count) share the armature: 1-8 at 0.08 swim in pairs round four
 // circles in the water at y -80, 9-14 at 0.04 waddle, belly-slide and turn back on the ice, drawing an upside-down
 // reflection under themselves when a camera is near.
+// update_penguins / func_80089820: penguins 1-14 (box 4) bonk the karts they touch (Kart.bonk, sound 0x1900A046 for
+// a human); a kart under a star sends one spinning instead (func_800850B0: 0x96 ticks, + 0x2000 a tick).
 // Model: src/animation.c render_armature / mtxf_translate_rotate2 per limb under the object's
 // mtxf_set_matrix_transformation, each limb lit like F3DEX (ambient + colour x max(0, n . dir), dir (40, 40, 40)
 // in world space because MK64 loads the object matrix straight into the modelview).
@@ -85,8 +87,8 @@ function stepTowards(v, target, step) {
 }
 
 export class Penguins {
-  constructor(scene, track) {
-    this.scene = scene; this.acc = 0; this.data = null;
+  constructor(scene, track, audio = null) {
+    this.scene = scene; this.audio = audio; this.acc = 0; this.data = null;
     this.group = new THREE.Group(); this.group.matrixAutoUpdate = false;
     scene.add(this.group);
     const m = track.mirror ? -1 : 1;   // EXTRA flips the camera, so mirrored angles turn the other way here
@@ -95,7 +97,7 @@ export class Penguins {
       spline: { active: false, idx: 0, p: 0, timer: 0 } };
     this.small = [];
     const common = { scale: 0.08, anim: 0, frame: 0, step: 2, state: 2, animOn: false, flags: 0, sub: 1, timerOn: false,
-      timer: 0, cc: 0, dir: 0, speed: 0, offset: [0, 0, 0], vel: [0, 0, 0] };
+      timer: 0, cc: 0, dir: 0, speed: 0, offset: [0, 0, 0], vel: [0, 0, 0], yaw: 0, spinT: 0 };
     for (let i = 1; i <= 8; i++) {
       const [x, z, c6, r] = SWIMMERS[(i - 1) >> 1];
       this.small.push({ ...common, offset: [0, 0, 0], vel: [0, 0, 0], kind: 'swim', origin: [x, -80, z], pos: [x, -80, z],
@@ -255,8 +257,31 @@ export class Penguins {
     o.dir = turnTowards(o.dir, atan2s(o.vel[0], o.vel[2]));
   }
 
+  // func_800850B0's tail: a penguin flagged 0x20 spins (0x40 starts its 0x96-tick timer), else faces its direction
+  spinStep(o) {
+    if (o.flags & 0x20) {
+      if (o.flags & 0x40) { o.flags &= ~0x40; o.spinT = 0x96; }
+      if (o.spinT === 0) o.flags &= ~0x20;
+      else { o.spinT--; o.yaw = (o.yaw + 0x2000) & 0xFFFF; return; }
+    }
+    o.yaw = o.dir;
+  }
+  // func_80089820 (penguin 0 has no 0x200 flag, so only 1-14): a kart within the boxes (has_collided_horizontally_
+  // with_player) and not under a boo is bonked, or under a star sets 0x02000000, which starts a spin unless one runs
+  collide(o, karts) {
+    const [a2, a3] = o.flags & 1 ? [1.75, 1.5] : o.flags & 8 ? [1.3, 1.0] : [1.5, 1.25];
+    let star = false;
+    for (const k of karts) {
+      if (k.remote || k.free || k.boo > 0 || k.rescue || k.out) continue;
+      const r = 4 + k.boxSize, dx = o.pos[0] - k.world.x / NATIVE_SCALE, dz = o.pos[2] - k.world.z / NATIVE_SCALE;
+      if (dx * dx + dz * dz > r * r) continue;
+      if (k.star > 0) { star = true; continue; }
+      if (k.bonk(o.pos[0], o.pos[2], o.vel[0], o.vel[2], a2, a3 * 1.1) >= 4 && k.isPlayer) this.audio?.playSound(1, 0x46);
+    }
+    if (star && !(o.flags & 0x20)) o.flags |= 0x20 | 0x40;
+  }
   // cams: each screen's camera (scene units); penguin 0 is only set up in 1P
-  update(dt, cams) {
+  update(dt, cams, karts = []) {
     const screens = cams.length;
     for (this.acc += dt; this.acc >= TICK; this.acc -= TICK) {
       const o = this.big;
@@ -264,7 +289,12 @@ export class Penguins {
       // func_80072E54(objectIndex, 0, type = length - 1, 1, 0, -1): one frame per tick, 0..type round
       if (this.data) {
         o.frame = o.frame + 1 > this.data.animations[o.anim].length - 1 ? 0 : o.frame + 1;
-        for (const p of this.small) { this.animateSmall(p); if (p.kind === 'swim') this.swim(p); else this.slide(p); }
+        for (const p of this.small) {
+          this.animateSmall(p);
+          if (p.kind === 'swim') this.swim(p); else this.slide(p);
+          this.spinStep(p);
+          this.collide(p, karts);
+        }
       }
     }
     if (!this.data) return;
@@ -279,9 +309,9 @@ export class Penguins {
   placeAll() {
     this.place(this.big, this.big.view, this.big.pos, [0, this.big.dir, 0]);
     for (const p of this.small) {
-      this.place(p, p.view, p.pos, [0, p.dir, 0]);
+      this.place(p, p.view, p.pos, [0, p.yaw, 0]);
       // rsp_set_matrix_transformation_inverted_x_y_orientation at y - 1
-      if (p.mirrorView?.group.visible) this.place(p, p.mirrorView, [p.pos[0], p.pos[1] - 1, p.pos[2]], [0x8000, (p.dir + 0x8000) & 0xFFFF, 0]);
+      if (p.mirrorView?.group.visible) this.place(p, p.mirrorView, [p.pos[0], p.pos[1] - 1, p.pos[2]], [0x8000, (p.yaw + 0x8000) & 0xFFFF, 0]);
     }
   }
 

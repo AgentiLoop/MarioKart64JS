@@ -254,6 +254,44 @@ export class Kart {
 
   get progress() { return this.crossings * this.track.length + this.s; }
 
+  // gKartBoundingBoxSizeTable, MK64 units (has_collided_horizontally_with_player)
+  get boxSize() { return KART_RADIUS[CHARACTER_ID[this.mesh.userData.character] ?? 0] * 10; }
+
+  // func_8008933C: a critter (Sherbet Land's penguins) at (ox, oz) moving (ovx, ovz) bonks the kart. The shove
+  // D_8018CE10 unk_04 is -velocity * a2 on each axis, plus the critter's velocity * a3 where the kart is on the side
+  // it moves towards; then 4 ticks before the next (unk_18[6]). MK64 units a frame; returns the shove squared.
+  // func_8002C7E4 -> func_8002B9CC (CRITTER_TOUCH, not under a mushroom): a shove of 6.5 or more quarters currentSpeed
+  // (velocity ~ currentSpeed^2) and spins the kart out (add_spinout_effect).
+  bonk(ox, oz, ovx, ovz, a2, a3) {
+    if (this.bonkWait > 0) return 0;
+    this.bonkWait = 4;
+    const f = this.frame, u = this.v / (0.1 * MK_FPS), c = Math.cos(this.phi), s = Math.sin(this.phi);
+    const vx = (f.T.x * c + f.R.x * s) * u, vz = (f.T.z * c + f.R.z * s) * u;
+    const kx = this.world.x * 10, kz = this.world.z * 10;
+    this.push = [-vx * a2 + ((kx - ox) * ovx >= 0 ? ovx * a3 : 0), -vz * a2 + ((kz - oz) * ovz >= 0 ? ovz * a3 : 0)];
+    const m2 = this.push[0] ** 2 + this.push[1] ** 2;
+    if (!(this.boost > 0) && Math.sqrt(m2) >= 6.5) {
+      this.v /= 16; this.drift = 0;
+      if (!(this.spin > 0)) this.spin = 1.1;
+    }
+    return m2;
+  }
+
+  // func_800892E0: the shove moves the kart on top of its velocity (nextX = pos + velocity + unk_04) and steps
+  // towards 0 at Sherbet Land's rates (func_80089020, faster while spinning out) every tick
+  shoveStep(dt, denom) {
+    const n = MK_FPS * dt;
+    if (this.bonkWait > 0) this.bonkWait = Math.max(0, this.bonkWait - n);
+    if (!this.push) return;
+    const f = this.frame, px = this.push[0] * 0.1 * n, pz = this.push[1] * 0.1 * n, spun = this.spin > 0;
+    this.s += (px * f.T.x + pz * f.T.z) / denom; this.d += px * f.R.x + pz * f.R.z;
+    this.push = this.push.map(p => {
+      const a = Math.abs(p), step = (a <= 0.5 ? 0.025 : a <= 2 ? 0.075 : a <= 4 ? (spun ? 0.15 : 0.1) : (spun ? 0.25 : 0.15)) * n;
+      return a <= step ? 0 : p - Math.sign(p) * step;
+    });
+    if (!this.push[0] && !this.push[1]) this.push = null;
+  }
+
   // mode: 'low' | 'high' | 'vertical' (TUMBLE). lift is the hop height above the kart's ground in MK64 units.
   startTumble(mode) {
     const c = TUMBLE[mode];
@@ -467,6 +505,7 @@ export class Kart {
     const denom = Math.max(0.3, 1 - k * this.d);
     const ds = along / denom;
     this.s += ds; this.d += lateral;
+    this.shoveStep(dt, denom);
     const yaw = k * ds;                 // frame rotates under us
     this.psi -= yaw; this.phi -= yaw;
 
