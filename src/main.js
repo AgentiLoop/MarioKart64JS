@@ -1213,12 +1213,13 @@ function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
   if (k.rescue?.watch) { camera.lookAt(k.world); return; }   // camera.c: holds still while Lakitu fishes the kart out
   if (k.rescue?.snap) { k.rescue.snap = false; v.init = false; }   // and cuts back behind it over the road
-  const behind = k.fwd.clone().multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(k.up, 4.2);
-  const target = k.world.clone().add(behind);
+  const P = drawPose(k);   // the blended pose the kart is drawn at (fixed physics step), so it sits still on screen
+  const behind = P.fwd.clone().multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(P.up, 4.2);
+  const target = P.world.clone().add(behind);
   const a = v.init ? 1 - Math.exp(-dt * 7) : 1;
   v.pos.lerp(target, a);
-  v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
-  v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
+  v.up.lerp(P.up, 1 - Math.exp(-dt * 4)).normalize();
+  v.look.copy(P.world).addScaledVector(P.up, 1.6).addScaledVector(P.fwd, 6);
   camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
@@ -1317,10 +1318,45 @@ let last = performance.now();
 const mkFrame = () => ({ pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
 const flyA = mkFrame(), flyB = mkFrame(), flyLook = new THREE.Vector3();
 let flyS = 0, flyInit = false;
+
+// Fixed physics step with interpolation (docs/SMOOTHNESS.md, "Fix Your Timestep"): the race always steps at
+// 120 Hz (the old two substeps of a 60 Hz frame), whatever the display rate; the leftover time `alpha` blends
+// each local kart's drawn pose between its last two steps. Physics never sees the blend: it is put on the
+// meshes just for rendering and taken off again (blendKarts / unblendKarts). Items, smoke and balloons stay at
+// the latest step (at most 1/120 s ahead). Assumption: a jump over 8 units in one step is a teleport, not blended.
+const STEP = 1 / 120;
+let acc = 0, alpha = 1;
+const mkPose = () => ({ pos: new THREE.Vector3(), quat: new THREE.Quaternion(), world: new THREE.Vector3(), fwd: new THREE.Vector3(), up: new THREE.Vector3() });
+function snapPose(k) {   // before a step: remember where the kart was
+  const p = k.prevPose ??= mkPose();
+  p.pos.copy(k.mesh.position); p.quat.copy(k.mesh.quaternion); p.world.copy(k.world); p.fwd.copy(k.fwd); p.up.copy(k.up);
+}
+const blends = k => !k.remote && !k.rescue && k.prevPose && k.prevPose.world.distanceToSquared(k.world) < 64;
+function drawPose(k) {
+  if (!blends(k)) return k;
+  const p = k.prevPose, d = k.drawPose ??= mkPose();
+  d.world.lerpVectors(p.world, k.world, alpha); d.fwd.lerpVectors(p.fwd, k.fwd, alpha).normalize(); d.up.lerpVectors(p.up, k.up, alpha).normalize();
+  return d;
+}
+const blended = [];
+function blendKarts() {
+  for (const k of karts) {
+    if (!blends(k)) continue;
+    const p = k.prevPose, c = k.curPose ??= mkPose();
+    c.pos.copy(k.mesh.position); c.quat.copy(k.mesh.quaternion);
+    k.mesh.position.lerpVectors(p.pos, c.pos, alpha); k.mesh.quaternion.slerpQuaternions(p.quat, c.quat, alpha);
+    blended.push(k);
+  }
+}
+function unblendKarts() {
+  for (const k of blended) { k.mesh.position.copy(k.curPose.pos); k.mesh.quaternion.copy(k.curPose.quat); }
+  blended.length = 0;
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  const steps = 2, h = dt / steps;
+  const h = STEP;
 
   if (!trackDef || (online && !raceGo)) {   // menu / online lobby open: fly along the road (like ../GoKart attract.gd), no race
     flyS += 20 * dt;
@@ -1346,13 +1382,18 @@ function frame(now) {
     renderer.render(scene, camera);
     return;
   }
+  acc += dt;
+  let steps = 0;
+  while (acc >= STEP) { acc -= STEP; steps++; }
+  alpha = acc / STEP;
   if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
-    for (const k of karts) { if (k.remote) puppetStep(k, now); else k.update(dt, { throttle: 0, brake: 0, steer: 0, drift: false }); }
+    for (const k of karts) if (k.remote) puppetStep(k, now);
+    for (let s = 0; s < steps; s++) for (const k of karts) if (!k.remote) { snapPose(k); k.update(h, { throttle: 0, brake: 0, steer: 0, drift: false }); }
     if (revs && player && !autopilot) revEngine(dt, playerInput());
   } else {
-    raceTime += dt;
     for (const k of karts) if (k.remote) puppetStep(k, now);
     for (let s = 0; s < steps; s++) {
+      raceTime += h;
       // VS / battle have no CPU karts on the console, so the CPUs that fill online seats just drive (no bands)
       const order = raceMode === 'mario_gp' ? rank() : null;
       if (order) cpuSpeedControl(karts, order, track, cc);
@@ -1362,6 +1403,7 @@ function frame(now) {
         else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
         const inp = k.isPlayer && !autopilot ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
+        snapPose(k);
         k.update(h, inp);
         if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }
         if (!battle && !k.finished && k.crossings >= LAPS) {
@@ -1403,7 +1445,9 @@ function frame(now) {
   lakitu.update(dt, karts, battle ? 0 : LAPS);
   exhaust.update(dt, karts, camera);
   drawMini();
+  blendKarts();
   renderViews();
+  unblendKarts();
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
