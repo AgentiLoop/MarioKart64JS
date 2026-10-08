@@ -9,7 +9,7 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - Title screen → GAME SELECT (1P / 2P / 3P / 4P GAME) → SELECT COURSE → PLAYER SELECT → race (Enter / click / arrows)
 - 2P–4P GAME races **online, peer-to-peer, with the console's split screen** (see [Online play](#online-play))
 - **BATTLE** on any GAME column: the four battle arenas with balloons — alone against three CPU karts, or 2–4 players online (see [Battle mode](#battle-mode))
-- Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item (Q: same, but a held banana is thrown ahead on release, like the stick held up) · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · J jump mode (Jumps: MK64 tick physics / Glue: stuck to the road) · M course menu. Gamepad supported.
+- Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item (Q: same, but a held banana is thrown ahead on release, like the stick held up) · Delete/Backspace restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · J jump mode (Jumps: MK64 tick physics / Glue: stuck to the road) · M course menu. Gamepad supported.
 
 ## Screenshots
 
