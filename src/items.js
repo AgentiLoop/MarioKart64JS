@@ -351,7 +351,7 @@ export class Items {
   roll(kart, karts, cpu = false) {
     if (this.arena) return pick(CURVES.battle[0]);
     const byProgress = list => [...list].sort((a, b) => b.progress - a.progress);
-    const humans = karts.filter(k => k.isPlayer || k.remote);
+    const humans = karts.filter(k => k.isPlayer || (k.remote && !k.cpu));   // k.cpu: an online CPU kart
     if (!this.gp && !cpu && humans.length > 1) {
       const n = Math.min(4, humans.length);
       return pick(CURVES['vs' + n][Math.min(n - 1, byProgress(humans).indexOf(kart))]);
@@ -416,6 +416,7 @@ export class Items {
   }
 
   fire(kart, kind, karts = []) {
+    if (this.onFire) this.onFire(kart, kind);   // online: the host sends what its CPU karts fire
     const trail = TRAIL[kind];
     if (trail) {   // banana bunch / triple shells: held around the kart, fired one per press
       this.clearTrail(kart);
@@ -518,8 +519,13 @@ export class Items {
       if (v) { got = v.item; v.item = null; this.showItem(v); }
     }
     if (!got) return;
-    kart.item = got;
-    if (kart.isPlayer) { kart.win = { state: 7, slide: 64, tex: ITEM_ICON[got], skip: -1, ready: 0, acc: 0, item: got, init: false }; this.audio.playSound(...SND_DECIDED); }
+    this.give(kart, got);
+    if (kart.isPlayer) this.audio.playSound(...SND_DECIDED);
+  }
+  // put an item straight in the kart's hand (and a human's item window, decided state 7)
+  give(kart, item) {
+    kart.item = item;
+    if (kart.isPlayer) kart.win = { state: 7, slide: 64, tex: ITEM_ICON[item], skip: -1, ready: 0, acc: 0, item, init: false };
     else kart.itemTimer = 0.8 + Math.random() * 2.2;
   }
 
@@ -656,7 +662,7 @@ export class Items {
     if (kart.crossings !== st.lap) { st.lap = kart.crossings; st.uses = 0; }   // numItemUse = 0 at the line
     const L = this.track.length, at = k => k.progress / L * pts;
     for (st.acc += dt; st.acc >= 1 / FPS; st.acc -= 1 / FPS) {
-      const rank = order.indexOf(kart), human = order.find(k => k.isPlayer || k.remote);
+      const rank = order.indexOf(kart), human = order.find(k => k.isPlayer || (k.remote && !k.cpu));
       switch (st.branch) {
         case 'wait':
           if (100 + 20 * id < at(kart) && st.timer >= 601 && st.uses < 3 && kart.crossings < 3) {
@@ -848,7 +854,7 @@ export class Items {
     const opacity = (k.isPlayer ? f.own : f.other) / 255, see = opacity < 1;
     m.opacity = opacity;
     if (m.transparent !== see) { m.transparent = see; m.alphaTest = see ? 0.05 : 0.5; m.needsUpdate = true; }
-    if (k.balloonMeshes) k.balloonMeshes.forEach(b => { b.material.opacity = opacity; b.material.transparent = see; });
+    if (k.balloonFx) k.balloonOpacity = opacity;
   }
   // One 30 Hz step of the kart's colour and alpha (render_player.c func_80022E84 colour effects, effects.c
   // apply_boo_effect). Struck by lightning (unk_0B0 < 0x78): counter +5, wrapping at 0x1E, grey 0x808080 / blue 0x70 /
