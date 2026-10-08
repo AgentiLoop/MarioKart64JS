@@ -2,12 +2,42 @@
 // /play/ is the hosted game (npm run build:web -> public/play, every texture tier like the desktop apps), linked from the home page.
 export { Lobby } from "./lobby.js";
 
+// /download/<plat> -> 302 to that platform's asset on the latest (non-pre-release) GitHub release,
+// so the site never needs editing for a new version. Asset names carry the version, so match by suffix.
+const REPO = "AgentiLoop/MarioKart64JS";
+const DOWNLOADS = {
+  mac: "-mac-webkit-universal.zip",
+  win: "-win-x64.zip",
+  "win-arm": "-win-arm64.zip",
+  linux: "-linux-x64.tar.gz",
+  "linux-arm": "-linux-arm64.tar.gz",
+  pi: "-raspberrypi.tar.gz",
+  sums: "SHA256SUMS.txt",
+};
+
+async function latestDownload(suffix) {
+  const fallback = `https://github.com/${REPO}/releases/latest`;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { "user-agent": "mk64js.gokart.games", accept: "application/vnd.github+json" },
+      cf: { cacheTtl: 300, cacheEverything: true },   // 5 min edge cache, well under the API rate limit
+    });
+    if (r.ok) {
+      const asset = (await r.json()).assets.find((a) => a.name.endsWith(suffix));
+      if (asset) return Response.redirect(asset.browser_download_url, 302);
+    }
+  } catch {}
+  return Response.redirect(fallback, 302);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/mp" || url.pathname === "/api/mp/status") {
       return env.LOBBY.get(env.LOBBY.idFromName("global")).fetch(request);
     }
+    const dl = url.pathname.match(/^\/download\/([a-z-]+)$/);
+    if (dl && DOWNLOADS[dl[1]]) return latestDownload(DOWNLOADS[dl[1]]);
     const res = await env.ASSETS.fetch(request);
     const h = new Headers(res.headers);
     h.set("x-content-type-options", "nosniff");
