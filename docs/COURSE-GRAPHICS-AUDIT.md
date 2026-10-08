@@ -14,7 +14,7 @@ Status: **done** = ported from ROM data; **—** = missing.
 |---|---|---|
 | Mario Raceway | trees (`spawn_foliage`, 27) | **done** (tools/extract-foliage.py, src/foliage.js) |
 | | piranha plants (`spawn_piranha_plants`, 9-frame animation) | — |
-| | Mario signs (`ACTOR_MARIO_SIGN` ×2) | — |
+| | Mario signs (`ACTOR_MARIO_SIGN` ×2) | **done** (tools/extract-props.py, src/props.js) |
 | | GP balloons (`render_object_grand_prix_balloons`) | — |
 | Choco Mountain | falling rocks (`spawn_falling_rocks`) | — |
 | Bowser's Castle | bushes (`ACTOR_BUSH_BOWSERS_CASTLE`, 27) | **done** |
@@ -26,7 +26,7 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | flag poles (`func_80055228`), hedgehogs (`render_object_hedgehogs`) | — |
 | Frappe Snowland | trees (30) | **done** |
 | | snowmen (`render_object_snowmans`), snowfall (`render_object_snowflakes_particles`, 1P) | — |
-| Koopa Troopa Beach | palm trees (`spawn_palm_trees`) | — |
+| Koopa Troopa Beach | palm trees (`spawn_palm_trees`, 12) | **done** (src/props.js) |
 | | crabs, seagulls, hot-air-balloon item box | — |
 | Royal Raceway | trees + castle-garden trees (32) | **done** |
 | | piranha plants (`spawn_piranha_plants`) | — |
@@ -39,7 +39,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | train (engine, tender, carriages) and its smoke, railroad crossings ×4 | — |
 | Sherbet Land | emperor penguin, swimming / sliding penguins, see-through ice | **done** (src/penguins.js) |
 | Rainbow Road | neon signs (`render_object_neon`), Chain Chomps | — |
-| Wario Stadium | Wario signs (`ACTOR_WARIO_SIGN` ×3) | — |
+| Wario Stadium | Wario signs (`ACTOR_WARIO_SIGN` ×3) | **done** (src/props.js) |
+| D.K.'s Jungle Parkway | trees and palm trees (`render_palm_trees`, 95) | **done** (src/props.js) |
 | D.K.'s Jungle Parkway | paddle-boat ferry and its smoke, kiwano fruit, torches | — |
 | Battle arenas | bomb karts (`render_object_bomb_kart`, battle) | — |
 | Every course | item boxes at the course's `item_box_spawns` | race courses place boxes at fractions of the track length (src/items.js `BOX_SPOTS`), not at the ROM spots; arenas use the ROM spots |
@@ -66,3 +67,19 @@ Snowland, Kalimari Desert). Bowser's bush is the RGBA16 `gTextureShrub`.
 Not ported yet: the ground shadow under each tree (`func_8029794C` → common `D_0D007B20`, drawn within 500 units),
 karts bumping into trees (the actor bounding boxes), and HD replacements for the CI8 textures
 (tools/build-hd-textures.py only matches RGBA16 / IA16 CRCs).
+
+## Props from the course data segment (done)
+
+tools/extract-props.py walks each model's display lists in `course_data.c`, checks every vertex array, spawn list
+and RGBA16 texture against the ROM's course data segment, and writes `props.json`. src/props.js draws them:
+
+| Course | Console code | Drawing | Distance |
+|---|---|---|---|
+| Koopa Troopa Beach | `spawn_palm_trees` / `render_actor_palm_tree`, 3 variants | unrotated, lit (`light2`, shaded at extraction: ambient + colour × max(0, n·l), light in world space) | 2000 |
+| Mario Raceway | `ACTOR_MARIO_SIGN` ×2 at fixed spots / `update_actor_mario_sign` | + `DEGREES(1)` a tick about the up axis | 4000 |
+| Wario Stadium | `ACTOR_WARIO_SIGN` ×3 / `update_actor_wario_sign` | the same | 4000 |
+| D.K.'s Jungle Parkway | `func_80298D10` / `render_palm_trees` (y = `unk8`, id = `someId & 0xF`) | ids 0/4/5 face the camera like the foliage, the palm (6) unrotated | 1000 |
+
+In EXTRA the console only negates x positions, so the port flips each model back in its own x (and spins the signs
+the other way). Not ported yet: palm tree shadows, kart collisions, and signs / trees flying away when a kart hits
+them (flag 0x400).

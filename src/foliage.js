@@ -13,7 +13,7 @@ import { NATIVE_SCALE } from './track.js';
 const _r = new THREE.Vector3(), _u = new THREE.Vector3(0, 1, 0), _z = new THREE.Vector3(), _p = new THREE.Vector3();
 
 // onBeforeRender: D_801502C0 for this camera, or nothing drawn past the model's culling distance
-function billboard(renderer, scene, camera) {
+export function billboard(renderer, scene, camera) {
   const e = this.matrixWorld.elements, c = camera.matrixWorld.elements;
   _p.set(e[12], e[13], e[14]);
   const dx = _p.x - c[12], dz = _p.z - c[14], max = this.userData.maxDistance;
@@ -36,7 +36,7 @@ export class Foliage {
     this.group.name = 'foliage';
     scene.add(this.group);
     this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/foliage.json`)
-      .then(r => (r.ok ? r.json() : null))
+      .then(r => (r.ok ? r.json().catch(() => null) : null))   // no file: the dev server answers with index.html
       .then(data => data && this._build(data, track, def.dir));
   }
 
