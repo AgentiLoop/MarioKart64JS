@@ -345,7 +345,9 @@ export class Kart {
       if (this.boost > 0) this.v += 40 * dt;
     }
     if (input.brake > 0) this.v -= (this.v > 0 ? 55 : 14) * input.brake * dt;
-    this.v -= Math.sign(this.v) * 4 * dt;
+    // coasting drag fades out with the throttle: at full throttle it held the kart at 88% of max, below the
+    // decomp's terminal velocity (force / (0.12 * kartFriction)), e.g. 62 instead of 70.6 km/h for 150cc Mario
+    this.v -= Math.sign(this.v) * 4 * dt * (1 - Math.max(0, input.throttle));
     if (this.v > max) this.v = Math.max(max, this.v - (this.boost > 0 ? 0 : 30) * dt);
     this.v = Math.max(this.v, -12);
     if (this.boost > 0) this.boost -= dt;
@@ -424,8 +426,9 @@ export class Kart {
   updateFree(dt, input) {
     const t = this.track;
     this.offroad = false;
-    this.top = MAX_SPEED * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
-    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    const scale = this.speedScale * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);   // gTopSpeedBattle row
+    this.top = MAX_SPEED * scale;
+    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * scale;
     if (this.rescue > 0) {   // Lakitu: hang above the start spot, then drop in
       this.rescue -= dt; this.v = 0; this.drift = 0; this.boost = 0; this.spin = 0;
       this.x = this.spawn.x; this.z = this.spawn.z; this.h = this.spawn.h; this.air = false; this.vy = 0;
@@ -447,7 +450,7 @@ export class Kart {
       if (this.boost > 0) this.v += 40 * dt;
     }
     if (input.brake > 0) this.v -= (this.v > 0 ? 55 : 14) * input.brake * dt;
-    this.v -= Math.sign(this.v) * 4 * dt;
+    this.v -= Math.sign(this.v) * 4 * dt * (1 - Math.max(0, input.throttle));   // as in update()
     if (this.v > max) this.v = Math.max(max, this.v - (this.boost > 0 ? 0 : 30) * dt);
     this.v = Math.max(this.v, -12);
     if (this.boost > 0) this.boost -= dt;
