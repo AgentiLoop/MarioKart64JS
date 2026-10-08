@@ -4,6 +4,9 @@
 // (19-frame waddle, one frame per object tick) while it walks spline D_800E659C (func_8008B78C: a B-spline round a
 // 20-unit circle, 125 / 10000 of a segment per tick) and turns towards its heading (func_800873F4). The console
 // only sets it up in 1P (gPlayerCountSelection1 == 1).
+// Penguins 1-14 (func_800845C8, every player count) share the armature: 1-8 at 0.08 swim in pairs round four
+// circles in the water at y -80, 9-14 at 0.04 waddle, belly-slide and turn back on the ice, drawing an upside-down
+// reflection under themselves when a camera is near.
 // Model: src/animation.c render_armature / mtxf_translate_rotate2 per limb under the object's
 // mtxf_set_matrix_transformation, each limb lit like F3DEX (ambient + colour x max(0, n . dir), dir (40, 40, 40)
 // in world space because MK64 loads the object matrix straight into the modelview).
@@ -63,14 +66,46 @@ const dbasis = t => [(1 - t) * -0.5 * (1 - t), t * t * 1.5 - 2 * t, (t * t * 3 -
 
 const _m = new THREE.Matrix4(), _n = new THREE.Matrix3(), _v = new THREE.Vector3(), _c = new THREE.Color();
 
+// func_800845C8 penguins 1-8: pairs swimming opposite each other round a circle at y -80 (func_80088038),
+// [x, z, unk_0C6 angle step per tick, unk_01C[1] radius]
+const SWIMMERS = [[-2960, 1521, 0x150, 100], [-2490, 1612, 0x100, 80], [-2098, 1624, 0xFF00, 80], [-2080, 1171, 0x150, 80]];
+// penguins 9-14 on the ice at y 0 (func_80084D2C): [x, z, unk_0C6, its EXTRA (mirror) adjustment, unk_0DD]
+const SLIDERS = [[146, -380, 0x9000, -0x4000, 3], [380, -766, 0x5000, 0x8000, 4], [-2300, -210, 0xC000, 0x8000, 6],
+  [-2500, -250, 0x4000, 0x8000, 6], [-535, 875, 0x8000, -0x4000, 6], [-250, 953, 0x9000, -0x4000, 6]];
+const SLIDE_SPEED = { 3: 1.0, 4: 1.5, 5: 2.0, 6: 2.5 };
+// render_object_train_penguins: 1P / 2P / 3-4P reach of the ice reflection (func_800557B4, squared distance)
+const REFLECT_REACH = [0x3D090, 0x27100, 0x15F90];
+const sins = a => Math.sin(binary(a)), coss = a => Math.cos(binary(a));
+const atan2s = (x, z) => Math.round(Math.atan2(x, z) * 32768 / Math.PI) & 0xFFFF;
+
+// f32_step_towards
+function stepTowards(v, target, step) {
+  step = Math.abs(step);
+  return v < target ? Math.min(target, v + step) : v > target ? Math.max(target, v - step) : v;
+}
+
 export class Penguins {
   constructor(scene, track) {
-    this.scene = scene; this.acc = 0; this.data = null; this.limbs = []; this.visible = true;
+    this.scene = scene; this.acc = 0; this.data = null;
     this.group = new THREE.Group(); this.group.matrixAutoUpdate = false;
     scene.add(this.group);
+    const m = track.mirror ? -1 : 1;   // EXTRA flips the camera, so mirrored angles turn the other way here
     // penguin 0 (func_80084430)
     this.big = { origin: [-383, 2, -690], scale: 0.2, anim: 0, frame: 0, dir: 0, pos: [-383, 2, -690],
       spline: { active: false, idx: 0, p: 0, timer: 0 } };
+    this.small = [];
+    const common = { scale: 0.08, anim: 0, frame: 0, step: 2, state: 2, animOn: false, flags: 0, sub: 1, timerOn: false,
+      timer: 0, cc: 0, dir: 0, speed: 0, offset: [0, 0, 0], vel: [0, 0, 0] };
+    for (let i = 1; i <= 8; i++) {
+      const [x, z, c6, r] = SWIMMERS[(i - 1) >> 1];
+      this.small.push({ ...common, offset: [0, 0, 0], vel: [0, 0, 0], kind: 'swim', origin: [x, -80, z], pos: [x, -80, z],
+        c6: (c6 * m) & 0xFFFF, c4: ((i << 15) & 0xFFFF) * m & 0xFFFF, r, flags: 8 });
+    }
+    for (const [x, z, c6, adj, mode] of SLIDERS) {
+      const c = ((track.mirror ? c6 + adj : c6) * m) & 0xFFFF;
+      this.small.push({ ...common, offset: [0, 0, 0], vel: [0, 0, 0], kind: 'slide', mode, origin: [x, 0, z], pos: [x, 0, z],
+        scale: 0.04, c6: c, dir: (c + 0x8000) & 0xFFFF, flags: 4 | 0x10 });
+    }
     const base = `${import.meta.env?.BASE_URL ?? '/'}mk64/${track.def.dir}/`;
     fetch(`${base}penguin.json`).then(r => r.json()).then(d => this.build(d, track.def.dir)).catch(() => {});
   }
@@ -83,32 +118,47 @@ export class Penguins {
       t.colorSpace = THREE.SRGBColorSpace; t.flipY = false;
       t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
     }
-    const L = d.lights;
+    // one template per model part; every drawn penguin gets its own colour buffer (lit by its own matrix)
+    const L = d.lights, templates = new Map();
     for (const step of d.armature) {
       if (step.op !== 'limb' || !step.model) continue;
-      for (const part of step.model) {
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute(part.positions, 3));
-        g.setAttribute('uv', new THREE.Float32BufferAttribute(part.uvs, 2));
-        g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(part.positions.length), 3));
-        const light = L[part.light], dl = new THREE.Vector3(...light.dir).normalize();
-        const add = mat => {
-          const m = new THREE.Mesh(g, mat);
-          m.matrixAutoUpdate = false; m.frustumCulled = false;
-          this.group.add(m);
-          return m;
-        };
+      templates.set(step, step.model.map(part => {
+        const position = new THREE.Float32BufferAttribute(part.positions, 3), uv = new THREE.Float32BufferAttribute(part.uvs, 2);
         // G_CC_SHADE / G_CC_MODULATEI (texel x shade); G_CC_BLENDRGBA lays the 1-bit-alpha texel over the shade
         const blend = part.combine === 'G_CC_BLENDRGBA';
-        const meshes = [add(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false,
-          map: part.texture && !blend ? textures[part.texture] : null }))];
-        if (blend) meshes.push(add(new THREE.MeshBasicMaterial({ map: textures[part.texture], alphaTest: 0.5, toneMapped: false, fog: false,
-          polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 })));
-        step.parts = step.parts || [];
-        step.parts.push({ meshes, normals: part.normals, color: g.attributes.color, light, dl });
-      }
+        const mats = [new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false,
+          map: part.texture && !blend ? textures[part.texture] : null })];
+        if (blend) mats.push(new THREE.MeshBasicMaterial({ map: textures[part.texture], alphaTest: 0.5, toneMapped: false, fog: false,
+          polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
+        const light = L[part.light];
+        return { position, uv, mats, normals: part.normals, light, dl: new THREE.Vector3(...light.dir).normalize() };
+      }));
     }
-    this.place();
+    const instance = () => {
+      const group = new THREE.Group(); group.matrixAutoUpdate = false;
+      this.group.add(group);
+      const parts = new Map();
+      for (const [step, list] of templates) parts.set(step, list.map(t => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', t.position); g.setAttribute('uv', t.uv);
+        g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(t.position.array.length), 3));
+        const meshes = t.mats.map(mat => {
+          const mesh = new THREE.Mesh(g, mat);
+          mesh.matrixAutoUpdate = false; mesh.frustumCulled = false;
+          group.add(mesh);
+          return mesh;
+        });
+        return { meshes, normals: t.normals, color: g.attributes.color, light: t.light, dl: t.dl };
+      }));
+      return { group, parts };
+    };
+    this.big.view = instance();
+    for (const o of this.small) {
+      o.view = instance();
+      // func_800557B4: penguins flagged 4 (the sliders) also draw upside down 1 unit below themselves on the ice
+      if (o.flags & 4) o.mirrorView = instance();
+    }
+    this.placeAll();
   }
 
   // func_8008B78C -> func_8008B6A4 (the wrapping spline walk) and func_800873F4
@@ -128,41 +178,133 @@ export class Penguins {
       if (s.idx === n) s.active = false; else { s.p++; s.timer = 0; }
     }
     o.pos = [o.origin[0] + x, o.origin[1], o.origin[2] + z];
-    const heading = Math.round(Math.atan2(vx, vz) * 32768 / Math.PI) & 0xFFFF;   // get_y_direction_angle
+    const heading = atan2s(vx, vz);   // get_y_direction_angle
     o.dir = turnTowards(o.dir, heading);
   }
 
-  update(dt, screens) {
-    this.group.visible = screens === 1;
+  // func_80072E54 with no frame delay: frames a1..a2 by a3; a5 -1 loops, 0 plays once then object_next_state
+  animate(o, a1, a2, a3, a5) {
+    if (!o.animOn) { o.frame = a1; o.cc = a5; o.animOn = true; return; }
+    o.frame += a3;
+    if (a2 < o.frame) {
+      if (o.cc > 0) o.cc--;
+      if (o.cc === 0) { o.frame = a2; o.animOn = false; o.state++; } else o.frame = a1;
+    }
+  }
+
+  // func_800726CC / func_80086FD4 / func_8008701C / func_80087060
+  setState(o, s) { o.state = s; o.animOn = false; }
+  nextSub(o, s = o.sub + 1) { o.timerOn = false; o.sub = s; }
+  wait(o, n) {
+    if (!o.timerOn) { o.timerOn = true; o.timer = n; }
+    if (--o.timer < 0) { o.timerOn = false; return true; }
+    return false;
+  }
+  setAnim(o, anim, state) { o.anim = anim; o.frame = 0; o.type = this.data.animations[anim].length - 1; this.setState(o, state); }
+
+  // func_80084B7C: the animation states of penguins 1-14
+  animateSmall(o) {
+    if (o.type === undefined) o.type = this.data.animations[o.anim].length - 1;
+    if (o.state === 2) this.animate(o, 0, o.type, o.step, -1);
+    else if (o.state === 3) this.animate(o, 0, o.type, 1, 0);
+    else if (o.state === 4) { o.flags &= ~2; o.state = 5; }
+  }
+
+  // func_80084D2C: a slider turns round, waddles faster, belly-slides away (anim 1), slows, stands up (anim 2) and
+  // heads back the other way
+  slide(o) {
+    switch (o.sub) {
+      case 1:
+        o.dir = turnTowards(o.dir, o.c6);
+        if (o.dir === o.c6) { o.step = 4; o.speed = 0.4; this.nextSub(o); }
+        break;
+      case 2:
+        o.speed = stepTowards(o.speed, 0.8, 0.02);
+        if (this.wait(o, 15)) { o.flags |= 1 | 2; o.step = 1; this.setAnim(o, 1, 3); this.nextSub(o); }
+        break;
+      case 3: {
+        const target = SLIDE_SPEED[o.mode];
+        o.speed = stepTowards(o.speed, target, 0.15);
+        if (!(o.flags & 2) && o.speed === target) this.nextSub(o);
+        break;
+      }
+      case 4:
+        if (this.wait(o, 30)) { o.flags &= ~1; this.nextSub(o); }
+        break;
+      case 5:
+        o.speed = stepTowards(o.speed, 0.4, 0.2);
+        if (this.wait(o, 10)) { o.flags |= 2; this.setAnim(o, 2, 3); this.nextSub(o); }
+        break;
+      case 6:
+        if (!(o.flags & 2)) { this.setAnim(o, 0, 2); o.c6 = (o.c6 + 0x8000) & 0xFFFF; this.nextSub(o, 1); }
+        break;
+    }
+    // func_8008781C
+    o.vel = [o.speed * sins(o.dir), 0, o.speed * coss(o.dir)];
+    o.offset[0] += o.vel[0]; o.offset[2] += o.vel[2];
+    o.pos = [o.origin[0] + o.offset[0], o.origin[1], o.origin[2] + o.offset[2]];
+  }
+
+  // func_8008502C: func_80088038 round the circle, then face the way it swims (func_800873F4)
+  swim(o) {
+    const [ox, , oz] = o.offset;
+    o.c4 = (o.c4 + o.c6) & 0xFFFF;
+    o.offset = [sins(o.c4) * o.r, 0, coss(o.c4) * o.r];
+    o.vel = [o.offset[0] - ox, 0, o.offset[2] - oz];
+    o.pos = [o.origin[0] + o.offset[0], o.origin[1], o.origin[2] + o.offset[2]];
+    o.dir = turnTowards(o.dir, atan2s(o.vel[0], o.vel[2]));
+  }
+
+  // cams: each screen's camera (scene units); penguin 0 is only set up in 1P
+  update(dt, cams) {
+    const screens = cams.length;
     for (this.acc += dt; this.acc >= TICK; this.acc -= TICK) {
       const o = this.big;
       this.walk(o);
       // func_80072E54(objectIndex, 0, type = length - 1, 1, 0, -1): one frame per tick, 0..type round
-      if (this.data) o.frame = o.frame + 1 > this.data.animations[o.anim].length - 1 ? 0 : o.frame + 1;
+      if (this.data) {
+        o.frame = o.frame + 1 > this.data.animations[o.anim].length - 1 ? 0 : o.frame + 1;
+        for (const p of this.small) { this.animateSmall(p); if (p.kind === 'swim') this.swim(p); else this.slide(p); }
+      }
     }
-    this.place();
+    if (!this.data) return;
+    this.big.view.group.visible = screens === 1;
+    const reach = REFLECT_REACH[Math.min(screens, 3) - 1];
+    for (const p of this.small) if (p.mirrorView) {
+      p.mirrorView.group.visible = cams.some(c => (c.position.x / NATIVE_SCALE - p.pos[0]) ** 2 + (c.position.z / NATIVE_SCALE - p.pos[2]) ** 2 <= reach);
+    }
+    this.placeAll();
   }
 
-  // render_armature for penguin 0 at its current frame
-  place() {
-    if (!this.data) return;
-    const o = this.big, anim = this.data.animations[o.anim], v = anim.values, f = o.frame;
+  placeAll() {
+    this.place(this.big, this.big.view, this.big.pos, [0, this.big.dir, 0]);
+    for (const p of this.small) {
+      this.place(p, p.view, p.pos, [0, p.dir, 0]);
+      // rsp_set_matrix_transformation_inverted_x_y_orientation at y - 1
+      if (p.mirrorView?.group.visible) this.place(p, p.mirrorView, [p.pos[0], p.pos[1] - 1, p.pos[2]], [0x8000, (p.dir + 0x8000) & 0xFFFF, 0]);
+    }
+  }
+
+  // render_armature for one penguin at its current animation frame
+  place(o, view, pos, rot) {
+    const anim = this.data.animations[o.anim], v = anim.values, f = o.frame;
     const channel = ([len, idx]) => v[idx + (f < len ? f : 0)];
     const root = anim.limbs[0].map(channel);
-    const stack = [objectMatrix(o.pos, [0, o.dir, 0], o.scale, new THREE.Matrix4())];
+    const stack = [objectMatrix(pos, rot, o.scale, new THREE.Matrix4())];
     let noPop = false, limb = 1, first = true;
     for (const step of this.data.armature) {
       if (step.op === 'stop') break;
       if (step.op === 'nopop') { noPop = true; continue; }
       if (step.op === 'pop') { stack.pop(); continue; }
       if (!noPop) stack.pop();
-      const pos = first ? step.pos.map((p, i) => p + root[i]) : step.pos;
+      const p = first ? step.pos.map((q, i) => q + root[i]) : step.pos;
       first = false;
       const angle = anim.limbs[limb++].map(channel);
-      const m = stack[stack.length - 1].clone().multiply(limbMatrix(pos, angle, _m));
+      const m = stack[stack.length - 1].clone().multiply(limbMatrix(p, angle, _m));
       stack.push(m);
       noPop = false;
-      if (step.parts) for (const part of step.parts) this.shade(part, m);
+      const parts = view.parts.get(step);
+      if (parts) for (const part of parts) this.shade(part, m);
     }
   }
 

@@ -253,7 +253,7 @@ const items = new Items(track, scene, audio);
 items.gp = raceMode === 'mario_gp';   // GP CPUs draw items on a timer (cpu_use_item_strategy), not from boxes
 const exhaust = new Exhaust(scene);
 const lakitu = new Lakitu(scene, track);
-const penguins = trackDef?.id === 'sherbet' ? new Penguins(scene, track) : null;   // Sherbet Land's giant penguin
+const penguins = trackDef?.id === 'sherbet' ? new Penguins(scene, track) : null;   // Sherbet Land's penguins
 // his cloud's hum while he fishes a kart out or shows the reverse sign: 0x0100FA28 = SOUND_ARG_LOAD(0x01, 0x00, 0xFA, 0x28), bank 0
 lakitu.onHum = on => on ? audio.playSound(0, 0x28) : audio.stopSound(0, 0x28);
 // Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
@@ -1400,7 +1400,7 @@ function frame(now) {
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
   for (const v of views) updateCamera(dt, v);
   lakitu.update(dt, karts, battle ? 0 : LAPS);
-  penguins?.update(dt, views.length);
+  penguins?.update(dt, views.map(v => v.cam));
   exhaust.update(dt, karts, camera);
   drawMini();
   renderViews();
