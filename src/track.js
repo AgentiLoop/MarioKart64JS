@@ -361,6 +361,51 @@ export class Track {
     };
     // does the segment (x0,z0)->(x1,z1) at kart body height above ground y hit a steep face? (arena karts)
     this.blocked = blocked;
+    // Kart against the wall faces, as check_bounding_collision + func_8003F734 do it: a sphere of radius r at body
+    // height whose centre projects inside a face and is closer than r to it (or up to 16 MK64 units = 1.6 past
+    // it) is pushed back out along the face normal by the overlap, onto the side the kart came from (x0, z0).
+    // Returns the corrected { x, z } and the outward horizontal normal { nx, nz } of the deepest face, or null.
+    const wallN = walls.map(([a, b, c]) => {
+      const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      const l = Math.hypot(...n) || 1;
+      return [n[0] / l, n[1] / l, n[2] / l, e1, e2];
+    });
+    this.wallPush = (x0, z0, x, z, y, r) => {
+      let hit = null;
+      for (let pass = 0; pass < 3; pass++) {   // a corner touches two faces: resolve them in turn
+        let deepest = null;
+        const seen = new Set();
+        for (let cx = Math.floor((Math.min(x0, x) - r) / CELL); cx <= Math.floor((Math.max(x0, x) + r) / CELL); cx++)
+          for (let cz = Math.floor((Math.min(z0, z) - r) / CELL); cz <= Math.floor((Math.max(z0, z) + r) / CELL); cz++)
+            for (const t of wallGrid.get(cx * 65536 + cz) || []) {
+              if (seen.has(t)) continue;
+              seen.add(t);
+              const a = walls[t][0], [nx, ny, nz, e1, e2] = wallN[t], h = Math.hypot(nx, nz);
+              if (h < 1e-6) continue;
+              for (const lift of [0.6, 2]) {
+                const p = [x - a[0], y + lift - a[1], z - a[2]];
+                const d = p[0] * nx + p[1] * ny + p[2] * nz, d0 = (x0 - a[0]) * nx + (y + lift - a[1]) * ny + (z0 - a[2]) * nz;
+                const side = d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
+                if (depth <= 1e-4 || side * d < -1.6) continue;
+                // centre projected inside the triangle (barycentric)
+                const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
+                const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];
+                const d22 = e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2];
+                const q1 = q[0] * e1[0] + q[1] * e1[1] + q[2] * e1[2], q2 = q[0] * e2[0] + q[1] * e2[1] + q[2] * e2[2];
+                const den = d11 * d22 - d12 * d12;
+                if (Math.abs(den) < 1e-9) continue;
+                const u = (d22 * q1 - d12 * q2) / den, v = (d11 * q2 - d12 * q1) / den;
+                if (u < 0 || v < 0 || u + v > 1) continue;
+                if (!deepest || depth > deepest.depth) deepest = { depth: depth / h, nx: side * nx / h, nz: side * nz / h };
+              }
+            }
+        if (!deepest) break;
+        x += deepest.nx * deepest.depth; z += deepest.nz * deepest.depth;
+        hit = { x, z, nx: deepest.nx, nz: deepest.nz };
+      }
+      return hit;
+    };
     if (this.arena) return;
     const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
     for (let i = 0; i < this.n; i++) {
