@@ -37,7 +37,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | moles (`render_object_moles`) | — |
 | Toad's Turnpike | box trucks, school buses, tanker trucks, cars | — |
 | Kalimari Desert | cacti (44, three kinds) | **done** |
-| | train (engine, tender, carriages) and its smoke, railroad crossings ×4 | — |
+| | train (engine, tender, carriages), railroad crossings ×4 | **done** (tools/extract-train.py, src/train.js) |
+| | the locomotive's smoke | — |
 | Sherbet Land | emperor penguin, swimming / sliding penguins, see-through ice | **done** (src/penguins.js) |
 | Rainbow Road | neon signs (`render_object_neon`), Chain Chomps | — |
 | Wario Stadium | Wario signs (`ACTOR_WARIO_SIGN` ×3) | **done** (src/props.js) |
@@ -117,3 +118,24 @@ the course data segment (vertex arrays and textures verified byte-for-byte), plu
 - EXTRA: the 3D egg is flipped back in its own x and turns the other way.
 Assumption: the port's chase camera rides higher than the console's, so a camera over 30 above its floor takes its
 kart's section. Not ported yet: the egg's ground shadow (D_0D007B20), kart collisions and the hop when hit (flag 0x400).
+## Kalimari Desert trains and railroad crossings (done)
+tools/extract-train.py walks the train and crossing display lists with the tools/extract-props.py walker (vertex arrays
+and RGBA16 textures verified byte-for-byte; the `G_RM_AA_ZB_XLU_DECAL` re-draw of each wheel is skipped, it only
+blends edges), verifies `d_course_kalimari_desert_train_path` (75 points) and runs `generate_2d_path` on it with the
+console's single-precision steps: 465 points, the count the decomp's comment gives. src/train.js:
+- `init_vehicles_trains`: two trains from 2D point (i × 465 / 2 + 160) % 465, five passenger cars 4 points apart, the
+  tender 3 on, the locomotive 4 on, at the floor height under the first point (D_80162EB0); 1P runs every car, 2P
+  outside Grand Prix the tender and car 4, otherwise the locomotive alone;
+- `update_vehicle_trains` (once a frame = every other 60 Hz tick): `update_vehicle_following_path` heads 5 units at
+  the mean of points + 3 / + 4 past the nearest one, the car turned to its motion; wheels turn - DEGREES(9) a tick
+  (tender 7);
+- `render_actor_train_*`: three levels of detail by x/z distance (engine 350 / 800, tender and cars 500 / 1000),
+  nothing past 3000, the wheels (each pair at its own offset and phase) within 1200;
+- `func_80013054` rings crossing 0 / 1 while a locomotive is within 0.42299348 / 0.72017354 of the path (- 0.1,
+  + 0.01 + cars × 0.01); `render_actor_railroad_crossing` (4 actors from `spawn_course_actors`) shows
+  `dl_crossing_right_active` for timer 1-19 and `_left_active` for 20-40, else `_both_inactive`, within 2000;
+- sounds through the penguins' `placedSound` (func_800C98B8): crossing bell 0x19017016 at timer 1 / 20, locomotive bell
+  0x1901800E at 2D points 190 / 320, whistle 0x1901800D one frame in 100 (all 500-unit near range).
+EXTRA flips each model back in its own x and turns the crossings the other way, as the props.
+Not ported yet: the locomotive smoke (`render_object_trains_smoke_particles`), karts tumbling when hit
+(`handle_trains_interactions`) and CPU karts stopping at a rung crossing (`check_ai_crossing_distance`).

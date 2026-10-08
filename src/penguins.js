@@ -89,6 +89,30 @@ function stepTowards(v, target, step) {
   return v < target ? Math.min(target, v + step) : v > target ? Math.max(target, v - step) : v;
 }
 
+// func_800C98B8 once per screen: XZ distance d from that camera sets the volume (func_800C1480: full past `near` -
+// 400, or 500 / 666 / 1000 for sound bits & 0x30000 = 1 / 2 / 3 - silent past 2000); 1P pans by where it sits across
+// the camera (func_800C16E8), more screens pan each camera hard left / right ((cameraId & 1) * 0x7F)
+export function placedSound(audio, cams, pos, bank, id, mirror, near = 400) {
+  cams.forEach((cam, i) => {
+    const x = pos[0] - cam.position.x / NATIVE_SCALE, z = pos[2] - cam.position.z / NATIVE_SCALE;
+    const d = Math.hypot(x, z);
+    if (d > 2000) return;
+    let vol = d < near ? (near - d) / near * 0.5 + 0.5 : (1 - (d - near) / (2000 - near)) * 0.5;
+    vol *= vol;
+    let pan = (i & 1) * 0x7F;
+    if (cams.length === 1) {
+      const e = cam.matrixWorld.elements;   // camera right (column 0) and forward (-column 2) on the ground
+      const side = (x * e[0] + z * e[2]) * (mirror ? -1 : 1), ahead = -(x * e[8] + z * e[10]);
+      const ax = Math.min(Math.abs(side), 100), az = Math.min(Math.abs(ahead), 100);
+      let p = side === 0 && ahead === 0 ? 0.5 : side >= 0 && az <= ax ? 1 - (200 - ax) / (5 * (200 - az))
+        : side < 0 && az <= ax ? (200 - ax) / (5 * (200 - az)) : side / (3.3333333 * az) + 0.5;
+      p = Math.min(1, Math.max(0, p));
+      pan = Math.floor(p * 127 + 0.5);
+    }
+    audio?.playSound(bank, id, vol, pan);
+  });
+}
+
 export class Penguins {
   constructor(scene, track, audio = null) {
     this.scene = scene; this.audio = audio; this.acc = 0; this.data = null; this.mirror = !!track.mirror;
@@ -280,31 +304,10 @@ export class Penguins {
       if (o.call === 0) { o.call = Math.floor(Math.random() * 0x5A) + 0x5A; o.flags |= 0x80; } else o.call--;
     }
   }
-  // func_800C98B8 once per screen: XZ distance d from that camera sets the volume (func_800C1480, sound bits
-  // & 0x30000 = 0: 400 near, silent past 2000); 1P pans by where it sits across the camera (func_800C16E8), more
-  // screens pan each camera hard left / right ((cameraId & 1) * 0x7F)
   squawk(o, cams) {
     if (!(o.flags & 0x80)) return;
     o.flags &= ~0x80;
-    const id = o.flags & 0x10 ? 0x49 : 0x17;
-    cams.forEach((cam, i) => {
-      const x = o.pos[0] - cam.position.x / NATIVE_SCALE, z = o.pos[2] - cam.position.z / NATIVE_SCALE;
-      const d = Math.hypot(x, z);
-      if (d > 2000) return;
-      let vol = d < 400 ? (400 - d) / 400 * 0.5 + 0.5 : (1 - (d - 400) / 1600) * 0.5;
-      vol *= vol;
-      let pan = (i & 1) * 0x7F;
-      if (cams.length === 1) {
-        const e = cam.matrixWorld.elements;   // camera right (column 0) and forward (-column 2) on the ground
-        const side = (x * e[0] + z * e[2]) * (this.mirror ? -1 : 1), ahead = -(x * e[8] + z * e[10]);
-        const ax = Math.min(Math.abs(side), 100), az = Math.min(Math.abs(ahead), 100);
-        let p = side === 0 && ahead === 0 ? 0.5 : side >= 0 && az <= ax ? 1 - (200 - ax) / (5 * (200 - az))
-          : side < 0 && az <= ax ? (200 - ax) / (5 * (200 - az)) : side / (3.3333333 * az) + 0.5;
-        p = Math.min(1, Math.max(0, p));
-        pan = Math.floor(p * 127 + 0.5);
-      }
-      this.audio?.playSound(1, id, vol, pan);
-    });
+    placedSound(this.audio, cams, o.pos, 1, o.flags & 0x10 ? 0x49 : 0x17, this.mirror);
   }
   // func_80089820 (penguin 0 has no 0x200 flag, so only 1-14): a kart within the boxes (has_collided_horizontally_
   // with_player) and not under a boo is bonked, or under a star sets 0x02000000, which starts a spin unless one runs

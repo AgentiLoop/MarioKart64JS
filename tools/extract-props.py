@@ -61,8 +61,9 @@ def s8(v):
     return v - 256 if v > 127 else v
 
 
-def convert(source, rom, course_id, course_json):
-    spawn, kinds, drawing, initial = COURSES[course_id]
+def convert(source, rom, course_id, course_json, config=None):
+    """config: (spawn, kinds, drawing, initial) like COURSES (spawn None = models only); returns (out, images)."""
+    spawn, kinds, drawing, initial = config or COURSES[course_id]
     data_c = (source / f'courses/{course_id}/course_data.c').read_text()
     tex_meta = json.loads((source / f'assets/courses/{course_id}.json').read_text())
     block_offset = course_json['provenance']['pathBlockRomOffset']
@@ -111,7 +112,8 @@ def convert(source, rom, course_id, course_json):
             elif command == 'gsDPSetCombineMode':
                 state['combine'] = a[0]
             elif command == 'gsDPSetRenderMode':
-                state['mode'] = 'edge' if 'TEX_EDGE' in a[0] else 'xlu' if 'XLU' in a[0] else 'opaque'
+                state['mode'] = ('edge' if 'TEX_EDGE' in a[0] else 'decal' if 'XLU_DECAL' in a[0]
+                                 else 'xlu' if 'XLU' in a[0] else 'opaque')
             elif command in ('gsSPSetGeometryMode', 'gsSPClearGeometryMode'):
                 if 'G_CULL_BACK' in args:
                     state['cull'] = command == 'gsSPSetGeometryMode'
@@ -134,6 +136,8 @@ def convert(source, rom, course_id, course_json):
                 for i in range(count):
                     cache[start + i] = rows[i]
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
+                if state['mode'] == 'decal':   # XLU_DECAL re-draw of the same triangles: only blends their AA edges
+                    continue
                 textured = state['enabled'] and state['combine'] != 'G_CC_SHADE'
                 key = (state['texture'] if textured else None, state['tileW'], state['tileH'], state['wrapS'],
                        state['wrapT'], state['mode'], state['cull'], state['lit'] and state['light'])
@@ -147,8 +151,10 @@ def convert(source, rom, course_id, course_json):
                     parts.append(part)
                 for j in range(0, len(a), 4):
                     parts[-1]['triangles'].append([shade(cache[int(v, 0)], key[7]) for v in a[j:j + 3]])
+            elif command == 'gsDPSetTextureLUT' and a[0] != 'G_TT_NONE':
+                raise ValueError(f'{name}: unsupported {command}({a[0]})')
             elif command not in ('gsDPPipeSync', 'gsDPTileSync', 'gsDPLoadSync', 'gsDPLoadBlock', 'gsDPSetTile',
-                                 'gsSPEndDisplayList'):
+                                 'gsDPSetTextureLUT', 'gsSPEndDisplayList'):
                 raise ValueError(f'{name}: unsupported display-list command {command}')
 
     def shade(v, light):
@@ -174,6 +180,9 @@ def convert(source, rom, course_id, course_json):
             del p['key']
         models[str(some_id)] = dict(lists=[dl for dl, _ in dls], parts=parts)
     out = dict(romSha1=karts.US_SHA1, courseDataRomOffset=block_offset, **drawing, models=models)
+    if spawn is None:
+        out['actors'] = []
+        return out, images
     if isinstance(spawn, list):
         out['source'] = 'spawn_course_actors (src/racing/actors.c)'
         rows = spawn

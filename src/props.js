@@ -24,6 +24,40 @@ function cull(renderer, scene, camera) {
   }
 }
 
+// One { geometry, material } per part of an extracted model (tools/extract-props.py); textures caches the maps.
+export function partMeshes(model, dir, textures, doubleSided = false) {
+  const color = new THREE.Color();
+  return model.parts.map(part => {
+    const pos = [], col = [], uv = [];
+    for (const tri of part.triangles) for (const [x, y, z, s, t, r, g, b] of tri) {
+      pos.push(x, y, z);
+      color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);   // vertex / F3DEX shade
+      col.push(color.r, color.g, color.b);
+      if (part.image) uv.push(s / 32 / part.width, t / 32 / part.height);   // S10.5 texels, PNG rows top-down
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    let map = null;
+    if (part.image) {
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      const key = `${part.image}/${part.wrapS}/${part.wrapT}`;
+      map = textures[key];
+      if (!map) {
+        map = textures[key] = HD.loadTexture(`${dir}/${part.image}`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.flipY = false;
+        const wrap = { repeat: THREE.RepeatWrapping, mirror: THREE.MirroredRepeatWrapping, clamp: THREE.ClampToEdgeWrapping };
+        map.wrapS = wrap[part.wrapS]; map.wrapT = wrap[part.wrapT];
+      }
+    }
+    // texel x shade; G_RM_AA_ZB_TEX_EDGE alpha-tests the texel (vertex alpha unused: OPA_SURF or ..DECALA)
+    const material = new THREE.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, fog: false,
+      alphaTest: part.alphaTest ? 0.5 : 0, side: part.doubleSided || doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+    return { geometry, material };
+  });
+}
+
 export class Props {
   constructor(scene, def, { mirror = false } = {}) {
     this.group = new THREE.Group();
@@ -40,38 +74,10 @@ export class Props {
 
   _build(data, dir) {
     this.data = data;
-    const S = NATIVE_SCALE, color = new THREE.Color(), textures = {}, models = {};
+    const S = NATIVE_SCALE, textures = {}, models = {};
     for (const [id, model] of Object.entries(data.models)) {
       const turned = data.kind === 'billboard' && !data.static?.includes(Number(id));
-      models[id] = { turned, parts: model.parts.map(part => {
-        const pos = [], col = [], uv = [];
-        for (const tri of part.triangles) for (const [x, y, z, s, t, r, g, b] of tri) {
-          pos.push(x, y, z);
-          color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);   // vertex / F3DEX shade
-          col.push(color.r, color.g, color.b);
-          if (part.image) uv.push(s / 32 / part.width, t / 32 / part.height);   // S10.5 texels, PNG rows top-down
-        }
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-        let map = null;
-        if (part.image) {
-          geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-          const key = `${part.image}/${part.wrapS}/${part.wrapT}`;
-          map = textures[key];
-          if (!map) {
-            map = textures[key] = HD.loadTexture(`${dir}/${part.image}`);
-            map.colorSpace = THREE.SRGBColorSpace;
-            map.flipY = false;
-            const wrap = { repeat: THREE.RepeatWrapping, mirror: THREE.MirroredRepeatWrapping, clamp: THREE.ClampToEdgeWrapping };
-            map.wrapS = wrap[part.wrapS]; map.wrapT = wrap[part.wrapT];
-          }
-        }
-        // texel x shade; G_RM_AA_ZB_TEX_EDGE alpha-tests the texel (vertex alpha unused: OPA_SURF or ..DECALA)
-        const material = new THREE.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, fog: false,
-          alphaTest: part.alphaTest ? 0.5 : 0, side: part.doubleSided || turned ? THREE.DoubleSide : THREE.FrontSide });
-        return { geometry, material };
-      }) };
+      models[id] = { turned, parts: partMeshes(model, dir, textures, turned) };
     }
     const max = data.maxDistance * S;
     for (const { model, pos: [x, y, z] } of data.actors) {

@@ -12,6 +12,7 @@ import { Penguins } from './penguins.js';
 import { Foliage } from './foliage.js';
 import { Props } from './props.js';
 import { PiranhaPlants } from './piranha.js';
+import { Train } from './train.js';
 import { YoshiEgg } from './yoshi-egg.js';
 
 const LAPS = 3;
@@ -263,6 +264,7 @@ const cows = trackDef?.dir === 'moo-moo-farm' ? new Foliage(scene, track, trackD
 const props = track.arena ? null : new Props(scene, trackDef || TRACKS[0], { mirror });   // palm trees, spinning signs, DK trees
 const piranha = ['mario', 'royal'].includes(trackDef?.id) ? new PiranhaPlants(scene, trackDef) : null;   // spawn_piranha_plants
 const yoshiEgg = trackDef?.id === 'yoshi' ? new YoshiEgg(scene, trackDef, { mirror }) : null;   // ACTOR_YOSHI_EGG
+const train = trackDef?.id === 'kalimari' ? new Train(scene, track, trackDef, { mirror, audio, gp: raceMode === 'mario_gp' }) : null;   // trains + railroad crossings
 // his cloud's hum while he fishes a kart out or shows the reverse sign: 0x0100FA28 = SOUND_ARG_LOAD(0x01, 0x00, 0xFA, 0x28), bank 0
 lakitu.onHum = on => on ? audio.playSound(0, 0x28) : audio.stopSound(0, 0x28);
 // Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
@@ -1198,6 +1200,7 @@ function setViews(list) {
   lakitu.setViews(views);
   foliage?.setScreens(views.length);
   cows?.setScreens(views.length);
+  train?.setScreens(views.length);
 }
 // Viewport rects as fractions of the frame (x, y from the top-left, w, h).
 function viewRects(n) {
@@ -1415,11 +1418,12 @@ function frame(now) {
   props?.update(dt);
   piranha?.update(dt, views.map(v => v.cam));
   yoshiEgg?.update(dt, views.map(v => v.cam));
+  train?.update(dt, views.map(v => v.cam));
   exhaust.update(dt, karts, camera);
   drawMini();
   renderViews();
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, train, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
   get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };
