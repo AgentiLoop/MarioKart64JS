@@ -204,7 +204,7 @@ export class Track {
     this.pos = []; this.T = []; this.U = []; this.R = []; this.kU = [];
     this._build();
     this.group = new THREE.Group();
-    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); }
+    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); this._cpuSections(); }
     else this._buildMeshes();
   }
 
@@ -329,6 +329,34 @@ export class Track {
     // a wall is only as open as its narrowest neighbour (no slipping through single-sample gaps)
     const tighten = b => b.map((_, i) => Math.min(...[-2, -1, 0, 1, 2].map(k => b[(i + k + this.n) % this.n])));
     this.wallL = tighten(raw[-1]); this.wallR = tighten(raw[1]);
+  }
+
+  // analyze_track_sections / analyze_curved_path (cpu_vehicles_camera_path/path_calc.inc.c): a path point is a curve
+  // when calculate_track_curvature (cross of the chords 0 -> mid(1,2) and 3 -> mid(4,5), over their lengths) passes
+  // +-0.1; every straight point before a curve becomes LEANING_CURVE (gTrackConsecutiveCurveCounts > 0, are_in_curve).
+  // cpuStraight[sample] marks those points, where CPUs take cpu_CurveTargetSpeed.
+  _cpuSections() {
+    const p = this.def.native.path, N = p.length;
+    const chord = i => { const a = p[i % N], b = p[(i + 1) % N], c = p[(i + 2) % N]; return [(b[0] + c[0]) / 2 - a[0], (b[2] + c[2]) / 2 - a[2]]; };
+    const type = [];   // 0 STRAIGHT, 1 RIGHT/LEFT_CURVE, 2 *_LEANING_CURVE
+    for (let i = 0; i < N; i++) {
+      const [ax, az] = chord(i), [bx, bz] = chord(i + 3);
+      const k = -(az * bx - ax * bz) / (Math.hypot(bx, bz) * Math.hypot(ax, az));
+      type.push(Math.abs(k) > 0.1 ? 1 : 0);
+    }
+    for (let i = 0; i < N; i++) {
+      if (type[i] !== 0) continue;
+      for (let j = 1; j < N; j++) if (type[(i + j) % N]) { for (let k = 0; k < j; k++) type[(i + k) % N] = 2; i += j; break; }
+    }
+    // nearest path point to each sample; control point i sits at curve parameter i / N
+    const lengths = this.curve.getLengths(N * 8), L = lengths[lengths.length - 1];
+    this.cpuStraight = new Uint8Array(this.n);
+    for (let m = 0, i = 0; m < this.n; m++) {
+      const s = m * this.ds * L / this.length;
+      while (i < N && lengths[(i + 1) * 8] <= s) i++;
+      const near = i + 1 < N && lengths[(i + 1) * 8] - s < s - lengths[i * 8] ? i + 1 : i;
+      this.cpuStraight[m] = type[near % N] === 2 ? 1 : 0;
+    }
   }
 
   _build() {

@@ -170,7 +170,7 @@ function setup(count = 8) {   // count: karts on the grid (8 for 1P; 2-4 when an
     const [d, back] = slots[i];
     const k = new Kart(track, {
       color: PALETTE[ci], s: track.length - back, d, isPlayer: c === playerChar,
-      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(cc, c),
+      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(cc, c), cc,
     });
     k.aiOffset = d * 0.8;
     k.prevS = k.s; k.crossings = 0;
@@ -693,7 +693,7 @@ function setupOnline() {
     const c = chars.get(p.id), ci = characters.indexOf(c);
     const [d, back] = slots[i];
     const mine = p.id === net.myId;
-    const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c, speedScale: ccSpeedScale(cc, c) });
+    const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c, speedScale: ccSpeedScale(cc, c), cc });
     k.netId = p.id; k.remote = !mine; k.poses = [];
     k.prevS = k.s; k.crossings = 0;
     scene.add(k.mesh); karts.push(k);
