@@ -179,7 +179,7 @@ function updateClouds(vw, vh) {
 }
 window.__clouds = clouds && { set: cloudSet, get yaw() { return cameraYaw; }, mesh: clouds };
 
-const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]));
+const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]), { mirror });
 scene.add(track.group);
 
 const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf4cd30, 0xe78d32];

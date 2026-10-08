@@ -225,9 +225,59 @@ function noise(ctx, w, h, n, alpha) {
   }
 }
 
+// EXTRA mirrors the frame in the camera, which leaves lettering and logos on course signs backwards. A flat
+// sign is reflected in its own plane (left-right about its centre, so both halves of a two-part sign trade
+// places) and the camera's flip reads it right again; a curved or bent one (the Luigi Raceway balloon, the
+// Wario Stadium and Toad's Turnpike wall bands) keeps its shape and mirrors its texture instead (u -> 1 - u).
+// Arrows, lane diagrams and plain sign backs stay mirrored so they still match the mirrored course.
+// Returns Map<batch index, Map<first index of triangle, { p: reflected corners } | { flipU: true }>>.
+const UNMIRROR_SIGN = /Sign|Number|Stainglass/, KEEP_MIRRORED = /Arrow|MergingLanes|FallingRocks|Backside|WoodenBack/;
+function unmirroredSigns(course) {
+  const tris = [], byVertex = new Map(), parent = [];
+  const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  course.batches.forEach((batch, b) => {
+    if (!batch.texture || !UNMIRROR_SIGN.test(batch.texture) || KEEP_MIRRORED.test(batch.texture)) return;
+    for (let k = 0; k < batch.indices.length; k += 3) {
+      const vs = [0, 1, 2].map(j => course.vertices[batch.indices[k + j]]);
+      const p = vs.map(v => new THREE.Vector3(v[0], v[1], v[2]));
+      const n = new THREE.Vector3().subVectors(p[1], p[0]).cross(new THREE.Vector3().subVectors(p[2], p[0]));
+      if (n.lengthSq() === 0) continue;
+      const t = tris.length;
+      tris.push({ b, k, p, vs, area: n.length(), n: n.normalize() }); parent.push(t);
+      for (const v of vs) {   // one sign = sign triangles sharing a corner (both halves of a two-part sign)
+        const key = `${v[0]},${v[1]},${v[2]}`, list = byVertex.get(key) ?? [];
+        for (const o of list) if (Math.abs(tris[o].n.dot(tris[t].n)) > 0.9) parent[find(o)] = find(t);
+        list.push(t); byVertex.set(key, list);
+      }
+    }
+  });
+  const signs = new Map();
+  tris.forEach((tri, t) => { const r = find(t); signs.set(r, [...(signs.get(r) ?? []), tri]); });
+  const out = new Map();
+  const set = (tri, v) => { if (!out.has(tri.b)) out.set(tri.b, new Map()); out.get(tri.b).set(tri.k, v); };
+  for (const sign of signs.values()) {
+    const n = sign[0].n;
+    if (sign.some(tri => Math.abs(tri.n.dot(n)) < 0.98)) { for (const tri of sign) set(tri, { flipU: true }); continue; }
+    // texture axes in the sign's plane (largest triangle): h = dP/ds runs along the lettering, k = dP/dt across it
+    const { p, vs } = sign.reduce((a, tri) => tri.area > a.area ? tri : a);
+    const e1 = p[1].clone().sub(p[0]), e2 = p[2].clone().sub(p[0]);
+    const ds1 = vs[1][3] - vs[0][3], dt1 = vs[1][4] - vs[0][4], ds2 = vs[2][3] - vs[0][3], dt2 = vs[2][4] - vs[0][4];
+    const det = ds1 * dt2 - ds2 * dt1;
+    if (det === 0) continue;
+    const h = e1.clone().multiplyScalar(dt2).addScaledVector(e2, -dt1).divideScalar(det);
+    const k = e2.clone().multiplyScalar(ds1).addScaledVector(e1, -ds2).divideScalar(det);
+    // reflect along h, keeping lines parallel to k: maps the sign's (possibly skewed) outline onto itself
+    const hk = new THREE.Vector3().crossVectors(h, k).dot(n), along = q => new THREE.Vector3().crossVectors(q, k).dot(n) / hk;
+    let lo = Infinity, hi = -Infinity;
+    for (const tri of sign) for (const q of tri.p) { const a = along(q); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+    for (const tri of sign) set(tri, { p: tri.p.map(q => q.clone().addScaledVector(h, lo + hi - 2 * along(q))) });
+  }
+  return out;
+}
+
 export class Track {
-  constructor(def = TRACKS[0]) {
-    this.def = def; this.theme = def.theme;
+  constructor(def = TRACKS[0], { mirror = false } = {}) {
+    this.def = def; this.theme = def.theme; this.mirror = mirror;
     if (def.battle) {   // arena: no route, karts roam the collision mesh freely (src/kart.js free mode)
       this.arena = true; this.length = 0; this.n = 0; this.pos = []; this.boostPads = [];
       this.group = new THREE.Group();
@@ -537,15 +587,21 @@ export class Track {
     const color = new THREE.Color();
     this.boostPads = [];
     this.textures = [];
-    for (const batch of course.batches) {
-      const positions = [], colors = [], uvs = [];
+    const signs = this.mirror ? unmirroredSigns(course) : new Map();
+    course.batches.forEach((batch, bi) => {
+      const positions = [], colors = [], uvs = [], flipped = signs.get(bi);
       const [u0, v0] = batch.tileOrigin ?? [0, 0];   // gsDPSetTileSize upper-left, in texels
-      for (const index of batch.indices) {
-        const [x, y, z, s, t, r, g, b] = course.vertices[index];
-        positions.push(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
-        color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
-        colors.push(color.r, color.g, color.b);
-        uvs.push((s / 32 - u0) / batch.width, (t / 32 - v0) / batch.height);   // S10.5 texels; PNG rows stay top-down
+      for (let k = 0; k < batch.indices.length; k += 3) {
+        const sign = flipped?.get(k), p = sign?.p;
+        for (const j of p ? [0, 2, 1] : [0, 1, 2]) {   // reflected sign: put the winding back
+          const [x, y, z, s, t, r, g, b] = course.vertices[batch.indices[k + j]];
+          if (p) positions.push(p[j].x * NATIVE_SCALE, p[j].y * NATIVE_SCALE, p[j].z * NATIVE_SCALE);
+          else positions.push(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
+          color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
+          colors.push(color.r, color.g, color.b);
+          const u = (s / 32 - u0) / batch.width;   // S10.5 texels; PNG rows stay top-down
+          uvs.push(sign?.flipU ? 1 - u : u, (t / 32 - v0) / batch.height);
+        }
       }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -571,7 +627,7 @@ export class Track {
       if (batch.translucent) mesh.renderOrder = 1;
       mesh.name = batch.texture || 'shade';
       this.group.add(mesh);
-    }
+    });
   }
 
   _buildMeshes() {
