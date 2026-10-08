@@ -723,12 +723,15 @@ function sendPose() {
   const k = player;
   if (battle) {   // arena: world position and heading; balloons left and out ride along (the victim decides hits)
     net.send({ t: 'p', x: k.x, z: k.z, h: k.h, v: k.v, y: k.y, air: k.air ? 1 : 0, dr: k.drift, b: k.boost, sp: k.spin,
-      sv: k.steerVis, bl: k.balloons, o: k.out ? 1 : 0, r: k.rescue > 0 ? 1 : 0 }, false);
+      sv: k.steerVis, bl: k.balloons, o: k.out ? 1 : 0, r: k.rescue > 0 ? 1 : 0, ...tumblePose(k) }, false);
     return;
   }
   net.send({ t: 'p', s: k.s, d: k.d, psi: k.psi, v: k.v, y: k.world.y, air: k.air ? 1 : 0,
-    dr: k.drift, b: k.boost, sp: k.spin, sv: k.steerVis, c: k.crossings, f: k.finished ? k.finishTime : -1 }, false);
+    dr: k.drift, b: k.boost, sp: k.spin, sv: k.steerVis, c: k.crossings, f: k.finished ? k.finishTime : -1, ...tumblePose(k) }, false);
 }
+// an item-hit tumble rides along as its gKartTextureTumbles frame (unk_0A8 >> 8) and hop height, so the puppet shows it
+const tumblePose = k => k.tumble ? { tu: k.tumble.a8, tl: k.tumble.lift } : {};
+const puppetTumble = (k, src) => { k.tumble = src.tu != null ? { a8: src.tu, lift: src.tl } : null; };
 function puppetStepArena(k, now) {
   const P = k.poses;
   if (!P.length) return;
@@ -749,6 +752,7 @@ function puppetStepArena(k, now) {
   k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 / 60) : 0; k.steerVis = src.sv;
   k.balloons = src.bl; k.out = !!src.o; k.rescue = src.r ? 1 : 0;
   k.air = !!src.air;
+  puppetTumble(k, src);
   k.syncFree(0);
   k.y = y; k.world.y = y; k.mesh.position.y = y;   // the owner's height is the truth (falls, rescue)
 }
@@ -773,6 +777,7 @@ function puppetStep(k, now) {
   k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 / 60) : 0; k.steerVis = src.sv;
   k.crossings = src.c;
   if (src.f >= 0 && !k.finished) { k.finished = true; k.finishTime = src.f; finishOrder.push(k); }
+  puppetTumble(k, src);
   k.syncMesh(0);
   if (src.air) { k.world.y = y; k.mesh.position.y = y; }
 }
