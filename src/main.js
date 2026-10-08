@@ -854,12 +854,14 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') location.search = '';
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
-  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) useItem();
+  // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => {
   keys[e.code] = false;
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') releaseItem();
+  if (e.code === 'KeyQ') releaseItem(80);   // N64 rawStickY at full tilt up
 });
 // gamepad: A/RT gas, B/LT brake, LB/RB drift, X/Y item, Start restart, stick or d-pad steers
 let padItemHeld = false, padStartHeld = false;
