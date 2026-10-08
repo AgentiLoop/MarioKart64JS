@@ -16,7 +16,15 @@ export class AudioSys {
     if (!C) return null;
     const ctx = this.ctx = new C();
     this.master = ctx.createGain(); this.master.gain.value = 0.25; this.master.connect(ctx.destination);
+    this.setSoundMode(this.soundMode);
     return ctx;
+  }
+  // OPTION > SOUND MODE (gSoundMode): 0 STEREO, 1 HEADPHONES, 2 MONO, saved like the console's save data.
+  // MONO downmixes everything at the output; HEADPHONES plays like STEREO (the ROM's headset pan tables aren't ported).
+  get soundMode() { return Number(globalThis.localStorage?.getItem('mk64sound')) || 0; }
+  setSoundMode(m) {
+    localStorage.setItem('mk64sound', m);
+    if (this.ctx) this.ctx.destination.channelCount = m === 2 ? 1 : Math.min(2, this.ctx.destination.maxChannelCount || 2);
   }
   // ROM sample from tools/extract-sounds.py, played once the browser allows audio (first gesture if autoplay is blocked)
   playSample(name, hits) {
