@@ -17,6 +17,16 @@ const BOX_SCALE = 0.25, BOX_HOVER = 8.66 * BOX_SCALE, DEG = Math.PI / 180, FPS =
 // sounds (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id)): func_8007ABFC 0x19008406 box hit,
 // func_8007B254 0x0100FE1C roulette loop, func_8007B34C state 6 0x0100FE47 item decided
 const SND_BOX = [1, 0x06], SND_ROULETTE = [0, 0x1c], SND_DECIDED = [0, 0x47];
+// item sounds: 0x19008012 item pulled out / dropped, 0x19008004 shell fired, 0x19019053 held item knocked away,
+// 0x19018010 crash (shell / star hit), 0x1900A40B mushroom (trigger_shroom), 0x1900F013 + SOUND_ITEM_THUNDERBOLT
+// 0x5101C00C lightning (looped until nobody is shrunk, func_800C8920), SOUND_ITEM_STAR 0x31029008 (until the star ends)
+const SND_DROP = [1, 0x12], SND_FIRE = [1, 0x04], SND_KNOCK = [1, 0x53], SND_CRASH = [1, 0x10], SND_SHROOM = [1, 0x0b],
+  SND_THUNDER = [1, 0x13], SND_THUNDER_LOOP = [5, 0x0c], SND_STAR = [3, 0x08];
+// driver voices, bank 2, characterId * 0x10 + n: 0 throw, 1 boost, 3 spun out (add_spinout_effect), 6 laugh at a victim
+const CHAR_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
+const V_THROW = 0, V_BOOST = 1, V_SPUN = 3, V_LAUGH = 6;
+// held on Z (use_banana_item / use_*_shell_item / use_fake_itembox_item HELD_* states) and let go on release
+const HOLD = new Set(['banana', 'fake_item_box', 'green_shell', 'red_shell', 'blue_shell']);
 // gen_random_item curves (common_data 0x8150.. , 100 entries per rank, read from the US ROM) as [item id, count] pairs
 const CURVES = {
   human: [[1, 30, 2, 5, 3, 30, 4, 5, 5, 5, 9, 10, 11, 5, 12, 10], [2, 5, 3, 5, 4, 10, 5, 15, 6, 20, 8, 5, 9, 5, 10, 5, 11, 5, 12, 5, 14, 15, 15, 5], [4, 10, 5, 20, 6, 20, 8, 5, 10, 10, 12, 5, 14, 20, 15, 10], [5, 15, 6, 20, 7, 5, 8, 10, 10, 15, 12, 5, 14, 20, 15, 10], [5, 10, 6, 20, 7, 5, 8, 10, 10, 15, 12, 5, 14, 25, 15, 10], [6, 20, 7, 10, 8, 15, 10, 20, 14, 25, 15, 10], [6, 20, 7, 10, 8, 20, 10, 30, 14, 10, 15, 10], [6, 20, 7, 15, 8, 20, 10, 30, 14, 5, 15, 10]],
@@ -176,6 +186,7 @@ export class Items {
     this.hazards = []; this.shots = []; this.debris = [];
     for (const b of this.boxes) { b.cd = 0; b.mesh.visible = true; }
     this.audio.stopSound(...SND_ROULETTE);
+    this.audio.stopSound(...SND_THUNDER_LOOP); this.audio.stopSound(...SND_STAR); this.thunder = false;
   }
 
   makeMesh(kind) {
@@ -296,16 +307,53 @@ export class Items {
     const w = kart.win;
     // Z after the first 50 frames stops the roulette early (unk_04C / unk_0D6 == 1 -> state 6)
     if (w && w.state >= 2 && w.state <= 5) { if (w.skip === 0) { w.init = false; w.state = 6; } return null; }
-    if (kart.trail) { const kind = kart.trail.kind; this.fire(kart, kind, karts); return kind; }
+    if (kart.trail) {
+      if (kart.trail.held) return null;   // let go with release()
+      const kind = kart.trail.kind; this.fire(kart, kind, karts); return kind;
+    }
     const item = kart.item;
     if (!item) return null;
     // func_8007B34C: triple -> double -> mushroom; the super mushroom stays for goldenMushroomTimer after its first use
     kart.item = { triple_mushroom: 'double_mushroom', double_mushroom: 'mushroom', super_mushroom: 'super_mushroom' }[item] || null;
     if (item === 'super_mushroom' && !(kart.gold > 0)) kart.gold = GOLD_TIME;
     this.showItem(kart);
+    // player_use_item: a banana, fake item box or single shell comes out behind the kart and is dragged until Z is let go
+    if (kart.isPlayer && HOLD.has(item)) {
+      kart.trail = { kind: item, meshes: [this.makeMesh(item)], t: 0, held: true, acc: 0 };
+      this.trails.add(kart);
+      return null;
+    }
     const shot = MUSHROOMS.has(item) ? 'mushroom' : item;
     this.fire(kart, shot, karts);
     return shot;
+  }
+
+  // Z let go with a held item (stickY is the N64 rawStickY, up positive). A banana is dropped with a hop
+  // (velocity y 1.5) or, stick up (> 30, |x| < 10), thrown ahead at 0.75 x speed + 3.5 + (y - 30) / 20 + 0.5 and
+  // that much upward; a fake item box is set down; a green shell goes backwards with the stick down (< -0x2D),
+  // otherwise shells swing round from behind to the front (RELEASED_SHELL, 20 degrees a frame, red / blue 10) and fire.
+  // Returns what was let go (sent online), or null.
+  release(kart, karts = [], stickY = 0) {
+    const t = kart.trail;
+    if (!t || !t.held || t.swing !== undefined) return null;
+    const kind = t.kind, p = t.meshes[0] && t.meshes[0].userData.p;
+    if (kind.endsWith('shell')) {
+      if (kind === 'green_shell' && stickY < -0x2d) { this.clearTrail(kart); this.launch(kart, kind, karts, true); }
+      else { t.swing = 170; t.side = kart.steerVis < 0 ? -1 : 1; }
+      return kind;
+    }
+    this.clearTrail(kart);
+    const at = p || this.spot(kart, -3.2);
+    if (kind === 'fake_item_box') { this.drop(kart, kind, at); return kind; }
+    const u = (kart.top || 60) / 5.885 / FPS;   // our units per MK64 unit a frame
+    let vs = 0, vh = 1.5;
+    if (stickY > 30) {
+      vh = (stickY - 30) / 20 + 0.5;
+      const speed = Math.abs(kart.v) / u / FPS;
+      vs = (speed < 2 ? 4 : speed * 0.75 + 3.5 + vh) * u;
+    }
+    this.drop(kart, kind, at, { vs, vh, alt: 0, h: kart.h });
+    return kind;
   }
 
   fire(kart, kind, karts = []) {
@@ -314,35 +362,62 @@ export class Items {
       this.clearTrail(kart);
       kart.trail = { kind: trail[0], meshes: Array.from({ length: trail[1] }, () => this.makeMesh(trail[0])), t: 0 };
       this.trails.add(kart);
-      this.audio.sfx('drop');
+      this.snd(kart, SND_DROP);
       return;
     }
     if (kart.trail && kart.trail.kind === kind) this.popTrail(kart);
     switch (kind) {
-      case 'mushroom': kart.boost = Math.max(kart.boost, 1.8); kart.v += 6; this.audio.sfx('turbo'); break;
-      case 'banana': case 'fake_item_box': this.drop(kart, kind, this.spot(kart, -4)); break;
-      case 'green_shell': case 'red_shell': case 'blue_shell': {
-        const p = this.spot(kart, 3), mesh = this.makeMesh(kind);
-        const speed = Math.max(SHELL_MIN * (kart.top || 60), 1.2 * Math.abs(kart.v));
-        this.shots.push({ kind, ...p, h: kart.h, speed, owner: kart, safe: 0.6, mesh, ttl: kind === 'green_shell' ? 8 : 12,
-          target: kind === 'blue_shell' ? this.leader(karts, kart) : null });
-        this.audio.sfx('launch');
+      case 'mushroom':
+        kart.boost = Math.max(kart.boost, 1.8); kart.v += 6;
+        this.snd(kart, SND_SHROOM); this.voice(kart, V_BOOST);
         break;
-      }
+      case 'banana': case 'fake_item_box': this.drop(kart, kind, this.spot(kart, -4)); break;
+      case 'green_shell': case 'red_shell': case 'blue_shell': this.launch(kart, kind, karts); break;
       case 'thunder_bolt':   // use_thunder_item: every other racer is struck and shrinks
         for (const k of karts) if (k !== kart) this.strike(k);
-        this.audio.sfx('hit');
+        this.audio.playSound(...SND_THUNDER); this.audio.playSound(...SND_THUNDER_LOOP); this.thunder = true;
         break;
-      case 'star': kart.star = STAR_TIME; kart.spin = 0; this.audio.sfx('turbo'); break;
+      case 'star': kart.star = STAR_TIME; kart.spin = 0; this.snd(kart, SND_STAR); break;
       case 'boo': kart.boo = BOO_TIME; this.steal(kart, karts); break;
     }
   }
 
-  drop(kart, kind, p) {
+  // a shell leaves the kart: forwards (or backwards) at max(8, 1.2 x kart speed)
+  launch(kart, kind, karts, back = false) {
+    const p = this.spot(kart, back ? -3 : 3), mesh = this.makeMesh(kind);
+    const speed = Math.max(SHELL_MIN * (kart.top || 60), 1.2 * Math.abs(kart.v));
+    this.shots.push({ kind, ...p, h: kart.h + (back ? Math.PI : 0), dir: back ? -1 : 1, speed, owner: kart, safe: 0.6, mesh,
+      ttl: kind === 'green_shell' ? 8 : 12, target: kind === 'blue_shell' ? this.leader(karts, kart) : null });
+    this.snd(kart, SND_FIRE); this.voice(kart, V_THROW);
+  }
+
+  // toss: a released banana's flight (DROPPED_BANANA): vs along the track a frame, vh up, 0.15 less a frame down to -1
+  drop(kart, kind, p, toss = null) {
     const mesh = this.makeMesh(kind);
     this.put(mesh, p);
-    this.hazards.push({ kind, ...p, mesh, owner: kart, safe: 0.5 });
-    this.audio.sfx('drop');
+    this.hazards.push({ kind, ...p, mesh, owner: kart, safe: 0.5, ...(toss && { toss, acc: 0 }) });
+    this.snd(kart, SND_DROP);
+  }
+  // one 30 Hz step at a time until it lands (BANANA_ON_GROUND); true when it fell off the arena
+  flight(h, dt) {
+    for (h.acc += dt; h.toss && h.acc >= 1 / FPS; h.acc -= 1 / FPS) {
+      const t = h.toss;
+      if (t.vh > -1) t.vh -= 0.15;
+      t.alt += t.vh * BOX_SCALE;
+      if (this.arena) {
+        h.x += Math.sin(t.h) * t.vs; h.z += Math.cos(t.h) * t.vs;
+        const g = this.track.groundAt(h.x, h.z, h.y + t.alt) || this.track.groundBelow(h.x, h.z, h.y + t.alt + 0.5);
+        if (g) { t.alt += h.y - g.y; h.y = g.y; } else if (h.y + t.alt < this.track.fallY) return true;
+      } else h.s = (h.s + t.vs + this.track.length) % this.track.length;
+      if (t.alt <= 0 && t.vh < 0) h.toss = null;
+    }
+    return false;
+  }
+  // sounds the original only plays for a human player (func_800C9060 / func_800C90F4 by player index)
+  snd(kart, s) { if (kart && kart.isPlayer) this.audio.playSound(...s); }
+  voice(kart, n) {
+    const id = kart && kart.isPlayer && CHAR_ID[kart.mesh.userData.character];
+    if (id !== undefined && id !== false) this.audio.playSound(2, id * 0x10 + n);
   }
 
   leader(karts, owner) {
@@ -416,11 +491,15 @@ export class Items {
 
   // Online: only the player who gets hit decides it (../GoKart online_race.gd), so puppets are never hit here;
   // their spin arrives in their own pose packets.
-  hit(kart) {
+  // kind / owner: what hit it and whose it was. A banana spins its driver out (voice 3); anything else crashes
+  // (0x19018010, heard by the human in the crash); a human owner laughs at someone else's misfortune (voice 6).
+  hit(kart, kind = null, owner = null) {
     if (kart.remote || kart.spin > 0 || kart.invuln > 0 || kart.star > 0 || kart.boo > 0 || kart.out || kart.rescue > 0) return false;
     kart.spin = 1.1; kart.invuln = 2.2; kart.v *= 0.3; kart.drift = 0; kart.boost = 0;
     if (this.arena) kart.balloons = Math.max(0, kart.balloons - 1);   // battle: every hit pops a balloon
-    this.audio.sfx('hit');
+    if (kind === 'banana') this.voice(kart, V_SPUN);
+    else if (kart.isPlayer || (owner && owner.isPlayer)) this.audio.playSound(...SND_CRASH);
+    if (owner && owner !== kart) this.voice(owner, V_LAUGH);
     return true;
   }
 
@@ -526,7 +605,7 @@ export class Items {
       for (const k of karts) {
         // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item
         if (this.touch(k, b, 3)) {
-          if (k.isPlayer) { if (!k.item && !k.trail && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
+          if (k.isPlayer) { if (!k.item && (!k.trail || k.trail.held) && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
           else if (!k.item && !k.trail && !k.remote && !this.gp) { k.item = this.roll(k, karts, true); k.itemTimer = 0.8 + Math.random() * 2.2; }
           b.cd = BOX_RESPAWN; b.mesh.visible = false;
           break;
@@ -541,13 +620,15 @@ export class Items {
     }
     this.updateTrails(karts, dt);
     this.spinShells(dt);
+    if (this.thunder && !karts.some(k => k.shrink > 0)) { this.audio.stopSound(...SND_THUNDER_LOOP); this.thunder = false; }
     this.updateDebris(dt);
     // bananas and fake item boxes sit where dropped until someone runs into them
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.safe -= dt;
-      this.put(h.mesh, h);
+      if (h.toss && this.flight(h, dt)) { this.group.remove(h.mesh); this.hazards.splice(i, 1); continue; }
+      this.put(h.mesh, h, 0.05 + (h.toss ? h.toss.alt : 0));
       const k = karts.find(k => (k !== h.owner || h.safe <= 0) && this.touch(k, h, 2.2));
-      if (k && (this.hit(k) || k.star > 0 || k.remote)) { this.wreck(h.mesh, h.kind); this.hazards.splice(i, 1); }
+      if (k && (this.hit(k, h.kind, h.owner) || k.star > 0 || k.remote)) { this.wreck(h.mesh, h.kind); this.hazards.splice(i, 1); }
     }
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const o = this.shots[i]; o.ttl -= dt; o.safe -= dt;
@@ -555,9 +636,9 @@ export class Items {
       for (const k of karts) {
         if (gone || (k === o.owner && o.safe > 0) || k.out) continue;
         if (this.touch(k, o, 2.3)) {
-          if (o.kind === 'blue_shell' && k !== o.target) { this.hit(k); continue; }   // it knocks over anyone in its path
-          this.hit(k); gone = smash = true;
-          if (o.kind === 'blue_shell') for (const n of karts) if (n !== k && this.touch(n, o, 6)) this.hit(n);   // blast
+          if (o.kind === 'blue_shell' && k !== o.target) { this.hit(k, o.kind, o.owner); continue; }   // it knocks over anyone in its path
+          this.hit(k, o.kind, o.owner); gone = smash = true;
+          if (o.kind === 'blue_shell') for (const n of karts) if (n !== k && this.touch(n, o, 6)) this.hit(n, o.kind, o.owner);   // blast
         }
       }
       // shells that meet a dropped banana / fake box take each other out
@@ -579,7 +660,8 @@ export class Items {
   effects(k, karts, dt) {
     if (k.star > 0) {
       k.star -= dt; k.boost = Math.max(k.boost, 0.1);
-      for (const o of karts) if (o !== k && !(o.star > 0) && this.touch(o, k, 2.5)) this.hit(o);
+      if (k.star <= 0 && k.isPlayer) this.audio.stopSound(...SND_STAR);   // func_800CAACC
+      for (const o of karts) if (o !== k && !(o.star > 0) && this.touch(o, k, 2.5)) this.hit(o, 'star', k);
     }
     if (k.boo > 0) k.boo -= dt;
     if (k.gold > 0) { k.gold -= dt; if (k.gold <= 0 && k.item === 'super_mushroom') { k.item = null; this.showItem(k); } }
@@ -587,7 +669,7 @@ export class Items {
       k.shrink -= dt;
       k.v = Math.min(k.v, (k.top || 60) * SHRINK_SPEED);
       // squished: a full-size kart running over a shrunk one
-      for (const o of karts) if (o !== k && !(o.shrink > 0) && this.touch(o, k, 1.8)) { if (this.hit(k)) k.shrink = Math.max(k.shrink, 2); break; }
+      for (const o of karts) if (o !== k && !(o.shrink > 0) && this.touch(o, k, 1.8)) { if (this.hit(k, 'squish', o)) k.shrink = Math.max(k.shrink, 2); break; }
     }
     const size = k.shrink > 0 ? SHRINK_SIZE : 1;
     const s = k.mesh.scale.x + THREE.MathUtils.clamp(size - k.mesh.scale.x, -6 * dt, 6 * dt);
@@ -605,9 +687,16 @@ export class Items {
   updateTrails(karts, dt) {
     for (const k of this.trails) {
       const t = k.trail; t.t += dt;
+      if (t.swing !== undefined) {   // RELEASED_SHELL: round from behind to the front, then MOVING_SHELL
+        for (t.acc += dt; t.acc >= 1 / FPS && t.swing > 0; t.acc -= 1 / FPS) t.swing -= t.kind === 'green_shell' ? 20 : 10;
+        if (t.swing <= 0) { const kind = t.kind; this.clearTrail(k); this.launch(k, kind, karts); continue; }
+      }
       t.meshes.forEach((m, i) => {
         const a = t.t * 6 + i * 2 * Math.PI / 3;
-        const p = t.kind.endsWith('shell') ? this.spot(k, Math.cos(a) * 2.6, Math.sin(a) * 2.6)
+        // held: a shell sits boundingBoxSize + 6 behind, a banana / fake box ~10 MK64 units back; swinging: 8 out
+        const p = t.swing !== undefined ? this.spot(k, Math.cos(t.swing * DEG) * 2, Math.sin(t.swing * DEG) * 2 * t.side)
+          : t.held ? this.spot(k, t.kind.endsWith('shell') ? -2.75 : -3.2)
+          : t.kind.endsWith('shell') ? this.spot(k, Math.cos(a) * 2.6, Math.sin(a) * 2.6)
           : this.spot(k, -3.2 - 2.2 * i);
         m.userData.p = p;
         this.put(m, p);
@@ -615,7 +704,8 @@ export class Items {
       for (const o of karts) {
         if (o === k || o.out || !k.trail) continue;
         const i = k.trail.meshes.findIndex(m => m.userData.p && this.touch(o, m.userData.p, 2));
-        if (i >= 0 && this.hit(o)) {
+        if (i >= 0 && this.hit(o, k.trail.kind, k)) {
+          this.snd(k, SND_KNOCK);
           this.wreck(k.trail.meshes[i], k.trail.kind); k.trail.meshes.splice(i, 1);
           if (!k.trail.meshes.length) { k.trail = null; this.trails.delete(k); break; }
         }
@@ -636,7 +726,7 @@ export class Items {
         if (ds > -2 && ds < best) { best = ds; target = k; }
       }
     }
-    o.s = (o.s + o.speed * (o.kind === 'blue_shell' ? 1.4 : 1) * dt + L) % L;
+    o.s = (o.s + (o.dir || 1) * o.speed * (o.kind === 'blue_shell' ? 1.4 : 1) * dt + L) % L;
     if (target) o.d += THREE.MathUtils.clamp(target.d - o.d, -18 * dt, 18 * dt);
     o.d = THREE.MathUtils.clamp(o.d, -10, 10);
     return false;

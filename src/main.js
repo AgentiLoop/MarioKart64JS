@@ -776,8 +776,11 @@ function puppetStep(k, now) {
   k.syncMesh(0);
   if (src.air) { k.world.y = y; k.mesh.position.y = y; }
 }
-function useItem() {
-  const item = items.use(player, karts);   // what was fired: the other games replay it with items.fire
+function useItem() { sendItem(items.use(player, karts)); }
+// item button let go: a held banana / fake box / shell leaves (stick up throws a banana ahead, stick down sends a green
+// shell back; on the keyboard Down / S holds the stick down)
+function releaseItem(stickY = (keys.ArrowDown || keys.KeyS) ? -80 : 0) { if (player) sendItem(items.release(player, karts, stickY)); }
+function sendItem(item) {   // what was fired: the other games replay it with items.fire
   if (online && item) net.send(battle ? { t: 'item', item, x: player.x, z: player.z, h: player.h, y: player.y } : { t: 'item', item, s: player.s, d: player.d });
 }
 function onlineData(from, m) {
@@ -854,7 +857,10 @@ addEventListener('keydown', e => {
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') releaseItem();
+});
 // gamepad: A/RT gas, B/LT brake, LB/RB drift, X/Y item, Start restart, stick or d-pad steers
 let padItemHeld = false, padStartHeld = false;
 function pollPad() {
@@ -863,6 +869,7 @@ function pollPad() {
   const b = i => !!(pad.buttons[i] && pad.buttons[i].pressed);
   const item = b(2) || b(3), start = b(9);
   if (item && !padItemHeld && state !== 'countdown' && player) useItem();
+  if (!item && padItemHeld) releaseItem(-(pad.axes[1] || 0) * 80);   // N64 rawStickY, about +-80 at full tilt
   if (start && !padStartHeld && !online) setup();
   padItemHeld = item; padStartHeld = start;
   let sx = pad.axes[0] || 0;
