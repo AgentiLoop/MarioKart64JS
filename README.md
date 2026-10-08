@@ -7,7 +7,7 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - Title screen → GAME SELECT (1P / 2P / 3P / 4P GAME) → SELECT COURSE → PLAYER SELECT → race (Enter / click / arrows)
 - 2P–4P GAME races **online, peer-to-peer, with the console's split screen** (see [Online play](#online-play))
 - **BATTLE** on any GAME column: the four battle arenas with balloons — alone against three CPU karts, or 2–4 players online (see [Battle mode](#battle-mode))
-- Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item (Q: same, but a held banana is thrown ahead on release, like the stick held up) · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · M course menu. Gamepad supported.
+- Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item (Q: same, but a held banana is thrown ahead on release, like the stick held up) · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · J jump mode (Jumps: MK64 tick physics / Glue: stuck to the road) · M course menu. Gamepad supported.
 
 ## Screenshots
 
@@ -64,8 +64,10 @@ carrying the full HUD. Enter while waiting races the CPU instead; Esc goes back 
 
 Pick **BATTLE** on the game select screen (1P GAME has it too, which the console doesn't: this port battles three CPU
 karts), then one of the four arenas — Big Donut, Block Fort, Double Deck, Skyscraper — straight from the battle course
-select, and a driver. Every kart starts with **three balloons** on the console's start spots (`spawn_players.c`); any
-item hit pops one, and a kart with none left is out and stays where it stopped. The **last kart with balloons wins**
+select, and a driver. Every kart starts with **three balloons** on the console's start spots (`spawn_players.c`),
+drawn like the console's (`render_battle_balloon`: the ROM's balloon texture in each driver's colours, fanned out behind
+the driver, leaning with speed, bigger on the far karts; a popped one floats away). Any item hit pops one, and so does
+every fall (Lakitu lets go: `pop_player_balloon`); a kart with none left is out and stays where it stopped. The **last kart with balloons wins**
 (the banner says WINNER! / LOSER). Item boxes sit where the ROM's `item_box_spawns` put them and hand out the same
 items as the console's battle curve (`common_battle_item_curve`: bananas, shells, fake item boxes, stars, boos; red shells home on the nearest kart, green ones bounce off walls). Falling
 into Big Donut's lava, through Skyscraper's gaps or off Block Fort's edge brings you back to your start spot after a
