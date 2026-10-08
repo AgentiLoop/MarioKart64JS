@@ -94,6 +94,19 @@ const MK_FPS = MAX_SPEED / 0.1 / 9;
 const KART_GRAVITY = 2600, GRAVITY_SCALE = 0.1 * MK_FPS * MK_FPS / 6000, AIR_DRAG = MK_FPS * 0.12 * 5800 / 6000;
 // func_8002AB70: BOOST_RAMP_ASPHALT (Royal Raceway) / BOOST_RAMP_WOOD (DKJP) kartGravity and unk_DAC
 const RAMP_AIR = { asphalt: { gravity: 3500, dac: 20 }, wood: { gravity: 1800, dac: 25 } };
+// Item hit tumbles, effects.c, stepped per 60 Hz player tick (gTickSpeed 2 at 30 fps). low: green shell
+// (func_8008C528 / func_8008C62C, HIT_BY_GREEN_SHELL_EFFECT): hop D_800E3790 / jerk D_800E37B0, kartGravity 1100,
+// currentSpeed -5 a tick, frame counter unk_0A8 +0xA0 for 2 laps of 0x2000. high: red / blue shell, star
+// (trigger_high_tumble / apply_hit_by_star_effect, HIT_BY_STAR_EFFECT): hop D_800E3710 2.2 / jerk D_800E3730 0.002,
+// gravity 800, drive force halved (velocity drags out), +0x90 for 4 laps or until 4 ticks on the ground. vertical:
+// fake item box (trigger_vertical_tumble / func_8008E4A4, EXPLOSION_CRASH_EFFECT): same hop, gravity 550, the kart
+// stops dead, +0x80, 3 ground ticks. The sprite is gKartTextureTumbles[unk_0A8 >> 8] (kart frames 289-320).
+const TUMBLE = {
+  low: { hop: c => (c === 0 ? 1.2 : 1.45), jerk: 0.01, gravity: 1100, step: 0xA0, laps: 2, ground: Infinity },
+  high: { hop: () => 2.2, jerk: 0.002, gravity: 800, step: 0x90, laps: 4, ground: 4 },
+  vertical: { hop: () => 2.2, jerk: 0.002, gravity: 550, step: 0x80, laps: 4, ground: 3 },
+};
+const TICK = 1 / 60, DRAG = 0.12 * 5800 / 6000;
 
 // View tables: n64decomp/mk64 src/kart_dma.c (neutral slope group 4).
 // Angle quantization: src/player_controller.c, func_8002934C.
@@ -141,6 +154,7 @@ export function buildKartMesh(character = 'mario') {
     local.copy(cameraPosition).sub(g.position).applyQuaternion(inverse);
     // unmirrored MK64 frames show the kart's left flank (nose to screen-left), i.e. camera on local -x
     const view = kartSpriteFrame(Math.atan2(-local.x, local.z), g.userData.spinning);
+    if (g.userData.tumble != null) view.frame = 289 + g.userData.tumble;   // gKartTextureTumbles, still mirrored by view
     const column = view.frame % 21, row = Math.floor(view.frame / 21);
     map.repeat.set((view.mirrored ? -1 : 1) / 21, 1 / 16);
     map.offset.set((column + (view.mirrored ? 1 : 0)) / 21, 1 - (row + 1) / 16);
@@ -186,6 +200,43 @@ export class Kart {
   }
 
   get progress() { return this.crossings * this.track.length + this.s; }
+
+  // mode: 'low' | 'high' | 'vertical' (TUMBLE). lift is the hop height above the kart's ground in MK64 units.
+  startTumble(mode) {
+    const c = TUMBLE[mode];
+    this.spin = 0; this.spinAngle = 0; this.drift = 0; this.boost = 0;
+    this.tumble = { mode, a8: 0, laps: c.laps, ground: 0, lift: 0, vy: 0, hop: c.hop(CHARACTER_ID[this.mesh.userData.character] ?? 0),
+      acc: 0, jerk: c.jerk, t: 0 };
+  }
+
+  tumbleUpdate(dt) {
+    for (this.tumble.t += dt; this.tumble && this.tumble.t >= TICK; ) { this.tumble.t -= TICK; this.tumbleTick(); }
+  }
+
+  // one 60 Hz tick: the effect (func_8008C62C / apply_hit_by_star_effect / func_8008E4A4), then the hop
+  // (func_8002AAC0: acceleration -= jerk within +-9, velocity += acceleration up to 15, ends at 0) and kartGravity
+  // on velocity[1] with the 0.12 * kartFriction drag, both added to the height (func_8002B9CC nextY)
+  tumbleTick() {
+    const T = this.tumble, c = TUMBLE[T.mode], top = this.top || MAX_SPEED;
+    if (T.mode === 'low') {   // player_decelerate_alternative(player, 5): velocity ~ currentSpeed^2
+      const cs = Math.max(0, 320 * Math.sqrt(Math.max(0, this.v) / top) - 5);
+      this.v = top * (cs / 320) ** 2;
+    } else {
+      if (T.lift <= 0 && ++T.ground >= c.ground) { this.tumble = null; return; }   // unk_0E0
+      this.v = T.mode === 'vertical' ? 0 : this.v * (1 - DRAG);
+    }
+    T.a8 += c.step;
+    if (T.a8 >= 0x2000) {
+      T.a8 = 0;
+      if (--T.laps === 0) { if (T.mode === 'low') this.v = 0; this.tumble = null; return; }   // unk_236
+    }
+    T.acc = THREE.MathUtils.clamp(T.acc - T.jerk, -9, 9);
+    T.hop = Math.min(15, T.hop + T.acc);
+    if (T.hop <= 0) T.hop = T.acc = T.jerk = 0;
+    T.vy += (-c.gravity - T.vy * 0.12 * 5800) / 6000;
+    T.lift += T.hop + T.vy;
+    if (T.lift <= 0) { T.lift = 0; T.vy = 0; }
+  }
 
   // Arena CPU: chase the nearest opponent still in the battle, turning away from walls and edges ahead.
   thinkFree(dt, karts) {
@@ -273,6 +324,7 @@ export class Kart {
       input = { throttle: 0, brake: 0, steer: 0, drift: false };
       if (this.spin <= 0) this.spinAngle = 0;
     }
+    if (this.tumble) { this.tumbleUpdate(dt); input = { throttle: 0, brake: 0, steer: 0, drift: false }; }
 
     this.throttle = input.throttle > 0;   // kartProps THROTTLE (exhaust smoke rate)
     // longitudinal
@@ -371,6 +423,7 @@ export class Kart {
       input = { throttle: 0, brake: 0, steer: 0, drift: false };
       if (this.spin <= 0) this.spinAngle = 0;
     }
+    if (this.tumble) { this.tumbleUpdate(dt); input = { throttle: 0, brake: 0, steer: 0, drift: false }; }
     this.throttle = input.throttle > 0;
     if (input.throttle > 0) {
       this.v += (14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2;
@@ -443,6 +496,8 @@ export class Kart {
     this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
+    this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
+    if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
     const bob = performance.now() / 1000;
     this.balloonMeshes.forEach((m, i) => { m.visible = i < this.balloons; m.position.y = m.userData.base + Math.sin(bob * 2 + i * 2.1) * 0.15; });
   }
@@ -522,5 +577,7 @@ export class Kart {
     this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
+    this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
+    if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
   }
 }

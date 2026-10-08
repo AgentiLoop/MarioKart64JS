@@ -23,7 +23,11 @@ const SND_DROP = [1, 0x12], SND_FIRE = [1, 0x04], SND_KNOCK = [1, 0x53], SND_CRA
   SND_THUNDER = [1, 0x13], SND_THUNDER_LOOP = [5, 0x0c], SND_STAR = [3, 0x08];
 // driver voices, bank 2, characterId * 0x10 + n: 0 throw, 1 boost, 3 spun out (add_spinout_effect), 6 laugh at a victim
 const CHAR_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
-const V_THROW = 0, V_BOOST = 1, V_SPUN = 3, V_LAUGH = 6;
+const V_THROW = 0, V_BOOST = 1, V_SPUN = 3, V_HURT = 5, V_LAUGH = 6;
+const SND_EXPLOSION = [1, 0x05];   // SOUND_ACTION_EXPLOSION
+// what each hit does (Kart TUMBLE): green shell LOW_TUMBLE_TRIGGER, red / blue shell HIGH_TUMBLE_TRIGGER, star kart
+// HIT_BY_STAR_TRIGGER (trigger_high_tumble too), fake item box VERTICAL_TUMBLE_TRIGGER; bananas (and the rest) spin
+const TUMBLE_BY = { green_shell: 'low', red_shell: 'high', blue_shell: 'high', star: 'high', fake_item_box: 'vertical' };
 // held on Z (use_banana_item / use_*_shell_item / use_fake_itembox_item HELD_* states) and let go on release
 const HOLD = new Set(['banana', 'fake_item_box', 'green_shell', 'red_shell', 'blue_shell']);
 // gen_random_item curves (common_data 0x8150.. , 100 entries per rank, read from the US ROM) as [item id, count] pairs
@@ -535,9 +539,15 @@ export class Items {
   // their spin arrives in their own pose packets.
   // kind / owner: what hit it and whose it was. A banana spins its driver out (voice 3); anything else crashes
   // (0x19018010, heard by the human in the crash); a human owner laughs at someone else's misfortune (voice 6).
+  // Shells, a fake item box and a star kart knock the kart into the air instead of spinning it (TUMBLE_BY,
+  // actors.c evaluate_collision_between_player_actor / race_logic.c): Kart.startTumble, the driver's hurt voice 5
+  // and SOUND_ACTION_EXPLOSION 0x19009005 for a human (func_8008C528 / trigger_high_tumble / trigger_vertical_tumble).
   hit(kart, kind = null, owner = null) {
-    if (kart.remote || kart.spin > 0 || kart.invuln > 0 || kart.star > 0 || kart.boo > 0 || kart.out || kart.rescue > 0) return false;
-    kart.spin = 1.1; kart.invuln = 2.2; kart.v *= 0.3; kart.drift = 0; kart.boost = 0;
+    if (kart.remote || kart.spin > 0 || kart.tumble || kart.invuln > 0 || kart.star > 0 || kart.boo > 0 || kart.out || kart.rescue > 0) return false;
+    const tumble = TUMBLE_BY[kind];
+    kart.invuln = 2.2; kart.drift = 0; kart.boost = 0;
+    if (tumble) { kart.startTumble(tumble); this.voice(kart, V_HURT); this.snd(kart, SND_EXPLOSION); }
+    else { kart.spin = 1.1; kart.v *= 0.3; }
     if (this.arena) kart.balloons = Math.max(0, kart.balloons - 1);   // battle: every hit pops a balloon
     if (kind === 'banana') this.voice(kart, V_SPUN);
     else if (kart.isPlayer || (owner && owner.isPlayer)) this.audio.playSound(...SND_CRASH);
@@ -607,7 +617,7 @@ export class Items {
   // CPUs outside Grand Prix (VS / battle seats): boosts, star, boo, lightning and the blue shell go at once; shells
   // when a rival is ahead in range, bananas and fake boxes when one is close behind.
   aiUse(kart, karts, dt) {
-    if ((!kart.item && !kart.trail) || kart.spin > 0) return;
+    if ((!kart.item && !kart.trail) || kart.spin > 0 || kart.tumble) return;
     kart.itemTimer -= dt;
     if (kart.itemTimer > 0) return;
     const it = kart.trail ? kart.trail.kind : kart.item;

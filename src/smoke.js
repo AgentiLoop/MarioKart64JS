@@ -105,7 +105,7 @@ function tick(k) {
       s.back = 5.5 + s.timer * (unk098 / (s.idle ? 6000 : 5000) + 0.1);
       return;
     }
-    if (k.spin > 0) return;   // func_8006CEC0 skips squish / shell hit / explosion
+    if (k.spin > 0 || k.tumble) return;   // func_8006CEC0 skips squish / shell hit / explosion
     // func_80060504: 3-in-5 chance on throttle, 3-in-14 idle; slot 0 also starts the chain when slot 9 is dead
     const roll = Math.floor(Math.random() * (k.throttle ? 5 : 14));
     const prev = pool[(i + POOL - 1) % POOL];
