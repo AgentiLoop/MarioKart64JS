@@ -15,6 +15,13 @@ export const ITEM_ICON = { slick: 1, orb: 5, turbo: 12 };
 // sounds (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id)): func_8007ABFC 0x19008406 box hit,
 // func_8007B254 0x0100FE1C roulette loop, func_8007B34C state 6 0x0100FE47 item decided
 const SND_BOX = [1, 0x06], SND_ROULETTE = [0, 0x1c], SND_DECIDED = [0, 0x47];
+// common_grand_prix_cpu_item_curve (common_data 0x8470, 100 entries per rank) as counts of
+// [banana, green shell, triple green shell, thunderbolt, fake item box, star, boo, mushroom], read from the US ROM
+const CPU_ITEM_CURVE = [
+  [60, 25, 0, 0, 10, 0, 5, 0], [50, 25, 5, 0, 10, 0, 5, 5], [40, 25, 10, 0, 10, 0, 5, 10], [35, 25, 15, 0, 10, 0, 5, 10],
+  [30, 20, 20, 0, 5, 5, 0, 20], [30, 20, 20, 0, 5, 5, 0, 20], [30, 20, 20, 0, 0, 10, 0, 20], [25, 20, 20, 1, 0, 10, 0, 24],
+];
+const CPU_ITEM_BRANCH = ['banana', null, null, 'none', 'fake', 'star', 'none', 'turbo'];   // null: no strategy, redraw
 
 // One mesh per display list: vertices [x, y, z, s, t, r, g, b, a] in MK64 units.
 function listMesh(list, material, tile) {
@@ -82,9 +89,11 @@ export class Items {
     this.slickGeo = new THREE.CircleGeometry(2.0, 20); this.slickGeo.rotateX(-Math.PI / 2);
     this.slickMat = new THREE.MeshLambertMaterial({ color: 0x120a1c, emissive: 0x2b0f55 });
     this.hazards = []; this.orbs = [];
+    this.strat = new Map(); this.gp = false;
   }
 
   reset() {
+    this.strat.clear();
     for (const h of this.hazards) this.group.remove(h.mesh);
     for (const o of this.orbs) this.group.remove(o.mesh);
     this.hazards = []; this.orbs = [];
@@ -208,6 +217,67 @@ export class Items {
     return true;
   }
 
+  // Grand Prix CPUs: cpu_use_item_strategy, one step per 30 Hz frame (every other player update). CPUs get no items
+  // from boxes; every 601 steps (once past 100 + 20 * playerId path points, at most 3 items a lap) they draw one from
+  // common_grand_prix_cpu_item_curve at their rank. cpu_decisions_branch_item only acts on banana, fake item box,
+  // thunderbolt, star, boo and mushroom (shells redraw). Ours: banana / fake item box -> Slick, mushroom -> Turbo,
+  // star -> Turbo + 10 s invulnerability (STAR_EFFECT_DURATION); thunderbolt and boo have no counterpart: the turn
+  // is spent (uses + 1, timer 0) with no effect.
+  cpuStrategy(kart, karts, order, id, pts, dt) {
+    const st = this.strat.get(kart) || { branch: 'wait', timer: 0, uses: 0, lap: kart.crossings, hold: 0, acc: 0 };
+    this.strat.set(kart, st);
+    if (kart.crossings !== st.lap) { st.lap = kart.crossings; st.uses = 0; }   // numItemUse = 0 at the line
+    const L = this.track.length, at = k => k.progress / L * pts;
+    for (st.acc += dt; st.acc >= 1 / FPS; st.acc -= 1 / FPS) {
+      const rank = order.indexOf(kart), human = order.find(k => k.isPlayer || k.remote);
+      switch (st.branch) {
+        case 'wait':
+          if (100 + 20 * id < at(kart) && st.timer >= 601 && st.uses < 3 && kart.crossings < 3) {
+            const curve = CPU_ITEM_CURVE[Math.min(7, rank)];
+            let r = Math.floor(Math.random() * 100), i = 0;
+            while (r >= curve[i]) r -= curve[i++];
+            st.branch = CPU_ITEM_BRANCH[i] || 'wait';
+          }
+          break;
+        case 'banana':
+          // a CPU behind a first-place human throws it 30 path points ahead of them once within range (DK 40, Peach 4, else 10)
+          if (human && kart.crossings > 0 && rank > order.indexOf(human) && order.indexOf(human) === 0) {
+            const range = { donkeykong: 40, peach: 4 }[kart.mesh.userData.character] ?? 10, gap = at(human) - at(kart);
+            if (gap >= -2 && gap <= range) {
+              const mesh = new THREE.Mesh(this.slickGeo, this.slickMat), s = (human.s + 30 / pts * L) % L;
+              this.group.add(mesh); this.place(mesh, s, 0, 0.12);
+              this.hazards.push({ s, d: 0, mesh, ttl: 30 });
+              this.audio.sfx('launch');
+              st.uses++; st.timer = 0; st.branch = 'wait';
+            }
+            break;
+          }
+          // fall through: held behind the kart, dropped after 10/30/50 steps
+        case 'fake':
+          st.uses++; st.timer = 0; st.hold = Math.floor(Math.random() * 3) * 20 + 10; st.branch = 'hold';
+          break;
+        case 'hold':
+          if (st.hold < st.timer) { kart.item = 'slick'; this.use(kart); st.timer = 0; st.branch = 'wait'; }
+          break;
+        case 'star':
+          kart.invuln = Math.max(kart.invuln, 10); kart.spin = 0;
+          kart.item = 'turbo'; this.use(kart); st.uses++; st.timer = 0; st.branch = 'starEnd';
+          break;
+        case 'starEnd':
+          if (kart.invuln <= 0) st.branch = 'wait';
+          st.timer = 0;
+          break;
+        case 'turbo':
+          kart.item = 'turbo'; this.use(kart); st.uses++; st.timer = 0; st.branch = 'wait';
+          break;
+        case 'none':
+          st.uses++; st.timer = 0; st.branch = 'wait';
+          break;
+      }
+      if (st.timer < 10000) st.timer++;
+    }
+  }
+
   aiUse(kart, karts, dt) {
     if (!kart.item || kart.spin > 0) return;
     kart.itemTimer -= dt;
@@ -249,7 +319,7 @@ export class Items {
           : Math.abs(this.delta(k.s, b.s)) < 3 && Math.abs(k.d - b.d) < 3;
         if (touching) {
           if (k.isPlayer) { if (!k.item && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
-          else if (!k.item && !k.remote) { k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2; }
+          else if (!k.item && !k.remote && !this.gp) { k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2; }
           b.cd = BOX_RESPAWN; b.mesh.visible = false;
           break;
         }

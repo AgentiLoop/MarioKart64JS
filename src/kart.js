@@ -4,6 +4,89 @@ import * as HD from './hd.js';
 
 const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
+// Engine classes: gTopSpeedTable (src/data/kart_attributes.c), per gCCSelection and characterId
+// (Mario Luigi Yoshi Toad DK Wario Peach Bowser). MAX_SPEED is the 150cc Mario 320; Extra (mirror) races 100cc.
+export const CC_INDEX = { 50: 0, 100: 1, 150: 2, extra: 3 };
+const TOP_SPEED = [
+  [290, 290, 294, 294, 290, 290, 294, 290],
+  [310, 310, 314, 314, 310, 310, 314, 310],
+  [320, 320, 324, 324, 320, 320, 324, 320],
+  [310, 310, 314, 314, 310, 310, 314, 310],
+];
+const CHARACTER_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
+// Top velocity is the drive force currentSpeed^2 / 25 over the drag 0.12 * kartFriction (5800), so it scales with
+// the square of gTopSpeedTable: 320 -> 5.885 units/frame (= MAX_SPEED), 290 -> 4.83 (50cc is 82% of 150cc).
+const V_TOP = 320 * 320 / 25 / (0.12 * 5800);
+export const ccSpeedScale = (cc, character) => (TOP_SPEED[cc][CHARACTER_ID[character] ?? 0] / 320) ** 2;
+// CPU personalities, cpu_vehicles_camera_path/cpu_speed_control.inc.c regulate_cpu_speed: every frame a CPU
+// accelerates normally, accelerates with CPU_FAST_EFFECT or decelerates 1 currentSpeed unit per frame.
+// Path points per lap: yamls/courses/*_metadata.yml path_sizes[0] (gPathCountByPathIndex[0]).
+export const PATH_POINTS = { luigi: 0x2DA, moomoo: 0x230, koopa: 0x2BC, kalimari: 0x2BC, toad: 0x3E8, frappe: 0x2EE, choco: 0x2BC,
+  mario: 0x258, wario: 0x640, sherbet: 0x2BC, royal: 0x3E8, bowser: 0x30C, dk: 0x370, yoshi: 0x2B2, banshee: 0x2EE, rainbow: 0x76C };
+// Pack bands in path points, [lap * 8 + slot] at lap start, [+ 8] at lap end (D_800DCBB4: Mario Raceway D_800DCB34, rest D_800DCAF4)
+const PACK_BAND = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 50, 75, 100, 125, 150, 175, 40, 30, 60, 90, 120, 150, 180, 210, 50, 40, 80, 120, 160, 200, 240, 280];
+const PACK_BAND_MARIO = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 45, 65, 90, 115, 140, 165, 40, 3, 6, 16, 46, 49, 59, 89, 50, 30, 60, 63, 73, 78, 108, 138];
+const CPU_MIN_SPEED = [2.5, 10 / 3, 3.75, 10 / 3];   // regulate_cpu_speed var_f0 per gCCSelection, units/frame
+const MK_UNIT = MAX_SPEED / V_TOP;                    // one MK64 speed unit/frame (player->speed) in our speed
+// CPU target speeds per gCCSelection, units/frame (yamls/courses/*_metadata.yml): cpu_CurveTargetSpeed where
+// are_in_curve (the straights leading into a curve, Track.cpuStraight), while drifting or airborne;
+// cpu_NormalTargetSpeed in the curves; cpu_OffTrackTargetSpeed beyond 0.9 of the track half-width.
+const CURVE_TARGET = [4.1666665, 5.5833334, 6.1666665, 6.75], NORMAL_TARGET = [3.75, 5.1666665, 5.75, 6.3333334];
+const CPU_TARGET = {
+  default: { curve: CURVE_TARGET, normal: NORMAL_TARGET, off: NORMAL_TARGET },
+  toad: { curve: CURVE_TARGET, normal: CURVE_TARGET, off: NORMAL_TARGET },
+  yoshi: { curve: CURVE_TARGET, normal: [3.75, 4.5833334, 4.5833334, 4.5833334], off: [2.9166667, 3.75, 3.75, 3.75] },
+};
+// player_decelerate_alternative(player, 1): currentSpeed (320 = 150cc top) drops 1 per frame; as a brake input
+const CPU_SLOW_BRAKE = MAX_SPEED / 320 * (MAX_SPEED / 0.1 / 9) / 55;
+
+// func_8000F124: Grand Prix picks two different random CPU drivers as rivals (D_80163348 / D_80163344).
+export function pickRivals(karts) {
+  const cpus = karts.filter(k => !k.isPlayer && !k.remote);
+  for (let i = 0; i < 2 && cpus.length; i++) cpus.splice(Math.floor(Math.random() * cpus.length), 1)[0].rival = i;
+}
+
+// order: karts by race position. Sets k.aiSpeed ('fast' | 'normal' | 'slow') on every CPU kart.
+export function cpuSpeedControl(karts, order, track, cc) {
+  const L = track.length, pts = PATH_POINTS[track.def.id];
+  const humans = order.filter(k => k.isPlayer || k.remote);
+  if (!pts || !humans.length) return;
+  const band = track.def.id === 'mario' ? PACK_BAND_MARIO : PACK_BAND;
+  const at = k => k.progress / L * pts;   // gNumPathPointsTraversed
+  const rankOf = k => order.indexOf(k);
+  const human = humans[0], humanRank = rankOf(human);   // gBestRankedHumanPlayer
+  const rivals = karts.filter(k => k.rival != null).sort((a, b) => a.rival - b.rival);
+  const anchor = rivals[0] || karts.find(k => k.isPlayer) || human;   // D_80163344[0]: rival 1, else player 1 (VS)
+  for (const k of karts) {
+    if (k.isPlayer || k.remote) continue;
+    const rank = rankOf(k);
+    let mode;
+    if (k.rival != null) {
+      // func_80007D04: a rival outside the top two, or behind the best human, runs fast; otherwise normal.
+      // (Its lead margin, 50 + 0/8/18 path points (+20/24/36 for rival 1), only matters once D_801631E0 is set
+      // by LOST_RACE_EFFECT, and above it the rival still accelerates normally.)
+      mode = rank >= 2 || at(k) < at(human) ? 'fast' : 'normal';
+    } else {
+      // func_800088D8: the leading CPU waits when more than band * (cc + 1) ahead of the best human; the others
+      // run fast when farther than their slot's band from rival 1 and ease off inside it, so the pack trails the rival.
+      const lap = Math.min(3, k.crossings), frac = k.s / L;
+      const bandAt = slot => Math.trunc(lap < 3 ? band[lap * 8 + slot + 8] * frac + band[lap * 8 + slot] * (1 - frac) : band[lap * 8 + slot]);
+      if (lap < 0) mode = 'fast';
+      else if (rank === 0) {
+        let gap = at(k) - at(human);
+        if (gap > pts * 2 / 3 && humanRank >= 6) gap = at(k) - at(order[humanRank - 1]);
+        mode = bandAt(0) * (cc + 1) < Math.abs(gap) && k.v >= 20 / 216 * 18 * MK_UNIT ? 'slow' : 'fast';
+      } else {
+        const rivalsAhead = rivals.filter(r => rankOf(r) < rank).length, humansAhead = humans.filter(h => rankOf(h) < rank).length;
+        const slot = rank - rivalsAhead - humansAhead + (rivalsAhead || humansAhead ? 1 : 0);
+        mode = slot < 0 || slot >= 8 ? 'slow' : bandAt(slot) < Math.abs(at(anchor) - at(k)) ? 'fast' : 'slow';
+      }
+    }
+    if (k.v < CPU_MIN_SPEED[cc] * MK_UNIT) mode = 'normal';   // below the class minimum: always accelerate
+    k.aiSpeed = mode;
+  }
+}
+
 // Airborne vertical physics, player_controller.c: vy += (gravityY - vy * 0.12 * kartFriction) / 6000 / unk_DAC
 // per frame (gKartGravityTable 2600, gKartFrictionTable 5800). Assumption: MK64's top speed of 9 units/frame
 // (gKartTopSpeedTable) maps to our MAX_SPEED at course scale 0.1, which fixes one MK64 frame in seconds.
@@ -62,8 +145,8 @@ export function buildKartMesh(character = 'mario') {
 }
 
 export class Kart {
-  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null }) {
-    this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name;
+  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null, speedScale = 1, cc = 2 }) {
+    this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.speedScale = speedScale; this.cc = cc;
     this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
     // arena (battle) kart: roams freely as (x, z, heading h) with facing (sin h, 0, cos h); spawn = { x, y, z, h }
     this.free = !!track.arena;
@@ -150,6 +233,16 @@ export class Kart {
     const want = Math.atan2(target - this.d, 14) ;
     const steer = THREE.MathUtils.clamp((want - this.psi) * 3.5, -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
+    // regulate_cpu_speed: under the class minimum always accelerate; at or above the target speed decelerate 2
+    if (this.v >= CPU_MIN_SPEED[this.cc] * MK_UNIT) {
+      const tbl = CPU_TARGET[t.def.id] || CPU_TARGET.default, n = t.n;
+      const straight = t.cpuStraight && t.cpuStraight[Math.floor((((this.s % t.length) + t.length) % t.length) / t.ds) % n];
+      let cap = (straight || this.drift || this.air ? tbl.curve : tbl.normal)[this.cc];
+      if (Math.abs(this.d) > 0.9 * HALF_WIDTH) cap = tbl.off[this.cc];
+      if (this.v >= cap * MK_UNIT) return { throttle: 0, brake: 2 * CPU_SLOW_BRAKE, steer, drift: false };
+      if (this.aiSpeed === 'slow') return { throttle: 0, brake: CPU_SLOW_BRAKE, steer, drift: false };
+    }
+    // our steering model still needs a lift in the tightest bends (not in MK64)
     return { throttle: sharp > 1.4 ? 0.2 : 1, brake: 0, steer, drift: false };
   }
 
@@ -158,8 +251,12 @@ export class Kart {
     const t = this.track;
     const absD = Math.abs(this.d);
     this.offroad = absD > HALF_WIDTH + 1.5;
-    this.top = MAX_SPEED * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
-    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    let scale = this.speedScale * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    // CPU_FAST_EFFECT: unk_0E8 eases to 380 on top of the speed force currentSpeed^2 / 25 (func_80030150);
+    // top velocity is linear in the force: (cs^2 / 25 + 380) / (cs^2 / 25)
+    if (!this.isPlayer && this.aiSpeed === 'fast') scale *= 1 + 380 * 25 / (320 * 320 * this.speedScale);
+    this.top = MAX_SPEED * scale;
+    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * scale;
     if (this.offroad && this.boost <= 0) max *= 0.45;
     if (this.finished) input = { throttle: 0.3, brake: 0, steer: 0, drift: false };
     if (this.spin > 0) {

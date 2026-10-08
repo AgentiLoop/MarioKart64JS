@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
-import { Kart } from './kart.js';
+import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -22,6 +22,14 @@ const trackId = params.get('track');
 const playerChar = params.get('char') || localStorage.getItem('mk64char') || 'mario';
 const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show the track menu
 const battle = !!(trackDef && trackDef.battle);   // battle arena: balloons, no laps (rules below)
+// Engine class from the GAME SELECT cc rows (?cc=50|100|150|extra, gCCSelection); links without one race 150cc.
+// EXTRA is MK64's mirror mode at 100cc speeds: the 3D frame is flipped left-right and so is steering.
+// Assumption: the flip is a CSS mirror of the canvas, so kart sprites mirror with the course (the ROM flips the course).
+const ccParam = params.get('cc');
+const cc = CC_INDEX[ccParam] ?? CC_INDEX[150];
+const mirror = !!trackDef && ccParam === 'extra';
+// GAME SELECT mode (?mode=mario_gp|vs|time_trials|battle); links without one race as Grand Prix (two CPU rivals).
+const raceMode = params.get('mode') || 'mario_gp';
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
@@ -166,14 +174,15 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
     const [d, back] = slots[i];
     const k = new Kart(track, {
       color: PALETTE[ci], s: track.length - back, d, isPlayer: c === playerChar,
-      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c,
+      skill: 0.6 + 0.4 * Math.random(), name: names[ci], character: c, speedScale: ccSpeedScale(cc, c), cc,
       spawn: battle ? battleSpawn(trackDef.id, i) : null,
     });
     k.aiOffset = d * 0.8;
-    k.prevS = k.s; k.crossings = 0;
+    k.prevS = k.s; k.crossings = -1;   // gLapCountByPlayerId starts at -1: crossing the line from the grid begins lap 1
     scene.add(k.mesh); karts.push(k);
     if (c === playerChar) player = k;
   });
+  if (raceMode === 'mario_gp') pickRivals(karts);
   setViews([player]);
   banner.textContent = '';
   items.reset();
@@ -199,6 +208,7 @@ const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
 if (trackDef) audio.wantMusic = trackDef.id;   // starts on first key press (browser autoplay rule)
 const items = new Items(track, scene, audio);
+items.gp = raceMode === 'mario_gp';   // GP CPUs draw items on a timer (cpu_use_item_strategy), not from boxes
 const exhaust = new Exhaust(scene);
 const itemEl = $('item'), itemWin = $('itemWin'), itemName = $('itemName');
 // gItemWindowTextures order (tools/extract-item-window.py); preloaded so the roulette never waits on a fetch
@@ -257,14 +267,19 @@ function backToTitle() {
 // Banner 200x32 at (61,17); the 1P..4P GAME columns at x 21/92/163/234, y 62: a 64x54 card over a box, then one
 // 64x18 mode row per mode at y+65+18i (seg2_menu_Np_column), the green cursor triangle at (+27,+56); OPTION (21,200),
 // DATA (85,200). func_800A8270: the chosen column's box is the cream (255,249,220) chosen colour, flashing grey while
-// the cursor is still on the columns (MAIN_MENU_PLAYER_SELECT); once a count is picked the mode row flashes instead
-// (MAIN_MENU_MODE_SELECT). The cc sub-select and OK are skipped: picking a mode goes straight to course select.
+// the cursor is still on the columns (MAIN_MENU_PLAYER_SELECT); once a count is picked (MAIN_MENU_MODE_SELECT) the
+// column moves to (128,62) (func_800A9D5C), the others close, and the mode row flashes instead. A on MARIO GP / VS
+// opens MAIN_MENU_MODE_SUB_SELECT: the 50cc/100cc/150cc/EXTRA rows at column + 64, mode row y + 18i (func_800A9E58,
+// D_800E70E8). Assumption: EXTRA is unlocked (no save data to check has_unlocked_extra_mode). OK is skipped: the cc
+// (or TIME TRIALS, which races 100cc, spawn_players.c) goes straight to course select.
 // 2P-4P GAME are online: `players` rides along to the race URL, which waits for that many players (src/net.js).
 // BATTLE goes to the battle course select (SUB_MENU_MAP_SELECT_BATTLE_COURSE: the four arenas, no cups); 1P GAME
 // also offers it here (assumption: the console has no solo battle, this port battles three CPU karts).
 const PCOL_X = [21, 92, 163, 234];
 const PMODES = [['mario_gp', 'time_trials', 'battle'], ['mario_gp', 'vs', 'battle'], ['vs', 'battle'], ['vs', 'battle']];
-let pcount = 0, pmode = 0, gameMode = 'player';   // 'player' | 'mode'
+const CC_ROWS = ['50cc', '100cc', '150cc', 'extra'];   // gCCSelection CC_50..CC_EXTRA
+let pcount = 0, pmode = 0, ccSel = 0, gameMode = 'player';   // 'player' | 'mode' | 'cc'
+const hasCc = () => ['mario_gp', 'vs'].includes(PMODES[pcount][pmode]);
 function buildGameSelect() {
   const cols = $('pcols');
   PCOL_X.forEach((x, i) => {
@@ -285,16 +300,40 @@ function buildGameSelect() {
     b.querySelectorAll('.mode').forEach((img, j) => { img.onclick = e => { e.stopPropagation(); pcount = i; pmode = j; gameMode = 'mode'; pickMode(); }; });
     cols.appendChild(b);
   });
+  CC_ROWS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'ccrow'; b.setAttribute('aria-label', c === 'extra' ? 'Extra' : c);
+    b.innerHTML = '<div class="box"></div><img alt="" />';
+    HD.setImg(b.querySelector('img'), `mainmenu/${c}.png`);
+    b.onclick = () => { ccSel = i; pickCc(); };
+    $('ccrows').appendChild(b);
+  });
 }
 function updateGameSelect() {
-  [...$('pcols').children].forEach((b, i) => b.setAttribute('aria-pressed', i === pcount && gameMode === 'mode'));
+  const picked = gameMode !== 'player';
+  [...$('pcols').children].forEach((b, i) => {
+    b.setAttribute('aria-pressed', i === pcount && picked);
+    b.classList.toggle('gone', picked && i !== pcount);
+    b.style.left = `${picked && i === pcount ? 128 : PCOL_X[i]}px`;
+  });
+  const show = gameMode === 'cc';
+  [...$('ccrows').children].forEach((b, i) => {
+    b.style.display = show ? 'block' : 'none';
+    b.style.left = '192px'; b.style.top = `${62 + 65 + 18 * (pmode + i)}px`;
+    b.setAttribute('aria-pressed', show && i === ccSel);
+  });
 }
 function enterGameSelect() {
   gameMode = 'player'; pmode = 0;
-  showScreen(gameEl, 'Game select: ←/→ number of players, Enter · ↑/↓ mode, Enter · Esc goes back · 2P-4P race online');
+  showScreen(gameEl, 'Game select: ←/→ number of players, Enter · ↑/↓ mode, Enter · ↑/↓ 50cc/100cc/150cc/Extra, Enter · Esc goes back · 2P-4P race online');
   updateGameSelect();
 }
 function pickMode() {
+  if (hasCc()) { gameMode = 'cc'; snd('select'); updateGameSelect(); return; }   // MAIN_MENU_MODE_SUB_SELECT
+  ccSel = 1;   // time trials (and battle) use the 100cc tables (spawn_players.c)
+  pickCc();
+}
+function pickCc() {
   snd('okClicked');
   if (PMODES[pcount][pmode] === 'battle') {   // menus.c COURSE_SELECT_MENU: gCupSelection = BATTLE_CUP, straight to the course rows
     cupSel = 4;
@@ -311,8 +350,9 @@ function gameStep(now) {
   menuTick = Math.floor(now / 1000 * 30);
   [...$('pcols').children].forEach((b, i) => {
     b.querySelector('.box').style.background = boxColour(i === pcount, gameMode !== 'player');
-    b.querySelectorAll('.mbox').forEach((m, j) => { m.style.background = boxColour(i === pcount && j === pmode && gameMode === 'mode', false); });
+    b.querySelectorAll('.mbox').forEach((m, j) => { m.style.background = boxColour(i === pcount && j === pmode && gameMode !== 'player', gameMode === 'cc'); });
   });
+  [...$('ccrows').children].forEach((b, i) => { b.querySelector('.box').style.background = boxColour(i === ccSel, false); });
 }
 
 // ------- course select: COURSE_SELECT_MENU at the ROM's pixel positions (single-course / VS style) -------
@@ -531,7 +571,7 @@ function confirmChar() {
   localStorage.setItem('mk64char', c);
   snd('okClicked');
   leaving = true;   // let SOUND_MENU_OK_CLICKED play before the page reloads into the race
-  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}${pcount ? `&players=${pcount + 1}` : ''}`; }, 500);
+  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}&cc=${CC_ROWS[ccSel].replace('cc', '')}&mode=${PMODES[pcount][pmode]}${pcount ? `&players=${pcount + 1}` : ''}`; }, 500);
 }
 function backFromChar() {
   snd('back');
@@ -584,11 +624,16 @@ addEventListener('keydown', e => {
         else if (e.code === 'ArrowRight' && pcount < 3) { pcount++; snd('move'); }
         else if (enter) { gameMode = 'mode'; pmode = 0; snd('select'); updateGameSelect(); }
         else if (back) { backToTitle(); snd('back'); }
-      } else {
+      } else if (gameMode === 'mode') {
         if (e.code === 'ArrowUp' && pmode > 0) { pmode--; snd('move'); }
         else if (e.code === 'ArrowDown' && pmode < PMODES[pcount].length - 1) { pmode++; snd('move'); }
         else if (enter) pickMode();
         else if (back) { gameMode = 'player'; snd('back'); updateGameSelect(); }
+      } else {   // MAIN_MENU_MODE_SUB_SELECT: up/down the cc rows, B back to the modes
+        if (e.code === 'ArrowUp' && ccSel > 0) { ccSel--; snd('move'); updateGameSelect(); }
+        else if (e.code === 'ArrowDown' && ccSel < CC_ROWS.length - 1) { ccSel++; snd('move'); updateGameSelect(); }
+        else if (enter) pickCc();
+        else if (back) { gameMode = 'mode'; snd('back'); updateGameSelect(); }
       }
       return;
     }
@@ -664,9 +709,9 @@ function setupOnline() {
     const [d, back] = slots[i];
     const mine = p.id === net.myId;
     const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c,
-      spawn: battle ? battleSpawn(trackDef.id, i) : null });
+      spawn: battle ? battleSpawn(trackDef.id, i) : null, speedScale: ccSpeedScale(cc, c), cc });
     k.netId = p.id; k.remote = !mine; k.poses = [];
-    k.prevS = k.s; k.crossings = 0;
+    k.prevS = k.s; k.crossings = -1;   // gLapCountByPlayerId starts at -1: crossing the line from the grid begins lap 1
     scene.add(k.mesh); karts.push(k);
     if (mine) player = k;
   });
@@ -767,7 +812,7 @@ if (online) {
   net.addEventListener('start', e => {
     const m = e.detail;
     if (m.course !== trackDef.id) {   // the room races the host's course: reload onto it, then rejoin
-      location.search = `?track=${m.course}&char=${playerChar}&players=${PLAYERS_WANTED}&room=${m.code}&you=${m.you}`;
+      location.search = `?track=${m.course}&char=${playerChar}${ccParam ? `&cc=${ccParam}` : ''}&players=${PLAYERS_WANTED}&room=${m.code}&you=${m.you}`;
       return;
     }
     lobbyShow(m.players, -1, m.players.length);
@@ -835,13 +880,14 @@ function playerInput() {
     drift: !!keys.Space,
   };
   const p = pollPad();
-  if (!p) return kb;
-  return {
+  const inp = !p ? kb : {
     throttle: Math.max(kb.throttle, p.throttle),
     brake: Math.max(kb.brake, p.brake),
     steer: kb.steer || p.steer,
     drift: kb.drift || p.drift,
   };
+  if (mirror) inp.steer = -inp.steer;   // EXTRA: left on the stick turns left on the mirrored screen
+  return inp;
 }
 
 // minimap
@@ -932,7 +978,8 @@ function renderViews() {
   if (views.length === 1) { updateSky(camera); renderer.render(scene, camera); return; }
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   renderer.setScissorTest(true);
-  const rect = r => [Math.round(r[0] * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
+  // EXTRA: the CSS flip swaps the left/right quadrants, so draw each view on the opposite side to land in place
+  const rect = r => [Math.round((mirror ? 1 - r[0] - r[2] : r[0]) * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
   for (const v of views) {
     const [x, y, w, h] = rect(v.rect);
     renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
@@ -955,6 +1002,7 @@ function resize() {
   layoutViews();
 }
 addEventListener('resize', resize); resize();
+if (mirror) canvas.style.transform = miniEl.style.transform = 'scaleX(-1)';
 HD.onChange(resize);
 let resTimer = 0;
 $('help').textContent = $('help').textContent.replace('1×/2×/4×/Native', HD.PRESETS.map(p => p.label.split(' ')[0]).join('/'));   // the web build has no 4x
@@ -1057,9 +1105,13 @@ function frame(now) {
     raceTime += dt;
     for (const k of karts) if (k.remote) puppetStep(k, now);
     for (let s = 0; s < steps; s++) {
-      for (const k of karts) {
+      // VS / battle have no CPU karts on the console, so the CPUs that fill online seats just drive (no bands)
+      const order = raceMode === 'mario_gp' ? rank() : null;
+      if (order) cpuSpeedControl(karts, order, track, cc);
+      for (const [id, k] of karts.entries()) {
         if (k.remote) continue;
-        if (!k.isPlayer) items.aiUse(k, karts, h);
+        if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
+        else if (!k.isPlayer) items.aiUse(k, karts, h);
         const inp = k.isPlayer ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
@@ -1086,12 +1138,12 @@ function frame(now) {
   const order = rank();
   const place = order.indexOf(player) + 1;
   posEl.innerHTML = posStrokeEl.innerHTML = `${place}<small>${ordinal(place)}</small>`;
-  lapEl.textContent = battle ? balloonText(player) : `LAP ${Math.min(LAPS, player.crossings + 1)}/${LAPS}`;
+  lapEl.textContent = battle ? balloonText(player) : `LAP ${Math.max(1, Math.min(LAPS, player.crossings + 1))}/${LAPS}`;
   for (const v of views) {   // the other players' views: place and lap (battle: balloons)
     if (!v.hud) continue;
     const p = order.indexOf(v.kart) + 1;
     v.hud.children[0].innerHTML = `${p}<small>${ordinal(p)}</small>`;
-    v.hud.children[1].textContent = battle ? balloonText(v.kart) : `LAP ${Math.min(LAPS, v.kart.crossings + 1)}/${LAPS}`;
+    v.hud.children[1].textContent = battle ? balloonText(v.kart) : `LAP ${Math.max(1, Math.min(LAPS, v.kart.crossings + 1))}/${LAPS}`;
   }
   timeEl.textContent = fmt(raceTime);
   speedEl.innerHTML = `${Math.round(Math.abs(player.v) * 3.6)}<small> km/h</small>`;

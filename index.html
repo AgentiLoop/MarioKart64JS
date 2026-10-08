@@ -32,6 +32,12 @@
   .pcol .card { left: 0; top: 0; width: 64px; height: 54px; }
   .pcol .mode { left: 0; width: 64px; height: 18px; }
   .pcol .tri { left: 27px; top: 56px; width: 12px; height: 7px; }
+  .pcol.gone { display: none; }                                                                            /* MODE_SELECT: the other columns close up */
+  /* MAIN_MENU_MODE_SUB_SELECT: 50cc/100cc/150cc/EXTRA rows slide out right of the chosen mode row (func_800A9E58, D_800E70E8) */
+  #ccrows { position: absolute; left: 0; top: 0; }
+  .ccrow { position: absolute; width: 64px; height: 18px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .ccrow .box { position: absolute; left: 0; top: 0; width: 64px; height: 18px; background: rgb(1,1,1); }
+  .ccrow img { position: absolute; left: 0; top: 0; width: 64px; height: 18px; }
   #gameSel .lr { position: absolute; top: 200px; width: 58px; height: 19px; }                              /* OPTION (21,200), DATA (85,200) */
   #gameSel .lr .box { position: absolute; left: 0; top: 0; width: 58px; height: 19px; background: rgb(1,1,1); }
   #gameSel .lr img { left: 0; top: 0; width: 58px; height: 19px; }
@@ -124,6 +130,7 @@
     <img id="gameBg" class="bg" alt="" src="/mk64/menu/background_main_menu.png" data-hd="menu/background_main_menu.png" />
     <img id="gameSelect" alt="Game select" src="/mk64/mainmenu/game_select.png" data-hd="mainmenu/game_select.png" />
     <div id="pcols"></div>
+    <div id="ccrows"></div>
     <div id="optionBtn" class="lr"><div class="box"></div><img alt="Option" src="/mk64/mainmenu/l_option.png" data-hd="mainmenu/l_option.png" /></div>
     <div id="dataBtn" class="lr"><div class="box"></div><img alt="Data" src="/mk64/mainmenu/r_data.png" data-hd="mainmenu/r_data.png" /></div>
   </div>
