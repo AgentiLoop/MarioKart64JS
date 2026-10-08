@@ -4,7 +4,7 @@
 // up all racing traffic flows peer-to-peer and the game closes this socket.
 //
 // Client -> server
-//   {t:"hello", name, version, course, char, players}  quick match: a room for `players` (2-4)
+//   {t:"hello", name, version, course, char, players, mode}  quick match: a room for `players` (2-MAX_ROOM_PLAYERS) in `mode`
 //   {t:"rejoin", room, id}                             after a page reload (course change), re-attach
 //   {t:"ready"}                                        on the room's course page, ready to signal
 //   {t:"sig", to, data}                                relay signaling data to a room member
@@ -15,6 +15,8 @@
 //   {t:"sig", from, data}                              relayed signaling data
 //   {t:"error", message}
 
+// Humans per room. Keep in step with MAX_ONLINE_KARTS in src/main.js (the CPU fills the rest of the grid up to it).
+const MAX_ROOM_PLAYERS = 4;
 const AUTO_START_SECS = 15; // a room starts this long after its first player arrives (if 2+ are in)
 const READY_TIMEOUT_MS = 30_000; // players not back on the course page by then are dropped
 const SIGNAL_GRACE_MS = 90_000; // sockets of a started room are closed after this
@@ -76,13 +78,14 @@ export class Lobby {
     c.name = clean(m.name, 16) || "Player";
     c.char = clean(m.char, 12);
     const version = clean(m.version, 16);
-    const max = Math.min(4, Math.max(2, Number(m.players) || 2));
+    const max = Math.min(MAX_ROOM_PLAYERS, Math.max(2, Number(m.players) || 2));
+    const mode = clean(m.mode, 16) || "vs";
     let room = null;
     for (const r of this.rooms.values()) {
-      if (!r.started && r.version === version && r.max === max && r.members.length < r.max) { room = r; break; }
+      if (!r.started && r.version === version && r.max === max && r.mode === mode && r.members.length < r.max) { room = r; break; }
     }
     if (!room) {
-      room = { code: this.freshCode(), max, version, course: clean(m.course, 40), seed: 0, members: [], started: false, go: false, deadline: 0, timer: null };
+      room = { code: this.freshCode(), max, mode, version, course: clean(m.course, 40), seed: 0, members: [], started: false, go: false, deadline: 0, timer: null };
       this.rooms.set(room.code, room);
       room.deadline = Date.now() + AUTO_START_SECS * 1000;
     }
