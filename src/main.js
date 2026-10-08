@@ -1321,7 +1321,7 @@ const balloonText = k => k.out ? 'OUT' : '●'.repeat(k.balloons) + '○'.repeat
 
 let last = performance.now();
 const mkFrame = () => ({ pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
-const flyA = mkFrame(), flyB = mkFrame(), flyLook = new THREE.Vector3();
+const flyA = mkFrame(), flyB = mkFrame(), flyLook = new THREE.Vector3(), _flyTarget = new THREE.Vector3(), _flyLookTo = new THREE.Vector3();
 let flyS = 0, flyInit = false;
 
 // Fixed physics step with interpolation (docs/SMOOTHNESS.md, "Fix Your Timestep"): the race always steps at
@@ -1365,16 +1365,16 @@ function frame(now) {
 
   if (!trackDef || (online && !raceGo)) {   // menu / online lobby open: fly along the road (like ../GoKart attract.gd), no race
     flyS += 20 * dt;
-    let target, look;
+    const target = _flyTarget, look = _flyLookTo;
     if (track.arena) {   // circle the arena
       const b = track.bounds, cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2, r = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) * 0.45;
       const a = flyS / r;
-      target = new THREE.Vector3(cx + Math.sin(a) * r, b.maxY + r * 0.35, cz + Math.cos(a) * r);
-      look = new THREE.Vector3(cx, (b.minY + b.maxY) / 2, cz);
+      target.set(cx + Math.sin(a) * r, b.maxY + r * 0.35, cz + Math.cos(a) * r);
+      look.set(cx, (b.minY + b.maxY) / 2, cz);
     } else {
       track.frameAt(flyS, flyA); track.frameAt(flyS + 40, flyB);
-      target = flyA.pos.clone().addScaledVector(flyA.R, 10).addScaledVector(flyA.U, 12);
-      look = flyB.pos.clone().addScaledVector(flyB.U, 1);
+      target.copy(flyA.pos).addScaledVector(flyA.R, 10).addScaledVector(flyA.U, 12);
+      look.copy(flyB.pos).addScaledVector(flyB.U, 1);
     }
     if (!flyInit) { camera.position.copy(target); flyLook.copy(look); flyInit = true; }
     const a = 1 - Math.exp(-3 * dt);
