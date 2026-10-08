@@ -825,7 +825,8 @@ function puppetStep(k, now) {
   if (b && b.rx > a.rx) {
     const u = Math.min(1, Math.max(0, (t - a.rx) / (b.rx - a.rx)));
     let ds = b.s - a.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-    s = a.s + ds * u; d += (b.d - a.d) * u; psi += (b.psi - a.psi) * u; v += (b.v - a.v) * u; y += (b.y - a.y) * u;
+    const dpsi = Math.atan2(Math.sin(b.psi - a.psi), Math.cos(b.psi - a.psi));   // a player kart can turn round past +-180
+    s = a.s + ds * u; d += (b.d - a.d) * u; psi += dpsi * u; v += (b.v - a.v) * u; y += (b.y - a.y) * u;
     if (u >= 1) src = b;
   } else if (!b) {
     s += v * Math.min(0.3, Math.max(0, (t - a.rx) / 1000));   // dead reckoning along the road

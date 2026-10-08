@@ -7,6 +7,7 @@
 //   flag       update_object_lakitu_red_flag: waves the checkered flag (looping spline D_800E6834) once his
 //              player has finished, while the kart drives on
 //   fishing    update_object_lakitu_fishing: comes down on the kart that fell off the course and hooks it
+//   reverse    update_object_lakitu_reverse: holds up the reverse sign while his player drives the wrong way
 // Every kart that falls off (kart.js sets kart.fell) is fished out by the effects.c func_80090970 sequence: held,
 // lifted, faded out, put back over the last road point it drove on (gCopyNearestPathPointByPlayerId) and lowered
 // onto it. CPU karts are held at once, without a visible Lakitu (func_8002C4F8).
@@ -22,10 +23,10 @@ import { NATIVE_SCALE } from './track.js';
 
 const TICK = 1 / 60, K = 4.5 / (18 * 0.75), KXZ = 0.15, COLS = 8, KART_MID = 1.5;
 // atlas frame width, height, count (extract-lakitu.py)
-const ANIMS = { countdown: [56, 72, 32], flag: [72, 56, 32], secondlap: [72, 56, 16], finallap: [72, 56, 16], fishing: [56, 72, 4] };
+const ANIMS = { countdown: [56, 72, 32], flag: [72, 56, 32], secondlap: [72, 56, 16], finallap: [72, 56, 16], reverse: [72, 56, 16], fishing: [56, 72, 4] };
 // quads as seen on screen: x0, x1, half height in vertex units, scaled by sizeScaling 0.15 (common_vtx_lakitu,
 // D_0D005F30 with the fishing line on its anchor, common_vtx_also_lakitu)
-const QUADS = { countdown: [-28, 27, 35], fishing: [-10, 45, 35], flag: [-36, 35, 27], secondlap: [-36, 35, 27], finallap: [-36, 35, 27] };
+const QUADS = { countdown: [-28, 27, 35], fishing: [-10, 45, 35], flag: [-36, 35, 27], secondlap: [-36, 35, 27], finallap: [-36, 35, 27], reverse: [-36, 35, 27] };
 const spline = (n, rows) => ({ n, pts: rows.map(([x, y, z, v]) => ({ p: [x, y, z], v })) });
 // src/data/some_data.c
 const COUNTDOWN_PATH = spline(13, [[150, 204, -500, 20], [100, 104, -300, 20], [50, 54, -100, 40], [4, 11, -14, 40],
@@ -37,6 +38,12 @@ const FLAG_PATH = spline(20, [[20, 18, 30, 40], [0, 18, 20, 40], [-20, 18, 10, 4
   [0, 18, -30, 40], [-20, 11, 0, 40], [0, 18, 30, 40]]);
 const LAP_PATH = spline(11, [[50, 20, 80, 10], [20, 19, 40, 10], [0, 18, 30, 10], [-8, 17, 20, 30], [-12, 16, 10, 30],
   [0, 15, 0, 30], [12, 15, 10, 10], [8, 16, 20, 10], [0, 17, 30, 10], [-20, 18, 40, 10], [-60, 19, 100, 10]]);
+const REVERSE_IN = spline(7, [[30, 14, 50, 40], [10, 16, 20, 40], [5, 17, 10, 60], [2, 18, 0, 60], [0, 18, 0, 60],
+  [0, 18, 0, 0], [0, 18, 0, 0]]);   // D_800E69B0
+const REVERSE_OUT = spline(7, [[0, 18, -5, 20], [0, 18, -10, 20], [0, 18, 5, 16], [-10, 23, 10, 10], [-15, 23, 20, 10],
+  [-20, 28, 30, 0], [-30, 38, 200, 0]]);   // D_800E69F4
+// cpu_vehicles_camera_path.h: detect_wrong_player_direction's bands (degrees off the path) and frame count
+const WRONG_MIN = 136, CORRECT_MAX = 45, WRONG_FRAMES = 5;
 // render_courses.c D_8015F8E4 (fluid / out-of-bounds level, MK64 units); the others use gCourseMinY - 10.
 const FLUID = { choco: -80, bowser: -50, banshee: -80, frappe: -50, royal: -60, sherbet: -18, rainbow: 0, dk: -475 };
 const SNOW = 0x05, CAVE = 0x0F;   // SURFACE_TYPE (mk64.h)
@@ -199,6 +206,15 @@ class Referee {
         this.alpha = r ? r.alpha : 1;   // func_8007993C: fades with the kart (LAKITU_FIZZLE)
         break;
       }
+      case 'reverse':   // update_object_lakitu_reverse: in on D_800E69B0, the sign swings until the kart turns round,
+        // then out on D_800E69F4 and gone 80 ticks later (unk_0D6 1 -> 2)
+        if (this.state === 1) { this.sp = { path: REVERSE_IN, idx: 0, timer: 0, loop: false }; this.leave = 0; this.state++; }
+        else if (this.state === 2) { this.visible = true; this.state++; }
+        else if (this.state === 3) this.pingpong(0, 15, 2);
+        else { this.stop(); return; }
+        if (this.state >= 3 && !this.leave && !this.kart.wrongWay) { this.sp = { path: REVERSE_OUT, idx: 0, timer: 0, loop: false }; this.leave = 80; }
+        else if (this.leave && --this.leave === 0) this.state++;
+        break;
     }
     this.splineTick();
   }
@@ -276,10 +292,27 @@ export class Lakitu {
             if (!k.rescue && lap >= 2) r.start(lap === laps ? 'finallap' : 'secondlap', k);
           }
         }
+        if (k && !k.free && !k.remote) {   // func_8007A88C: an idle referee shows the reverse sign
+          this.wrongWay(k);
+          if (k.wrongWay && !r.mode) r.start('reverse', k);
+        }
         if (r.mode) r.tick(i === 0 ? this.onLight : null);
       });
     }
     for (const r of this.referees) r.place(r.cam);
+  }
+
+  // detect_wrong_player_direction (human screen players): facing 136+ degrees off the course while losing progress
+  // for 5 ticks sets REVERSE_EFFECT (k.wrongWay), back within 45 degrees clears it; a finished kart (cinematic mode)
+  // or one in Lakitu's hands is never wrong-way. Assumption: progress is our continuous s, not path points.
+  wrongWay(k) {
+    if (k.finished || k.rescue) { k.wrongWay = false; k.wrongCount = 0; k.wrongS = k.s; return; }
+    const L = this.track.length, deg = Math.abs(k.psi) * 180 / Math.PI;
+    let ds = k.s - (k.wrongS ?? k.s);
+    if (ds > L / 2) ds -= L; else if (ds < -L / 2) ds += L;
+    k.wrongS = k.s;
+    if (ds < 0 && deg >= WRONG_MIN) { if (++k.wrongCount >= WRONG_FRAMES) { k.wrongCount = WRONG_FRAMES; k.wrongWay = true; } }
+    else if (deg < CORRECT_MAX) { k.wrongCount = 0; k.wrongWay = false; }
   }
 
   // func_80079860 -> func_800797AC: a screen player's Lakitu comes down to hook it; CPU karts are held at once

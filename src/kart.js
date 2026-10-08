@@ -362,7 +362,10 @@ export class Kart {
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
     const dir = this.v >= 0 ? 1 : -1;
     this.psi += steer * (this.drift ? 2.3 : 1.9) * speedFactor * dt * dir;
-    this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
+    // the player can turn all the way round (detect_wrong_player_direction -> Lakitu's reverse sign), wrapped to
+    // +-180 degrees with phi alongside; CPU karts keep to +-83 degrees of the course
+    if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
+    else if (Math.abs(this.psi) > Math.PI) { const w = Math.sign(this.psi) * 2 * Math.PI; this.psi -= w; this.phi -= w; }
     const grip = this.drift ? 1.6 : 9;
     this.phi += (this.psi - this.phi) * Math.min(1, grip * dt);
     if (this.drift) this.v -= 2 * dt;
@@ -385,8 +388,10 @@ export class Kart {
       this.d = sgn * wall;
       const into = sgn * Math.sin(this.phi) * this.v;
       if (into > 0) { this.v *= 0.82; this.hitWall = 0.25; }
-      if (sgn * this.psi > 0) this.psi *= 0.4;
-      if (sgn * this.phi > 0) this.phi *= 0.4;
+      // turned away from the wall: toward the course, or toward straight back when facing the wrong way
+      const off = a => Math.abs(a) > Math.PI / 2 ? Math.sign(a) * Math.PI - (Math.sign(a) * Math.PI - a) * 0.4 : a * 0.4;
+      if (sgn * this.psi > 0) this.psi = off(this.psi);
+      if (sgn * this.phi > 0) this.phi = off(this.phi);
       this.drift = 0;
     }
     this.hitWall = Math.max(0, this.hitWall - dt);
