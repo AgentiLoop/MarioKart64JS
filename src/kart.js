@@ -4,6 +4,17 @@ import * as HD from './hd.js';
 
 const MAX_SPEED = 44;
 const BOOST_SPEED = 62;
+// Engine classes: gTopSpeedTable (src/data/kart_attributes.c), per gCCSelection and characterId
+// (Mario Luigi Yoshi Toad DK Wario Peach Bowser). MAX_SPEED is the 150cc Mario 320; Extra (mirror) races 100cc.
+export const CC_INDEX = { 50: 0, 100: 1, 150: 2, extra: 3 };
+const TOP_SPEED = [
+  [290, 290, 294, 294, 290, 290, 294, 290],
+  [310, 310, 314, 314, 310, 310, 314, 310],
+  [320, 320, 324, 324, 320, 320, 324, 320],
+  [310, 310, 314, 314, 310, 310, 314, 310],
+];
+const CHARACTER_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
+export const ccSpeedScale = (cc, character) => TOP_SPEED[cc][CHARACTER_ID[character] ?? 0] / 320;
 // Airborne vertical physics, player_controller.c: vy += (gravityY - vy * 0.12 * kartFriction) / 6000 / unk_DAC
 // per frame (gKartGravityTable 2600, gKartFrictionTable 5800). Assumption: MK64's top speed of 9 units/frame
 // (gKartTopSpeedTable) maps to our MAX_SPEED at course scale 0.1, which fixes one MK64 frame in seconds.
@@ -62,8 +73,8 @@ export function buildKartMesh(character = 'mario') {
 }
 
 export class Kart {
-  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario' }) {
-    this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name;
+  constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', speedScale = 1 }) {
+    this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.speedScale = speedScale;
     this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
     this.crossings = 0; this.prevS = s;
     this.drift = 0;            // -1 left, +1 right, 0 none
@@ -100,8 +111,9 @@ export class Kart {
     const t = this.track;
     const absD = Math.abs(this.d);
     this.offroad = absD > HALF_WIDTH + 1.5;
-    this.top = MAX_SPEED * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
-    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    const scale = this.speedScale * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
+    this.top = MAX_SPEED * scale;
+    let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * scale;
     if (this.offroad && this.boost <= 0) max *= 0.45;
     if (this.finished) input = { throttle: 0.3, brake: 0, steer: 0, drift: false };
     if (this.spin > 0) {

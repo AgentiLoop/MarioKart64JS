@@ -79,6 +79,34 @@
       "romOffset": "0x807bc0",
       "pngSha256": "0d78ca52f4982a6329995bc5358f1f54d5cf16558ad648b7e234c7841511d640"
     },
+    "50cc": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x807ec0",
+      "pngSha256": "99b0c72b91d77ffaee2eaa5024aa379376afbbfb5c58076dc08a80235c28e399"
+    },
+    "100cc": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x8080c0",
+      "pngSha256": "535caea6ecc6089909cd4d5454c59a18f07bbc0dce01011e822024d4801c9148"
+    },
+    "150cc": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x8082c0",
+      "pngSha256": "1c4d1b345ff0b20e51972e2379e90e9d6e0d0f1c3a645488e985ed962e51a217"
+    },
+    "extra": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x8084c0",
+      "pngSha256": "5d5504b5ffe0aa10c43b81ebcf9d0c036de4c6de6e8a25450c493a4447b4eb2a"
+    },
     "small_green_triangle": {
       "format": "rgba16",
       "width": 12,

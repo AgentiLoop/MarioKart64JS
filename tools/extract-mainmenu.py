@@ -3,7 +3,7 @@
 
 Usage: python3 tools/extract-mainmenu.py ROM
 Offsets/dimensions from n64decomp/mk64 assets.json + src/data/textures.c (seg2_game_select_texture,
-seg2_menu_1p_column..seg2_menu_4p_column, gTextureMenuLOption, seg2_textureMenuRData).
+seg2_menu_1p_column..seg2_menu_4p_column, gTextureMenuLOption, seg2_textureMenuRData, the cc rows).
 Output: public/mk64/mainmenu/*.png + manifest.json
 """
 import hashlib
@@ -30,6 +30,11 @@ TKMK00 = {
     'mode_battle': (0x806AC0, 64, 18, 1),
     'l_option': (0x8078C0, 58, 19, 1),
     'r_data': (0x807BC0, 58, 19, 1),
+    # MAIN_MENU_MODE_SUB_SELECT rows (seg2_50_CC_texture..seg2_extra_CC_texture, D_800E8294)
+    '50cc': (0x807EC0, 64, 18, 1),
+    '100cc': (0x8080C0, 64, 18, 1),
+    '150cc': (0x8082C0, 64, 18, 1),
+    'extra': (0x8084C0, 64, 18, 1),
 }
 
 # raw rgba16 (data/course_player_selection.s): the cursor triangle under the chosen column (D_020047DC dX 27, dY 56)
