@@ -103,17 +103,19 @@ def open_hd(path, intensity=False):
 
 def right_bevel(img, rel):
     """The HD pack's cup icons end in black where the native 65x40 ones have the grey right bevel column
-    (like the course title plates): paste the native last column and bottom row back, nearest-scaled to
-    this tier, then cut the top-right and bottom-left corner pixels into 45-degree diagonals like the
-    HD title plates."""
+    (like the course title plates), and its MAP/GAME SELECT banners only have a thin bevel with a stubby
+    corner: paste the native last column and bottom row back, nearest-scaled to this tier, then cut the
+    top-right and bottom-left corner pixels into 45-degree diagonals like the HD title plates."""
     native = Image.open(NATIVE / rel).convert('RGBA')
     t = img.width // native.width
     w, h = img.size
-    col = native.crop((native.width - 1, 1, native.width, native.height)).resize((t, (native.height - 1) * t), Image.NEAREST)
-    row = native.crop((1, native.height - 1, native.width, native.height)).resize(((native.width - 1) * t, t), Image.NEAREST)
-    img.paste(col, (w - t, t))
-    img.paste(row, (t, h - t))
-    black, grey = native.getpixel((0, 0)), native.getpixel((native.width - 1, 1))
+    col = native.crop((native.width - 1, 1, native.width, native.height))
+    row = native.crop((1, native.height - 1, native.width, native.height))
+    col.putpixel((0, 0), col.getpixel((0, 1)))     # banners anti-alias their 1px corner: use the full grey
+    row.putpixel((0, 0), row.getpixel((1, 0)))
+    img.paste(col.resize((t, (native.height - 1) * t), Image.NEAREST), (w - t, t))
+    img.paste(row.resize(((native.width - 1) * t, t), Image.NEAREST), (t, h - t))
+    black, grey = native.getpixel((0, 0)), col.getpixel((0, 0))
     for i in range(t):
         for j in range(t):
             img.putpixel((w - t + i, j), grey if i + j >= t - 1 else black)        # top-right
@@ -229,7 +231,8 @@ def main():
         single(f'menu/previews/{cid}.png', named(f'player_selection/{info["symbol"]}'))
         title = info['symbol'].replace('gTextureCoursePreview', 'gTextureTitle')
         single(f'courseselect/title_{cid}.png', named(f'texture_tkmk00/{title}'))
-    single('courseselect/map_select.png', named('texture_tkmk00/gTextureMapSelect'))
+    single('courseselect/map_select.png', named('texture_tkmk00/gTextureMapSelect'),
+           post=lambda img: right_bevel(img, 'courseselect/map_select.png'))
     for cup in ('mushroom', 'flower', 'star', 'special'):
         single(f'courseselect/cup_{cup}.png', named(f'texture_tkmk00/gTextureMenu{cup.title()}Cup'),
                post=lambda img, rel=f'courseselect/cup_{cup}.png': right_bevel(img, rel))
@@ -241,7 +244,8 @@ def main():
         single(f'charselect/{border}.png', named(f'player_selection/{border}'))
     for name in ('game_select', 'menu_1p_game', 'menu_2p_game', 'menu_3p_game', 'menu_4p_game', 'mode_mario_gp',
                  'mode_time_trials', 'mode_vs', 'mode_battle', 'l_option', 'r_data', '50cc', '100cc', '150cc', 'extra'):
-        single(f'mainmenu/{name}.png', named(f'texture_tkmk00/texture_{name}'))
+        single(f'mainmenu/{name}.png', named(f'texture_tkmk00/texture_{name}'),
+               post=(lambda img: right_bevel(img, 'mainmenu/game_select.png')) if name == 'game_select' else None)
     single('mainmenu/small_green_triangle.png', named('player_selection/texture_small_green_triangle'))
 
     # render tiers
