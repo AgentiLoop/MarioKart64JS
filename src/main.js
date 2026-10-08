@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
-import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS } from './kart.js';
+import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS, togglePhysics } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -873,6 +873,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') location.search = '';
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
+  if (e.code === 'KeyJ') showRes(togglePhysics());
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -1036,9 +1037,9 @@ if (mirror) canvas.style.transform = miniEl.style.transform = 'scaleX(-1)';
 HD.onChange(resize);
 let resTimer = 0;
 $('help').textContent = $('help').textContent.replace('1×/2×/4×/Native', HD.PRESETS.map(p => p.label.split(' ')[0]).join('/'));   // the web build has no 4x
-function showRes() {
+function showRes(text = `${HD.presetLabel()} · textures ${HD.tier()}×`) {
   const el = $('res');
-  el.textContent = `${HD.presetLabel()} · textures ${HD.tier()}×`;
+  el.textContent = text;
   el.style.display = 'block';
   clearTimeout(resTimer); resTimer = setTimeout(() => { el.style.display = 'none'; }, 1500);
 }

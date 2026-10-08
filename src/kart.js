@@ -107,6 +107,16 @@ const TUMBLE = {
   vertical: { hop: () => 2.2, jerk: 0.002, gravity: 550, step: 0x80, laps: 4, ground: 3 },
 };
 const TICK = 1 / 60, DRAG = 0.12 * 5800 / 6000;
+// Kart height model, toggled in game with J (saved): A (default) steps the decomp's vertical speed and ground
+// push-out per 60 Hz tick (Kart.tickHeight); B (glue) keeps the kart on the road and only flies off a BOOST_RAMP_*
+// lip (Royal Raceway, DK's Jungle Parkway) or a real drop of more than GLUE_DROP
+export const PHYSICS = { glue: globalThis.localStorage?.getItem('kartPhysics') === 'glue' };
+export function togglePhysics() {
+  PHYSICS.glue = !PHYSICS.glue;
+  globalThis.localStorage?.setItem('kartPhysics', PHYSICS.glue ? 'glue' : 'mk64');
+  return PHYSICS.glue ? 'Kart physics B: glued to the road' : 'Kart physics A: MK64 ticks';
+}
+const GLUE_DROP = 1, UP = new THREE.Vector3(0, 1, 0);
 
 // View tables: n64decomp/mk64 src/kart_dma.c (neutral slope group 4).
 // Angle quantization: src/player_controller.c, func_8002934C.
@@ -159,6 +169,7 @@ export function buildKartMesh(character = 'mario') {
     map.repeat.set((view.mirrored ? -1 : 1) / 21, 1 / 16);
     map.offset.set((column + (view.mirrored ? 1 : 0)) / 21, 1 - (row + 1) / 16);
     material.rotation = g.userData.lean || 0;
+    sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
@@ -508,6 +519,79 @@ export class Kart {
     this.balloonMeshes.forEach((m, i) => { m.visible = i < this.balloons; m.position.y = m.userData.base + Math.sin(bob * 2 + i * 2.1) * 0.15; });
   }
 
+  // Option A: kart height stepped in 60 Hz player ticks (player_controller.c, TICK). newVelocity[1] gets gravity
+  // and drag / unk_DAC; nextY = pos + the last tick's velocity[1] - 0.02; ground contact (surfaceDistance[2] <= 0)
+  // pushes nextY back out by 10% of the depth (func_8003E048) and drops the velocity's part into the surface, or
+  // reflects it when deeper than 2 units (func_8002A5F4(.., 1, 2)). Returns the ground (null on the route plane).
+  tickHeight(g, f, x, z, px, pz, dt) {
+    const t = this.track, wasAir = this.air;
+    if (!wasAir && g && g.ramp) this.ramp = g.ramp;
+    if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
+    // the same fluid / void / route-plane rules as the frame-step path above, for a kart that is in the air
+    const fluid = wasAir && t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
+    const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
+    const n = floor === g?.y && g.normal.y > 0.2 ? g.normal : UP;
+    this.ticks += dt / TICK;
+    const count = Math.min(Math.floor(this.ticks), 8);
+    this.ticks = Math.min(this.ticks - Math.floor(this.ticks), 1);
+    const hx = (x - px) * TICK / (dt * 0.1), hz = (z - pz) * TICK / (dt * 0.1);   // MK units per tick
+    let vy = this.vy * TICK / 0.1;
+    for (let i = count - 1; i >= 0; i--) {   // tick i (+ the leftover fraction) ticks before this frame's position
+      const target = this.ramp ? RAMP_AIR[this.ramp].dac : 1, step = this.ramp ? 1 : 0.07;
+      this.dac += THREE.MathUtils.clamp(target - this.dac, -step, step);
+      if (this.air && !this.ramp && this.y - floor >= 5) this.dac = 2 - 0.07;
+      const gravity = this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY;
+      const next = vy + (-gravity - vy * 0.12 * 5800) / 6000 / this.dac;
+      let y = this.y + vy * 0.1 - 0.002;
+      const back = (i + this.ticks) * 0.1, fy = floor + (n.x * hx + n.z * hz) * back / n.y;   // floor plane there
+      const depth = (y - fy) * n.y / 0.1;
+      if (depth <= 0) {
+        if (this.air) { this.air = false; this.land(); }
+        y -= n.y * depth * 0.1 * 0.1;
+        vy = next - (hx * n.x + next * n.y + hz * n.z) * n.y * (depth < -2 ? 2 : 1);
+      } else {
+        if (!this.air) { this.air = true; this.airTicks = 0; }
+        this.airTicks++; vy = next;
+      }
+      this.y = y;
+    }
+    this.vy = vy * 0.1 / TICK;
+    this.lead = vy * 0.1 * this.ticks;
+    if (this.air) {
+      if (g && sunk && this.y < fluid - 0.55) this.fell = { kind: 'water', base: fluid };
+      else if (!g && this.y < f.pos.y - 30) this.fell = { kind: 'drop', base: this.y };   // fell into the void
+      return g;
+    }
+    if (floor !== g?.y) g = null;   // on the route plane
+    if (!g || !g.ramp) this.ramp = null;
+    return g;
+  }
+
+  // Landing bounce (player_controller.c): 4+ ticks in the air at speed (speed / 18 * 216 >= 20) squashes the sprite
+  // with unk_DB4.unkC 1.5, 28+ ticks 2.8, 35+ ticks 3 at any speed (POOMP)
+  land() {
+    const ticks = this.airTicks || 0, fast = Math.abs(this.v) * 9 / MAX_SPEED / 18 * 216 >= 20;
+    const c = ticks >= 35 ? 3 : ticks >= 28 && fast ? 2.8 : ticks >= 4 && fast ? 1.5 : 0;
+    if (c) this.bounce = { c, t: 0, acc: 0, dip: 0 };
+    this.airTicks = 0;
+  }
+
+  // func_80022DB4 per 30 Hz frame: dip = t * c - 0.7 t^2, each time it goes under 0 the bounce restarts at 0.8 c;
+  // func_80022E84 lowers the sprite's top vertices (18 units high) by the dip
+  stepBounce(dt) {
+    const b = this.bounce;
+    if (b) {
+      for (b.acc += dt * 30; b.acc >= 1 && b.c; b.acc--) {
+        b.t++;
+        const d = Math.trunc(b.t * b.c - 0.7 * b.t * b.t);
+        if (d < 0) { b.c *= 0.8; b.t = 0; if (b.c <= 0.1) b.c = 0; }
+        b.dip = Math.max(d, 0);
+      }
+      if (!b.c) this.bounce = null;
+    }
+    this.mesh.userData.squash = this.bounce ? this.bounce.dip / 18 : 0;
+  }
+
   syncMesh(dt = 0) {
     if (this.free) return this.syncFree(dt);
     const t = this.track;
@@ -528,7 +612,9 @@ export class Kart {
       }
     }
     // ballistic height: leave the ground when it falls away faster than gravity (ramp lips, crests)
-    if (this.y == null || !dt) { if (g) this.y = g.y; this.vy = 0; this.air = false; this.dac = 1; this.ramp = null; }
+    if (this.y == null || !dt) { if (g) this.y = g.y; this.vy = 0; this.air = false; this.dac = 1; this.ramp = null; this.airTicks = 0; this.ticks = 0; this.lead = 0; }
+    else if (!PHYSICS.glue && (this.air || g)) g = this.tickHeight(g, f, x, z, px, pz, dt);
+
     else {
       // BOOST_RAMP_* surface: trigger_*_ramp_boost / apply_boost_ramp_*_effect hold top speed until touchdown
       if (!this.air && g && g.ramp) this.ramp = g.ramp;
@@ -539,14 +625,14 @@ export class Kart {
       if (this.air && !this.ramp && g && this.y - g.y >= 5) this.dac = 2 - 0.07;
       const accel = () => (-(this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY) * GRAVITY_SCALE - AIR_DRAG * this.vy) / this.dac;
       if (this.air) {
-        this.vy += accel() * dt; this.y += this.vy * dt;
+        this.vy += accel() * dt; this.y += this.vy * dt; this.airTicks += dt / TICK;
         // ground under the course's fluid level (water, lava: func_802AAB4C) or none at all (the void) is no landing:
         // the kart sinks / drops and Lakitu fishes it out (src/lakitu.js). Outside a ramp flight, other ground well
         // below the route is floored at the route.
         const fluid = t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
         const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
         if (this.y <= floor) {
-          this.air = false; this.y = floor; this.vy = 0;
+          this.air = false; this.y = floor; this.vy = 0; this.land();
           if (floor !== g.y) g = null;   // landed on the route plane
           if (!g || !g.ramp) this.ramp = null;
         }
@@ -554,7 +640,8 @@ export class Kart {
         else if (!g && this.y < f.pos.y - 30) this.fell = { kind: 'drop', base: this.y };   // fell into the void
       } else if (g) {
         const fall = this.y + (this.vy + accel() * dt) * dt;
-        if (g.y < fall - 0.05) { this.air = true; this.vy += accel() * dt; this.y = fall; }
+        // glued (option B): only a BOOST_RAMP_* lip or a real drop (ground gone GLUE_DROP below) takes off
+        if (g.y < fall - 0.05 && (this.ramp || g.y < this.y - GLUE_DROP)) { this.air = true; this.airTicks = 0; this.vy += accel() * dt; this.y = fall; }
         else {
           const n = g.normal;   // vertical speed of the slope under the kart (not frame-to-frame, so steps don't launch)
           this.vy = n.y > 0.2 ? THREE.MathUtils.clamp(-(n.x * (x - px) + n.z * (z - pz)) / (n.y * dt), -0.6 * Math.abs(this.v), 0.6 * Math.abs(this.v)) : 0;
@@ -563,14 +650,16 @@ export class Kart {
         }
       }
     }
+    this.stepBounce(dt);
     if (g && !this.air) {
-      this.groundY = g.y; this.world.y = g.y;
+      this.groundY = g.y; this.world.y = PHYSICS.glue ? g.y : this.y + this.lead;
       if (!this.ramp) this.lastGroundS = this.s;   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
       this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
       this.up.copy(this.groundN);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope
     } else if (this.air) {
-      this.groundY = this.y; this.world.y = this.y;
+      this.groundY = this.y; this.world.y = this.y + (PHYSICS.glue ? 0 : this.lead);
+
       this.up.copy(this.groundN || f.U);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
     } else {
