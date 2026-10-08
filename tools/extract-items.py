@@ -42,6 +42,11 @@ SHELL_QUADS = {'shell': 0x5238, 'shellMirrored': 0x5278}
 # (D_0D008DB8), G_CC_MODULATEIDECALA: texel intensity x the red / yellow vertex colours, texel alpha.
 EXPLOSION_TEXTURES = [0x6A04E4, 0x6A0798]
 EXPLOSION_QUADS = [0x800E8A00, 0x800E8A40]
+# Battle balloon (render_battle_balloon): gTextureBalloon1 / 2 (assets/onomatopoeia.json, 64x32 CI8, MIO0) with the
+# 256-colour RGBA16 TLUT D_800E52D0 (gTLUTOnomatopoeia, main code data @ ROM 0xE5ED0) on gBalloonVertexPlane1
+# (y 9..18) over gBalloonVertexPlane2 (y 0..9), gSPTexture scale 0.5 (D_0D008DB8). Stacked top to bottom.
+BALLOON_TEXTURES = [0x6A010C, 0x6A0350]
+BALLOON_TLUT = 0xE5ED0
 
 
 def red_tlut(green):
@@ -107,6 +112,11 @@ def main():
     out['explosion'] = dict(image='explosion.png', width=64, height=64, quads=quads, triangles=[[0, 1, 2], [0, 2, 3]],
                             rgbaSha256=hashlib.sha256(rgba).hexdigest())
     print('explosion    64x64, 2 quads')
+    palette = karts.rgba16(rom[BALLOON_TLUT:BALLOON_TLUT + 0x200])
+    rgba = b''.join(palette[i] for o in BALLOON_TEXTURES for i in karts.mio0(rom[o:])[:64 * 32])
+    (args.output / 'balloon.png').write_bytes(karts.png(64, 64, rgba))
+    out['balloon'] = dict(image='balloon.png', width=64, height=64, rgbaSha256=hashlib.sha256(rgba).hexdigest())
+    print('balloon      64x64')
     (args.output / 'items.json').write_text(json.dumps(out, indent=1) + '\n')
 
 
