@@ -114,13 +114,19 @@ class Referee {
     this.endIce();   // func_800791F0: a new scene takes the frost off
     this.mode = mode; this.kart = kart; this.state = 1; this.frame = 0; this.alpha = 1; this.wt = null; this.an = null;
     this.hum = mode === 'fishing' || mode === 'reverse';   // init_obj_lakitu_red_flag_fishing / _reverse: 0x0100FA28
-    this.sp = null; this.visible = false; this.offset = [0, 0, 0];
+    this.sp = null; this.visible = false; this.offset = [0, 0, 0]; this.vel = [0, 0, 0]; this.offscreen = false; this.exiting = 0;
     const [x0, x1, h] = QUADS[mode].map(v => v * 0.15 * K), pos = this.mesh.geometry.attributes.position;
     pos.array.set([x0, -h, 0, x1, -h, 0, x1, h, 0, x0, h, 0]); pos.needsUpdate = true;
+    this.mesh.geometry.computeBoundingSphere();
     this.material.map = this.textures[mode]; this.material.needsUpdate = true;
   }
 
   stop() { this.endIce(); this.mode = null; this.mesh.visible = false; this.hum = false; }
+
+  // where the console is done with him he can still be in our closer chase camera's view (the lap sign's spline
+  // ends 2 units off the lens), so instead of vanishing he keeps flying his last heading until he's off the screen
+  // (place() sets offscreen), at most 2 s
+  exit() { if (this.offscreen || !this.visible) this.stop(); else this.exiting = 120; }
 
   // Sherbet Land (update_object_lakitu_fishing2): the ice block breaks if it hasn't yet and the kart's frost goes
   endIce() {
@@ -170,7 +176,10 @@ class Referee {
     const s = this.sp;
     if (!s || s.done) return;
     const { n, pts } = s.path, P = i => pts[i % n], t = s.timer / 10000, b = basis(t);
-    for (let a = 0; a < 3; a++) this.offset[a] = b.reduce((sum, w, k) => sum + w * P(s.idx + k).p[a], 0);
+    for (let a = 0; a < 3; a++) {
+      const o = b.reduce((sum, w, k) => sum + w * P(s.idx + k).p[a], 0);
+      this.vel[a] = o - this.offset[a]; this.offset[a] = o;
+    }
     const v0 = P(s.idx).v, v1 = P(s.idx + 1).v;
     s.timer += 10000 / ((v1 - v0) * t + v0);
     if (s.timer >= 10000) {
@@ -180,6 +189,12 @@ class Referee {
   }
 
   tick(events) {
+    if (this.exiting) {
+      if (this.sp && !this.sp.done) this.splineTick();
+      else for (let a = 0; a < 3; a++) this.offset[a] += this.vel[a];
+      if (this.offscreen || --this.exiting === 0) this.stop();
+      return;
+    }
     switch (this.mode) {
       case 'countdown':   // update_object_lakitu_countdown
         switch (this.state) {
@@ -196,7 +211,7 @@ class Referee {
           case 12: this.anim(24, 27, 6, 0); break;
           case 13: this.state++; break;
           case 14: this.wait(120); break;
-          case 15: this.stop(); return;
+          case 15: this.exit(); return;
         }
         break;
       case 'flag':   // update_object_lakitu_red_flag
@@ -212,7 +227,7 @@ class Referee {
           case 4: this.anim(0, 15, 2, 1); break;
           case 5: this.wait(60); break;
           case 6: this.anim(15, 0, 2, 1, -1); break;
-          case 7: if (this.sp.done) { this.stop(); return; } break;
+          case 7: if (this.sp.done) { this.exit(); return; } break;
         }
         break;
       case 'fishing': {   // update_object_lakitu_fishing + func_80079A5C (offset 80 down to 5, later up to 100)
@@ -230,12 +245,13 @@ class Referee {
         else if (this.stage === 2 && !held) { this.stage = 3; this.t = 0; if (!this.ice) this.hum = false; }   // effects.c: the kart is let go
         else if (this.stage >= 3) {
           const up = (this.offset[1] = Math.min(100, this.offset[1] + 1)) === 100;
-          if (!this.ice) { if (up) { this.stop(); return; } }
+          this.vel = [0, 1, 0];
+          if (!this.ice) { if (up) { this.exit(); return; } }
           // fishing2 unk_0D6 4-8: 30 ticks on, the ice breaks (0x1900A056, shards, the kart drives again); 160 later
           // the frost starts to thaw (FRIGID -> THAWING); 60 more and he's gone, the hum with him
           else if (this.stage === 3 && ++this.t > 30) { this.stage = 4; this.t = 0; this.shatter(); }
           else if (this.stage === 4 && ++this.t > 160) { this.stage = 5; this.t = 0; if (this.kart.cold) this.kart.cold.mode = 'thaw'; }
-          else if (this.stage === 5 && ++this.t > 60) { this.stop(); return; }
+          else if (this.stage === 5 && ++this.t > 60) { this.exit(); return; }
         }
         // fishing2 unk_0D6 3 (flag 8, func_80052D70): held back over the road (LAKITU_RETRIEVAL off) 30 or less above
         // it, the block's reflection shows under the ice until it breaks. Assumption: that road is ICE.
@@ -248,7 +264,7 @@ class Referee {
         if (this.state === 1) { this.sp = { path: REVERSE_IN, idx: 0, timer: 0, loop: false }; this.leave = 0; this.state++; }
         else if (this.state === 2) { this.visible = true; this.state++; }
         else if (this.state === 3) this.pingpong(0, 15, 2);
-        else { this.stop(); return; }
+        else { this.exit(); return; }
         if (this.state >= 3 && !this.leave && !this.kart.wrongWay) { this.sp = { path: REVERSE_OUT, idx: 0, timer: 0, loop: false }; this.leave = 80; this.hum = false; }
         else if (this.leave && --this.leave === 0) this.state++;
         break;
@@ -275,9 +291,13 @@ class Referee {
     uv.array.set([u0, v0, u1, v0, u1, v1, u0, v1]); uv.needsUpdate = true;
     this.material.opacity = this.alpha;
     this.mesh.visible = true;
+    this.mesh.updateMatrixWorld();
+    cam.updateMatrixWorld();
+    _frustum.setFromProjectionMatrix(_pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    this.offscreen = !_frustum.intersectsObject(this.mesh);
   }
 }
-const _dir = new THREE.Vector3();
+const _dir = new THREE.Vector3(), _frustum = new THREE.Frustum(), _pm = new THREE.Matrix4();
 
 export class Lakitu {
   constructor(scene, track) {
