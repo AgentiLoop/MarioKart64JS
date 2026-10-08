@@ -126,7 +126,7 @@ class Referee {
   endIce() {
     if (!this.ice) return;
     const k = this.kart;
-    this.ice = false; this.block = false;
+    this.ice = false; this.block = false; this.mirror = false;
     if (k.rescue?.released) letGo(k, k.rescue); else if (k.rescue) k.rescue.frozen = false;
     k.cold = null; k.mesh.userData.setCold([0, 0, 0], [0, 0, 0]);
   }
@@ -134,7 +134,7 @@ class Referee {
   // fishing2 unk_0D6 5: FROZEN_EFFECT off, the block breaks into shards (flags 0x10 / 0x20), 0x1900A056
   shatter() {
     const k = this.kart;
-    this.block = false;
+    this.block = false; this.mirror = false;
     if (k.rescue?.released) letGo(k, k.rescue);
     this.sound?.(1, 0x56);
     this.shards?.(k);
@@ -237,6 +237,9 @@ class Referee {
           else if (this.stage === 4 && ++this.t > 160) { this.stage = 5; this.t = 0; if (this.kart.cold) this.kart.cold.mode = 'thaw'; }
           else if (this.stage === 5 && ++this.t > 60) { this.stop(); return; }
         }
+        // fishing2 unk_0D6 3 (flag 8, func_80052D70): held back over the road (LAKITU_RETRIEVAL off) 30 or less above
+        // it, the block's reflection shows under the ice until it breaks. Assumption: that road is ICE.
+        if (this.stage === 2 && this.ice && held && r?.phase >= 3 && this.kart.world.y - r.road <= 30 * K) this.mirror = true;
         this.alpha = r ? r.alpha : 1;   // func_8007993C: fades with the kart (LAKITU_FIZZLE)
         break;
       }
@@ -480,6 +483,15 @@ class Ice {
     geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(d.positions.length), 3));
     this.normals = d.normals;
     this.blockMat = mat(); this.blockMat.vertexColors = true;
+    // func_80052D70 (1P only): the same block upside down (rsp_set_matrix_transformation_inverted_x_y_orientation:
+    // x and y turned 0x8000 = a half turn about z) at the kart's x / z, 6.5 under its ground (unk_074), drawn after
+    // the course (D_0D007878: XLU surface, TEXEL0 x SHADE, prim alpha 0xFF) with its turned normals lit
+    const mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', geo.attributes.position); mg.setAttribute('uv', geo.attributes.uv);
+    mg.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(d.positions.length), 3));
+    this.mirror = new THREE.Mesh(mg, this.blockMat);
+    this.mirror.rotation.z = Math.PI; this.mirror.renderOrder = 2; this.mirror.frustumCulled = false; this.mirror.visible = false;
+    this.scene.add(this.mirror);
     const sg = new THREE.BufferGeometry();
     sg.setAttribute('position', new THREE.Float32BufferAttribute(d.shard.positions.flat(), 3));
     sg.setAttribute('uv', new THREE.Float32BufferAttribute(d.shard.uvs.flatMap(([u, v]) => [u, 1 - v]), 2));
@@ -531,6 +543,14 @@ class Ice {
       if (m.visible) m.position.set(r.kart.world.x, r.kart.world.y + KART_MID, r.kart.world.z);
     });
     for (let i = referees.length; i < this.blocks.length; i++) this.blocks[i].visible = false;
+    const mr = referees.length === 1 && referees[0].mirror && referees[0].kart.rescue ? referees[0] : null;
+    this.mirror.visible = !!mr;
+    if (mr) {
+      const mc = this.mirror.geometry.attributes.color;
+      for (let i = 0; i < nrm.length; i += 3) this.shade(-nrm[i], -nrm[i + 1], nrm[i + 2], mc.array, i);
+      mc.needsUpdate = true;
+      this.mirror.position.set(mr.kart.world.x, mr.kart.rescue.road - 6.5 * K, mr.kart.world.z);
+    }
     const mesh = this.shardMesh;
     mesh.count = this.shards.length;
     if (!mesh.count) return;
