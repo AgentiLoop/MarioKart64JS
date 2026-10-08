@@ -181,12 +181,122 @@ export async function loadNativeCourse(def) {
     if (!res.ok) throw new Error(`Sign data ${def.dir}: HTTP ${res.status}`);
     def.signs = await res.json();
   }
+  if (def.id === 'rainbow') {
+    const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/neon.json`);
+    if (!res.ok) throw new Error(`Neon sign data ${def.dir}: HTTP ${res.status}`);
+    def.neon = await res.json();
+  }
   return def;
 }
 // Courses with sign actors (tools/extract-signs.py): ACTOR_MARIO_SIGN x2, ACTOR_WARIO_SIGN x3.
 const SIGN_COURSES = ['mario', 'wario'];
 // update_actor_mario_sign turns the sign DEGREES(1) = 182 binary angles per object update (30 Hz assumed, as for clouds).
 const SIGN_SPIN = 30 * 182 * 2 * Math.PI / 65536;
+// Rainbow Road neon signs (tools/extract-neon.py): update_neon runs once per object update, 30 Hz assumed as for clouds.
+const NEON_TICK = 1 / 30;
+// The object-animation helpers of update_objects.c:339-620 that the neon state machines use, on a plain object:
+// state, timer, timerActive (isTimerActive), flagAnim (0x2000), hidden (0x80000), frame (textureListIndex),
+// phase (unk_0D4) and count (unk_0CC).
+function neonNext(o) { o.timerActive = false; o.flagAnim = false; o.state++; }                // object_next_state
+function neonGoto(o, state) { o.timerActive = false; o.flagAnim = false; o.state = state; }   // func_800726CC
+function neonTimer(o, timer) {                                                                 // set_and_run_timer_object
+  if (!o.timerActive) { o.timerActive = true; o.timer = timer; }
+  if (--o.timer < 0) { o.timerActive = false; neonNext(o); }
+}
+function neonHide(o, timer) {                                                                  // func_80072B48 (D_8018D140 = 0)
+  if (!o.timerActive) { o.timerActive = true; o.hidden = true; o.frame = 0; o.timer = timer; }
+  if (--o.timer < 0) { o.hidden = false; o.timerActive = false; neonNext(o); }
+}
+function neonUp(o, from, to, step, delay, count) {                                             // func_80072E54
+  if (!o.flagAnim) {
+    o.frame = from; o.timer = delay; o.count = count; o.timerActive = true; o.flagAnim = true;
+  } else if (--o.timer <= 0) {
+    o.timer = delay; o.frame += step;
+    if (to < o.frame) {
+      if (o.count > 0) o.count--;
+      if (o.count === 0) { o.frame = to; o.flagAnim = false; o.timerActive = false; neonNext(o); } else o.frame = from;
+    }
+  }
+}
+function neonDown(o, from, to, step, delay, count) {                                           // func_80072F88
+  if (!o.flagAnim) {
+    o.frame = from; o.timer = delay; o.count = count; o.timerActive = true; o.flagAnim = true;
+  } else if (--o.timer <= 0) {
+    o.timer = delay; o.frame -= step;
+    if (o.frame < to) {
+      if (o.count > 0) o.count--;
+      if (o.count === 0) { o.frame = to; o.flagAnim = false; o.timerActive = false; neonNext(o); } else o.frame = from;
+    }
+  }
+}
+function neonFlip(o, a, b, delay, count) {                                                     // func_80072D3C: alternate frames a/b
+  if (!o.flagAnim) {
+    o.timer = delay; o.frame = a; o.phase = 1; o.count = count; o.flagAnim = true;
+    return;
+  }
+  if (--o.timer < 0) {
+    o.timer = delay; o.phase--;
+    o.frame = (o.phase & 1) ? a : b;
+    if (o.phase < 0) {
+      o.phase = 1;
+      if (o.count > 0) o.count--;
+      if (o.count === 0) { o.flagAnim = false; neonNext(o); }
+    }
+  }
+}
+function neonBlink(o, frame, delay, count) {                                                   // func_80072C00: flicker 0x80000
+  if (!o.flagAnim) {
+    o.timer = delay; o.frame = frame; o.phase = 1; o.count = count; o.flagAnim = true;
+  } else if (--o.timer < 0) {
+    o.timer = delay; o.phase--;
+    o.hidden = !(o.phase & 1);
+    if (o.phase < 0) {
+      o.phase = 1;
+      if (o.count > 0) o.count--;
+      if (o.count === 0) { o.flagAnim = false; neonNext(o); }
+    }
+  }
+}
+// func_80085CA0 / func_80085E38 / func_80085F74: states 2.. of the three animated signs (state 1 is the init).
+const NEON_STATES = {
+  mushroom(o) {
+    switch (o.state) {
+      case 2: case 5: neonUp(o, 0, 4, 1, 12, 5); break;
+      case 3: neonFlip(o, 3, 4, 4, 10); break;
+      case 4: case 6: neonTimer(o, 20); break;
+      case 7: neonFlip(o, 3, 4, 0, 20); break;
+      case 8: neonGoto(o, 2); break;
+    }
+  },
+  mario(o) {
+    switch (o.state) {
+      case 2: neonUp(o, 0, 4, 1, 12, 1); break;
+      case 3: neonFlip(o, 3, 4, 12, 1); break;
+      case 4: neonHide(o, 12); break;
+      case 5: neonGoto(o, 2); break;
+    }
+  },
+  boo(o) {
+    switch (o.state) {
+      case 2: neonUp(o, 0, 4, 1, 5, 1); break;
+      case 3: case 5: neonTimer(o, 30); break;
+      case 4: neonBlink(o, 4, 0, 7); break;
+      case 6: neonDown(o, 3, 0, 1, 5, 1); break;
+      case 7: neonHide(o, 15); break;
+      case 8: neonGoto(o, 2); break;
+    }
+  },
+};
+// Per-tick { state, frame, visible } of one animated sign from its init, for tests (update_neon without the mesh).
+export function neonTrace(name, ticks) {
+  const o = { state: 1, timer: 0, timerActive: false, flagAnim: false, hidden: false, frame: 0, phase: 0, count: 0 };
+  const trace = [];
+  for (let i = 0; i < ticks; i++) {
+    if (o.state === 1) neonNext(o); else NEON_STATES[name](o);
+    trace.push({ state: o.state, frame: o.frame, visible: !o.hidden });
+  }
+  return trace;
+}
 // Start/finish gantry model (tools/extract-finish-line.py), shared by every race course.
 let finishLinePromise = null;
 function loadFinishLine() {
@@ -273,7 +383,7 @@ export class Track {
     this.pos = []; this.T = []; this.U = []; this.R = []; this.kU = [];
     this._build();
     this.group = new THREE.Group();
-    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); this._buildFinishLine(); this._buildSigns(); }
+    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); this._buildFinishLine(); this._buildSigns(); this._buildNeon(); }
     else this._buildMeshes();
   }
 
@@ -368,9 +478,72 @@ export class Track {
     }
   }
 
+  // Rainbow Road's ten neon signs (render_object_neon): common_vtx_hedgehog, two 64x32 halves of a 64x64 CI8
+  // texture, sizeScaling 8, turned about y toward each camera. The N64 rolls the quad by 0x8000; here the
+  // halves are placed upright (texture top at the top). The second half starts at texel row 31, as in
+  // draw_rectangle_texture_overlap (img += width * (height - 1)). G_CC_DECALRGBA, TEX_EDGE: alpha cutout.
+  _buildNeon() {
+    const data = this.def.neon;
+    this.neon = [];
+    if (!data) return;
+    const positions = [], uvs = [];
+    data.vertices.forEach(([x, y, , , s, t], i) => {
+      positions.push(x * data.scale * NATIVE_SCALE, -y * data.scale * NATIVE_SCALE, 0);
+      uvs.push(s / 4096, (i < 4 ? 0 : 31 / 64) + t / 4096);
+    });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geometry.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
+    for (const sign of data.signs) {
+      const frames = sign.frames.map(image => {
+        const map = HD.loadTexture(`${this.def.dir}/${image}`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.flipY = false;
+        map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;   // rsp_load_texture: G_TX_CLAMP
+        this.textures.push(map);
+        return map;
+      });
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        map: frames[0], alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false, fog: false }));
+      mesh.name = `neon-${sign.name}`;
+      mesh.position.set(...sign.position.map(v => v * NATIVE_SCALE));
+      mesh.frustumCulled = false;
+      mesh.visible = false;   // state 1 (init) until the first update
+      mesh.onBeforeRender = (renderer, scene, camera) => {
+        mesh.rotation.y = Math.atan2(camera.position.x - mesh.position.x, camera.position.z - mesh.position.z);
+        mesh.updateMatrix();
+        mesh.updateMatrixWorld();
+      };
+      this.group.add(mesh);
+      this.neon.push({
+        mesh, frames, run: sign.animated ? NEON_STATES[sign.name] : null,
+        state: 1, timer: 0, timerActive: false, flagAnim: false, hidden: false, frame: 0, phase: 0, count: 0,
+      });
+    }
+    this._neonClock = 0;
+  }
+
+  // update_neon: state 1 initialises (-> 2); only the three animated signs move on. Frame = palette index.
+  _neonStep() {
+    for (const o of this.neon) {
+      if (o.state === 1) neonNext(o);
+      else if (o.run) o.run(o);
+      if (o.state >= 2) {
+        o.mesh.material.map = o.frames[o.frame] ?? o.frames[0];
+        o.mesh.visible = !o.hidden;
+      }
+    }
+  }
+
   // Advance the animated scenery by dt seconds.
   update(dt) {
     for (const sign of this.spinners ?? []) sign.rotation.y += dt * SIGN_SPIN;
+    if (this.neon?.length) {
+      this._neonClock += dt;
+      for (let n = 0; this._neonClock >= NEON_TICK && n < 4; n++) { this._neonClock -= NEON_TICK; this._neonStep(); }
+      if (this._neonClock >= NEON_TICK) this._neonClock = 0;
+    }
   }
 
   // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).

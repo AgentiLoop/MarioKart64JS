@@ -168,6 +168,17 @@ def main():
             img = Image.open(NATIVE / rel).convert('RGBA')
             single(rel, pack.by_texels(texels16(img, 'rgba16'), *img.size, 0, 2))
 
+    # Rainbow Road neon signs (tools/extract-neon.py): the SpaghettiKart port names the HD art per palette frame
+    # (d_course_rainbow_road_neon_<sign><1-based frame>, gTextureRainbowRoadNeon<Name> for the static seven).
+    # The mushroom's fifth palette is all black and has no HD image.
+    neon_path = NATIVE / 'rainbow-road' / 'neon.json'
+    if neon_path.exists():
+        for sign in json.loads(neon_path.read_text())['signs']:
+            for frame, image in enumerate(sign['frames']):
+                key = (f'd_course_rainbow_road_neon_{sign["name"]}{frame + 1}' if sign['animated']
+                       else 'gTextureRainbowRoadNeon' + {'donkeykong': 'DonkeyKong'}.get(sign['name'], sign['name'].capitalize()))
+                single(f'rainbow-road/{image}', named('tracks/rainbow_road/rainbow_road_data/' + key))
+
     # karts / faces atlases
     # wheel phase 0 like extract-karts.py; frames 289+ have no wheels and no _wheelN variants
     for kind, folder, tier in (('karts', lambda d, f: f'karts/{d}_kart/{f}_wheel0'

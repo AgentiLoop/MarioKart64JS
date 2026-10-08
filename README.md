@@ -34,6 +34,7 @@ Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls. Karts go airborne off ramps and crests with the decomp's gravity and air drag, and the boost ramps (Royal Raceway, D.K.'s Jungle Parkway) launch long, floaty jumps.
 - **Start/finish gantry** — the ROM's finish banner and posts stand over the start line on all 16 race courses (banner reads from the approach side, blank from behind).
 - **Track signs** — Mario Raceway's two Mario signs (turning 1° per tick, as `update_actor_mario_sign` does) and Wario Stadium's three Wario signs, at the decomp's spawn spots.
+- **Rainbow Road neon signs** — the ten camera-facing neon sprites (Mushroom, Mario, Boo and the seven drivers' signs) at the decomp's positions; the first three step through their five ROM palettes with a port of `update_neon`'s state machines (sweeps, flashes, flickers, blanks).
 - **Items** — item boxes give MK64 items (shell, banana, mushroom…).
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars, kart exhaust smoke.
 - **HUD** — position, lap, race timer, speedometer, minimap.
@@ -85,6 +86,7 @@ own kart and sending its position and heading, hits decided by the player who ge
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
 - `extract-finish-line.py` — the start/finish gantry (8-panel banner, poles, blank back) decoded from `common_data`; placed at the first track path point like `func_80297340`
 - `extract-signs.py` — the Mario Raceway / Wario Stadium sign actors (display lists + spawn spots from the decomp, vertices verified against the ROM, textures cut from it)
+- `extract-neon.py` — the Rainbow Road neon signs: positions from the decomp, 64x64 CI8 textures and their 21 palettes cut from the ROM (one PNG per palette frame), the hedgehog quad from `common_data`
 - `extract-smoke.py` — kart exhaust smoke puff frames (`src/smoke.js`)
 - `extract-sounds.py` — "Welcome to Mario Kart" voice WAV plus the raw audio banks, sample tables, sequences and bank sets that `src/m64.js` plays
 - `extract-mainmenu.py` — GAME SELECT banner, 1P–4P GAME cards, mode plates, OPTION / DATA and the cursor triangle
