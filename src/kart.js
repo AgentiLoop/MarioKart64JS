@@ -30,6 +30,8 @@ const PACK_BAND = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 50, 75, 100, 125, 150,
 const PACK_BAND_MARIO = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 45, 65, 90, 115, 140, 165, 40, 3, 6, 16, 46, 49, 59, 89, 50, 30, 60, 63, 73, 78, 108, 138];
 const CPU_MIN_SPEED = [2.5, 10 / 3, 3.75, 10 / 3];   // regulate_cpu_speed var_f0 per gCCSelection, units/frame
 const MK_UNIT = MAX_SPEED / V_TOP;                    // one MK64 speed unit/frame (player->speed) in our speed
+// Speedometer km/h, code_80057C60.c func_8005C360((player->speed / 18) * 216): 150cc Mario tops out at 70.6.
+export const speedKmh = v => Math.abs(v) / MK_UNIT / 18 * 216;
 // CPU target speeds per gCCSelection, units/frame (yamls/courses/*_metadata.yml): cpu_CurveTargetSpeed where
 // are_in_curve (the straights leading into a curve, Track.cpuStraight), while drifting or airborne;
 // cpu_NormalTargetSpeed in the curves; cpu_OffTrackTargetSpeed beyond 0.9 of the track half-width.
@@ -51,7 +53,7 @@ export function pickRivals(karts) {
 // order: karts by race position. Sets k.aiSpeed ('fast' | 'normal' | 'slow') on every CPU kart.
 export function cpuSpeedControl(karts, order, track, cc) {
   const L = track.length, pts = PATH_POINTS[track.def.id];
-  const humans = order.filter(k => k.isPlayer || k.remote);
+  const humans = order.filter(k => k.isPlayer || (k.remote && !k.cpu));
   if (!pts || !humans.length) return;
   const band = track.def.id === 'mario' ? PACK_BAND_MARIO : PACK_BAND;
   const at = k => k.progress / L * pts;   // gNumPathPointsTraversed
@@ -96,6 +98,10 @@ const MK_FPS = MAX_SPEED / 0.1 / 9;
 const KART_GRAVITY = 2600, GRAVITY_SCALE = 0.1 * MK_FPS * MK_FPS / 6000, AIR_DRAG = MK_FPS * 0.12 * 5800 / 6000;
 // func_8002AB70: BOOST_RAMP_ASPHALT (Royal Raceway) / BOOST_RAMP_WOOD (DKJP) kartGravity and unk_DAC
 const RAMP_AIR = { asphalt: { gravity: 3500, dac: 20 }, wood: { gravity: 1800, dac: 25 } };
+// A grounded kart only leaves the ground once the arc it would fly from a crest clears the ground by this much
+// (units, ~4 MK64 units): seams and gentle crests keep it on the road at any frame rate, ramp lips and bumps
+// still launch. Assumption: tuned value, not from the ROM.
+const LIFT = 0.4;
 // Item hit tumbles, effects.c, stepped per 60 Hz player tick (gTickSpeed 2 at 30 fps). low: green shell
 // (func_8008C528 / func_8008C62C, HIT_BY_GREEN_SHELL_EFFECT): hop D_800E3790 / jerk D_800E37B0, kartGravity 1100,
 // currentSpeed -5 a tick, frame counter unk_0A8 +0xA0 for 2 laps of 0x2000. high: red / blue shell, star
@@ -109,6 +115,45 @@ const TUMBLE = {
   vertical: { hop: () => 2.2, jerk: 0.002, gravity: 550, step: 0x80, laps: 4, ground: 3 },
 };
 const TICK = 1 / 60, DRAG = 0.12 * 5800 / 6000;
+// Kart height model, toggled in game with J (saved): Jumps steps the decomp's vertical speed and ground push-out
+// per 60 Hz tick (Kart.tickHeight); Glue (default) keeps the kart on the road and only flies off a
+// BOOST_RAMP_* lip or a drop of more than GLUE_DROP
+export const PHYSICS = { glue: globalThis.localStorage?.getItem('kartPhysics') !== 'jumps' };
+export function togglePhysics() {
+  PHYSICS.glue = !PHYSICS.glue;
+  globalThis.localStorage?.setItem('kartPhysics', PHYSICS.glue ? 'glue' : 'jumps');
+  return physicsLabel();
+}
+export const physicsLabel = () => `Kart physics: ${PHYSICS.glue ? 'Glue' : 'Jumps'}`;
+const GLUE_DROP = 1, UP = new THREE.Vector3(0, 1, 0);
+// Battle balloons (Kart.makeBalloons). render_battle_balloon prim / env colours per characterId, prim alpha 0xD8;
+// update_player_one_balloon_position sp80 heights; update_player_balloons_position (x, z) offsets.
+const BALLOON_PRIM = [0xC80100, 0x007001, 0x107951, 0x005970, 0x705500, 0x7A7E00, 0x772C24, 0x301458];
+const BALLOON_ENV = [0xDC0000, 0x008C06, 0x000051, 0, 0, 0, 0, 0];
+const BALLOON_ALPHA = 0xD8 / 255, BALLOON_FAN = 0x1C70 * Math.PI / 32768, DEG1 = Math.PI / 180;
+const BALLOON_Y = [9, 10, 9, 8, 10, 9.5, 9.5, 11];
+const BALLOON_AT = [[0, -3.2], [1.8, 2.6 - 3.2], [-1.8, 2.6 - 3.2]];
+const K_UNIT = 0.25;   // MK64 units at the kart sprites' size (items.js BOX_SCALE)
+const KART_RADIUS = [5.5, 5.5, 5.5, 5.5, 5.5, 6.0, 5.5, 6.0].map(r => r * 0.1);   // gKartBoundingBoxSizeTable, NATIVE_SCALE
+const WALL_SLOW = 18 / 320 * MAX_SPEED;   // player_decelerate_alternative(18) on currentSpeed (top ~320)
+const _bRight = new THREE.Vector3(), _bCam = new THREE.Vector3(), _bX = new THREE.Vector3(), _bZ = new THREE.Vector3();
+const _bUp = new THREE.Vector3(0, 1, 0), _bS = new THREE.Vector3(), _bM = new THREE.Matrix4(), _bR = new THREE.Matrix4();
+// gBalloonVertexPlane1 (y 9..18, gTextureBalloon1) over gBalloonVertexPlane2 (y 0..9, the first 28 rows of
+// gTextureBalloon2), x +-9, 6 units behind the knot; balloon.png stacks the two 64x32 textures.
+let balloonGeo = null;
+function balloonGeometry() {
+  if (balloonGeo) return balloonGeo;
+  const u = 63 / 64, p = [], uv = [];
+  for (const [y0, y1, v0, v1] of [[9, 18, 0.5, 1], [0, 9, 1 - 60 / 64, 0.5]]) {
+    p.push(-9, y1, -6, 9, y1, -6, 9, y0, -6, -9, y0, -6);
+    uv.push(0, v1, u, v1, u, v0, 0, v0);
+  }
+  balloonGeo = new THREE.BufferGeometry();
+  balloonGeo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+  balloonGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  balloonGeo.setIndex([0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6]);
+  return balloonGeo;
+}
 
 // View tables: n64decomp/mk64 src/kart_dma.c (neutral slope group 4).
 // Angle quantization: src/player_controller.c, func_8002934C.
@@ -140,11 +185,15 @@ export function buildKartMesh(character = 'mario') {
   // texel in the N64's gamma space (items.js fxStep sets it)
   const prim = { value: new THREE.Color(0, 0, 0) };
   material.userData.prim = prim;
+  // Sherbet Land's frozen kart (lakitu.js, render_player.c func_800235AC FRIGID / THAWING): its own prim colour on
+  // top and the ENV colour that takes its share out of the texel
+  const coldPrim = { value: new THREE.Color(0, 0, 0) }, env = { value: new THREE.Color(0, 0, 0) };
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, { uPrim: prim, uColdPrim: coldPrim, uEnv: env });
     shader.fragmentShader = 'uniform vec3 uPrim, uColdPrim, uEnv;\n' + shader.fragmentShader.replace('#include <map_fragment>',
       '#include <map_fragment>\n  diffuseColor.rgb = pow(min(pow(diffuseColor.rgb, vec3(1.0 / 2.2)) * (1.0 - uEnv) + uPrim + uColdPrim, 1.0), vec3(2.2));');
   };
+  g.userData.setCold = (p, e) => { coldPrim.value.setRGB(p[0] / 255, p[1] / 255, p[2] / 255); env.value.setRGB(e[0] / 255, e[1] / 255, e[2] / 255); };
   const sprite = new THREE.Sprite(material);
   sprite.center.set(0.5, 0);
   sprite.scale.set(4.5, 4.5, 1);
@@ -161,6 +210,7 @@ export function buildKartMesh(character = 'mario') {
     map.repeat.set((view.mirrored ? -1 : 1) / 21, 1 / 16);
     map.offset.set((column + (view.mirrored ? 1 : 0)) / 21, 1 - (row + 1) / 16);
     material.rotation = g.userData.lean || 0;
+    sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
@@ -174,15 +224,11 @@ export function buildKartMesh(character = 'mario') {
   return g;
 }
 
-  // Sherbet Land's frozen kart (lakitu.js, render_player.c func_800235AC FRIGID / THAWING): its own prim colour on
-  // top and the ENV colour that takes its share out of the texel
-  const coldPrim = { value: new THREE.Color(0, 0, 0) }, env = { value: new THREE.Color(0, 0, 0) };
 export class Kart {
   constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null, speedScale = 1, cc = 2 }) {
     this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.speedScale = speedScale; this.cc = cc;
     this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
     // arena (battle) kart: roams freely as (x, z, heading h) with facing (sin h, 0, cos h); spawn = { x, y, z, h }
-  g.userData.setCold = (p, e) => { coldPrim.value.setRGB(p[0] / 255, p[1] / 255, p[2] / 255); env.value.setRGB(e[0] / 255, e[1] / 255, e[2] / 255); };
     this.free = !!track.arena;
     if (this.free) {
       this.spawn = spawn; this.x = spawn.x; this.z = spawn.z; this.h = spawn.h; this.slip = 0; this.rescue = 0; this.balloons = 3;
@@ -191,14 +237,7 @@ export class Kart {
     }
     this.mesh = buildKartMesh(character);
     this.color = color;
-    if (this.free) {   // battle balloons: three in the kart's colour floating over the roof, one less per hit
-      this.balloonMeshes = [[-1.3, 5.4, 0.6], [1.3, 5.4, 0.6], [0, 6.3, -0.5]].map(p => {
-        const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), new THREE.MeshBasicMaterial({ color, toneMapped: false }));
-        m.position.set(...p); m.userData.base = p[1];
-        this.mesh.add(m);
-        return m;
-      });
-    }
+    if (this.free) this.makeBalloons(character);
     this.crossings = 0; this.prevS = s;
     this.drift = 0;            // -1 left, +1 right, 0 none
     this.driftTime = 0; this.boost = 0;
@@ -249,18 +288,51 @@ export class Kart {
     if (T.lift <= 0) { T.lift = 0; T.vy = 0; }
   }
 
-  // Arena CPU: chase the nearest opponent still in the battle, turning away from walls and edges ahead.
+  // Can the kart drive straight to (x, y, z)? Ground sampled every 3 units: no wall, no hole, no step over 2.5
+  // units, and it arrives on the point's floor (the battle mode has no CPU drivers on the console, so no ROM paths).
+  clearPath(x, y, z) {
+    const t = this.track, n = Math.max(1, Math.ceil(Math.hypot(x - this.x, z - this.z) / 3));
+    let px = this.x, pz = this.z, py = this.y;
+    for (let k = 1; k <= n; k++) {
+      const qx = this.x + (x - this.x) * k / n, qz = this.z + (z - this.z) * k / n;
+      if (t.blocked(px, pz, qx, qz, py)) return false;
+      const g = t.groundAt(qx, qz, py) || t.groundBelow(qx, qz, py + 0.5);
+      if (!g || Math.abs(g.y - py) > 2.5) return false;
+      px = qx; pz = qz; py = g.y;
+    }
+    return Math.abs(py - y) < 2;
+  }
+
+  // Arena CPU: chase the nearest opponent it can drive straight to; when walls or another floor are in the way,
+  // drive via the item box spots (on every deck and ramp), picking the reachable one that is closest to an
+  // opponent. Re-planned twice a second; walls and edges ahead still turn it towards the open side.
   thinkFree(dt, karts) {
     const t = this.track;
-    let target = null, best = Infinity;
-    for (const o of karts) {
-      if (o === this || o.out || o.rescue > 0) continue;
-      const d = Math.hypot(o.x - this.x, o.z - this.z);
-      if (d < best) { best = d; target = o; }
+    this.plan = (this.plan ?? 0) - dt;
+    if (this.plan <= 0) {
+      this.plan = 0.5;
+      const foes = karts.filter(o => o !== this && !o.out && !(o.rescue > 0)).sort((a, b) =>
+        Math.hypot(a.x - this.x, a.z - this.z) - Math.hypot(b.x - this.x, b.z - this.z));
+      this.goal = foes.find(o => this.clearPath(o.x, o.y, o.z)) || null;
+      if (!this.goal && foes.length) {
+        if (!t.navSpots) t.navSpots = t.def.native.itemBoxes.map(([x, y, z]) => {
+          const g = t.groundBelow(x * 0.1, z * 0.1, y * 0.1 + 0.5);   // NATIVE_SCALE
+          return g && { x: x * 0.1, y: g.y, z: z * 0.1 };
+        }).filter(Boolean);
+        const near = (p, o) => Math.hypot(p.x - o.x, p.z - o.z) + 4 * Math.abs(p.y - o.y);
+        let best = Infinity;
+        for (const p of t.navSpots) {
+          if (p === this.lastSpot || Math.hypot(p.x - this.x, p.z - this.z) < 4 || !this.clearPath(p.x, p.y, p.z)) continue;
+          const cost = Math.min(...foes.map(o => near(p, o))) + 0.3 * Math.hypot(p.x - this.x, p.z - this.z);
+          if (cost < best) { best = cost; this.goal = p; }
+        }
+      }
     }
+    const target = this.goal && !this.goal.out ? this.goal : null;
+    if (target && !(target instanceof Kart) && Math.hypot(target.x - this.x, target.z - this.z) < 4) { this.lastSpot = target; this.plan = 0; }
     this.wander = (this.wander ?? 0) + (Math.random() - 0.5) * dt * 2;
     this.wander = THREE.MathUtils.clamp(this.wander, -0.8, 0.8);
-    let want = target ? Math.atan2(target.x - this.x, target.z - this.z) + this.wander * 0.5 : this.h + this.wander;
+    let want = target ? Math.atan2(target.x - this.x, target.z - this.z) + this.wander * 0.2 : this.h + this.wander;
     // probe ahead (further the faster it goes): a wall or a drop there turns the kart towards the open side
     const reach = 6 + Math.abs(this.v) * 0.5;
     // ground sampled along the ray: a step down of up to 6 units (decks, slabs) is fine, a hole is not
@@ -284,6 +356,11 @@ export class Kart {
       }
       want = this.h + this.avoid * 1.4;
     } else this.avoid = null;
+    // nose stuck on a wall: no speed means no steering, so back off for a moment turning towards the open side
+    // (reversing, steering right turns h positive)
+    if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: this.avoid || 1, drift: false }; }
+    this.stuckT = Math.abs(this.v) < 3 && !(this.spin > 0) && !this.tumble ? (this.stuckT || 0) + dt : 0;
+    if (this.stuckT > 0.7) { this.stuckT = 0; this.reverse = 0.9; }
     let diff = want - this.h;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     const steer = THREE.MathUtils.clamp(-diff * 2.5, -1, 1);   // steering right turns h negative
@@ -434,6 +511,8 @@ export class Kart {
       this.x = this.spawn.x; this.z = this.spawn.z; this.h = this.spawn.h; this.air = false; this.vy = 0;
       const g = t.groundAt(this.x, this.z, this.spawn.y) || t.groundBelow(this.x, this.z, this.spawn.y + 0.5);   // the spot's floor
       this.y = (g ? g.y : this.spawn.y) + (this.rescue > 0 ? 4 : 0);
+      // effects.c (Lakitu rescue, state 4): letting go of the kart in BATTLE pops a balloon (pop_player_balloon)
+      if (this.rescue <= 0) this.balloons = Math.max(0, this.balloons - 1);
       this.syncFree(0);
       return;
     }
@@ -474,12 +553,21 @@ export class Kart {
     if (this.drift) this.v -= 2 * dt;
     const a = this.h + this.slip, step = this.v * dt;
     let nx = this.x + Math.sin(a) * step, nz = this.z + Math.cos(a) * step;
-    // walls: slide along by trying each axis alone, else stop
-    if (!this.air && t.blocked(this.x, this.z, nx, nz, this.y)) {
-      const hit = () => { this.v *= 0.82; this.hitWall = 0.25; this.drift = 0; };
-      if (!t.blocked(this.x, this.z, nx, this.z, this.y)) { nz = this.z; hit(); }
-      else if (!t.blocked(this.x, this.z, this.x, nz, this.y)) { nx = this.x; hit(); }
-      else { nx = this.x; nz = this.z; this.v *= 0.3; this.hitWall = 0.25; this.drift = 0; }
+    // walls, in the air too (func_8003F734 / func_8002A5F4 / func_8002C954): the kart's bounding sphere
+    // (gKartBoundingBoxSizeTable) is pushed back out of the face; of the velocity, the part along the wall is kept
+    // and the part into it bounces back at half; the drift ends and the kart slows by 18 (player_decelerate_alternative)
+    const w = t.wallPush(this.x, this.z, nx, nz, this.y, KART_RADIUS[CHARACTER_ID[this.mesh.userData.character] ?? 0]);
+    if (w) {
+      nx = w.x; nz = w.z;
+      const mx = Math.sin(a) * this.v, mz = Math.cos(a) * this.v, vn = mx * w.nx + mz * w.nz;
+      if (vn < 0) {
+        const bx = mx - 1.5 * vn * w.nx, bz = mz - 1.5 * vn * w.nz;
+        // keep the nose: the new motion becomes speed (backwards if it points behind the kart) plus slip
+        let rel = Math.atan2(bx, bz) - this.h, sp = Math.max(0, Math.hypot(bx, bz) - WALL_SLOW);
+        rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+        if (Math.abs(rel) > Math.PI / 2) { sp = -sp; rel = Math.atan2(Math.sin(rel + Math.PI), Math.cos(rel + Math.PI)); }
+        this.v = sp; this.slip = rel; this.drift = 0; this.hitWall = 0.25;
+      }
     }
     this.hitWall = Math.max(0, this.hitWall - dt);
     this.x = nx; this.z = nz;
@@ -487,20 +575,18 @@ export class Kart {
   }
 
   syncFree(dt = 0) {
-    const t = this.track, x = this.x, z = this.z;
+    const t = this.track, x = this.x, z = this.z, px = this.prevX ?? x, pz = this.prevZ ?? z;
+    this.prevX = x; this.prevZ = z;
     this.fwd.set(Math.sin(this.h), 0, Math.cos(this.h));
     let g = this.air ? t.groundBelow(x, z, this.y + 0.5) : t.groundAt(x, z, this.y);
     if (!g && !this.air) g = t.groundBelow(x, z, this.y + 0.5);   // rolled off an edge: whatever is below
-    const accel = () => -KART_GRAVITY * GRAVITY_SCALE - AIR_DRAG * this.vy;
-    if (!dt) { if (g && !this.rescue) this.y = g.y; this.vy = 0; this.air = false; }
+    const accel = (vy = this.vy) => -KART_GRAVITY * GRAVITY_SCALE - AIR_DRAG * vy;
+    if (!dt) { if (g && !this.rescue) this.y = g.y; this.vy = 0; this.air = false; this.arc = null; }
     else if (this.air) {
       this.vy += accel() * dt; this.y += this.vy * dt;
       if (g && this.y <= g.y) { this.air = false; this.y = g.y; this.vy = 0; }
-    } else if (g) {
-      const fall = this.y + (this.vy + accel() * dt) * dt;
-      if (g.y < fall - 0.05) { this.air = true; this.vy += accel() * dt; this.y = fall; }
-      else { this.y = g.y; this.vy = 0; }
-    } else { this.air = true; this.vy += accel() * dt; this.y += this.vy * dt; }
+    } else if (g) this.rideGround(g, this.slopeRate(g, x - px, z - pz, dt), accel, dt);
+    else { this.air = true; this.arc = null; this.vy += accel() * dt; this.y += this.vy * dt; }
     if (this.y <= t.fallY + 0.3 && dt) { this.rescue = 1.5; this.air = false; this.vy = 0; this.invuln = Math.max(this.invuln, 2.5); }   // fell into the lava / off the arena
     this.world.set(x, this.y, z);
     this.groundY = this.y;
@@ -518,8 +604,175 @@ export class Kart {
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
-    const bob = performance.now() / 1000;
-    this.balloonMeshes.forEach((m, i) => { m.visible = i < this.balloons; m.position.y = m.userData.base + Math.sin(bob * 2 + i * 2.1) * 0.15; });
+  }
+
+  // Battle balloons (code_80057C60.c). update_player_one_balloon_position: each hangs from a point
+  // BALLOON_Y[characterId] units over the kart's ground at (x, z) BALLOON_AT, pushed back speed_kmh / 10 units;
+  // its lean D_8018D890 eases to player->speed degrees (move_s16_towards 0.1 a frame). render_battle_balloon: the
+  // 18 x 18 card turned to the camera, rolled by its fan angle (init_all_player_balloons 0 / +-0x1C70) where the
+  // camera sees the kart from behind, leaning back 4x / sideways 8x the lean, scaled 0.3 on the kart's own screen
+  // and distance / 300 (0.3..1.8) on the others. A popped balloon (pop_player_balloon, BALLOON_STATUS_DEPARTING)
+  // stops where it was and rises 0.2 units a frame for 0x78 frames.
+  makeBalloons(character) {
+    const map = HD.loadTexture('items/balloon.png');
+    map.colorSpace = THREE.SRGBColorSpace;
+    const id = CHARACTER_ID[character] ?? 0, rgb = h => new THREE.Vector3((h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255);
+    const prim = { value: rgb(BALLOON_PRIM[id]) }, env = { value: rgb(BALLOON_ENV[id]) };
+    const material = new THREE.MeshBasicMaterial({ map, transparent: true, opacity: BALLOON_ALPHA, depthWrite: false,
+      side: THREE.DoubleSide, toneMapped: false });
+    material.onBeforeCompile = shader => {   // func_8004B614: (1 - ENV) * TEXEL0 + PRIM in the N64's gamma space
+      shader.uniforms.uPrim = prim; shader.uniforms.uEnv = env;
+      shader.fragmentShader = 'uniform vec3 uPrim;\nuniform vec3 uEnv;\n' + shader.fragmentShader.replace('#include <map_fragment>',
+        '#include <map_fragment>\n  diffuseColor.rgb = pow(min(pow(diffuseColor.rgb, vec3(1.0 / 2.2)) * (1.0 - uEnv) + uPrim, 1.0), vec3(2.2));');
+    };
+    this.balloonY = BALLOON_Y[id]; this.balloonLean = 0; this.balloonOpacity = 1; this.balloonT = 0;
+    this.balloonFx = BALLOON_AT.map((_, i) => {
+      const m = new THREE.Mesh(balloonGeometry(), material);
+      m.matrixAutoUpdate = false; m.frustumCulled = false; m.renderOrder = 3;
+      const b = { m, pos: new THREE.Vector3(), depart: -1, sway: Math.random() * 6 };
+      m.onBeforeRender = (_r, _s, camera) => { this.balloonStep(); this.placeBalloon(b, i, camera); };
+      this.mesh.add(m);
+      return b;
+    });
+    const dispose = this.mesh.userData.dispose;
+    this.mesh.userData.dispose = () => { dispose(); map.dispose(); material.dispose(); };
+  }
+
+  // once per frame (the first balloon drawn): anchors, lean, popped balloons rising
+  balloonStep() {
+    const now = performance.now(), dt = Math.min(0.1, (now - (this.balloonT || now)) / 1000);
+    if (this.balloonT && now - this.balloonT < 4) return;
+    this.balloonT = now;
+    this.balloonLean += (Math.abs(this.v) / MK_UNIT - this.balloonLean) * (1 - 0.9 ** (dt * 60));
+    const right = _bRight.crossVectors(this.fwd, this.up).normalize(), back = speedKmh(this.v) / 10;
+    this.balloonFx.forEach((b, i) => {
+      if (i < this.balloons) b.depart = -1;
+      else if (b.depart < 0 && b.m.visible) b.depart = 0;
+      if (b.depart >= 0) {
+        b.depart += dt; b.pos.y += 0.2 * 60 * dt * K_UNIT;
+        b.m.visible = b.depart < 0x78 / 60;
+        return;
+      }
+      b.m.visible = true;
+      b.sway += dt;
+      const [x, z] = BALLOON_AT[i], bob = 0.3 * (1 + Math.sin(b.sway * 2.3));   // assumption: D_8018D710's random spring as a sine
+      b.pos.copy(this.mesh.position).addScaledVector(right, x * K_UNIT).addScaledVector(this.up, (this.balloonY - bob) * K_UNIT)
+        .addScaledVector(this.fwd, (z - back) * K_UNIT);
+    });
+    this.balloonFx[0].m.material.opacity = BALLOON_ALPHA * this.balloonOpacity;
+  }
+
+  placeBalloon(b, i, camera) {
+    camera.getWorldPosition(_bCam);
+    _bZ.subVectors(_bCam, b.pos); _bZ.y = 0;
+    const dist = _bZ.length();
+    if (dist < 1e-6) return;
+    _bZ.divideScalar(dist);
+    _bX.crossVectors(_bUp, _bZ);   // screen right
+    const own = camera.userData.kart === this;
+    // distance in MK64 units at the karts' size (K_UNIT), so a balloon keeps the original's size next to its kart
+    const scale = (own ? 0.3 : THREE.MathUtils.clamp(dist / K_UNIT / 300, 0.3, 1.8)) * K_UNIT;
+    const behind = -this.fwd.x * _bZ.x - this.fwd.z * _bZ.z;   // cos of the camera's angle from the kart's tail
+    const across = this.fwd.x * _bX.x + this.fwd.z * _bX.z;   // the kart's motion across the screen
+    const up = b.depart < 0, lean = up ? this.balloonLean * DEG1 : 0;
+    // roll: positive tips the top to screen-left. The fan opens outward; the balloons trail the kart's motion.
+    const roll = (up ? -Math.sign(BALLOON_AT[i][0]) * BALLOON_FAN * behind + Math.sin(b.sway * 1.3 + i) * 5 * DEG1 : 0) + lean * 8 * across;
+    const pitch = lean * 4 * behind;   // positive tips the top towards the camera (the kart driving away)
+    _bM.makeBasis(_bX, _bUp, _bZ).multiply(_bR.makeRotationZ(roll)).multiply(_bR.makeRotationX(pitch)).scale(_bS.setScalar(scale));
+    b.m.matrixWorld.copy(_bM).setPosition(b.pos);
+  }
+
+  // vertical speed of the slope under the kart for a (dx, dz) move (not frame-to-frame, so steps don't launch)
+  slopeRate(g, dx, dz, dt) {
+    const n = g.normal, cap = 0.6 * Math.abs(this.v);
+    return n.y > 0.2 ? THREE.MathUtils.clamp(-(n.x * dx + n.z * dz) / (n.y * dt), -cap, cap) : 0;
+  }
+
+  // Grounded height step: the kart sits on the ground with the slope's vertical speed (rate). Where the ground
+  // curves away faster than gravity (a crest, a ramp lip) a shadow arc follows the flight the kart would take; it
+  // only takes off once that arc is LIFT above the ground, and the arc is dropped if the ground catches up with it.
+  rideGround(g, rate, accel, dt) {
+    let a = this.arc;
+    if (a) { a.vy += accel(a.vy) * dt; a.y += a.vy * dt; }
+    else if (this.vy + accel() * dt > rate) a = this.arc = { y: Math.max(g.y, this.y + this.vy * dt), vy: this.vy };   // carries on the climb
+    if (a) {
+      if (a.y <= g.y) this.arc = null;
+      else if (a.y - g.y > LIFT) { this.arc = null; this.air = true; this.y = a.y; this.vy = a.vy; return; }
+    }
+    this.vy = rate; this.y = g.y;
+  }
+
+  // Option A: kart height stepped in 60 Hz player ticks (player_controller.c, TICK). newVelocity[1] gets gravity
+  // and drag / unk_DAC; nextY = pos + the last tick's velocity[1] - 0.02; ground contact (surfaceDistance[2] <= 0)
+  // pushes nextY back out by 10% of the depth (func_8003E048) and drops the velocity's part into the surface, or
+  // reflects it when deeper than 2 units (func_8002A5F4(.., 1, 2)). Returns the ground (null on the route plane).
+  tickHeight(g, f, x, z, px, pz, dt) {
+    const t = this.track, wasAir = this.air;
+    if (!wasAir && g && g.ramp) this.ramp = g.ramp;
+    if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
+    // the same fluid / void / route-plane rules as the frame-step path above, for a kart that is in the air
+    const fluid = wasAir && t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
+    const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
+    const n = floor === g?.y && g.normal.y > 0.2 ? g.normal : UP;
+    this.ticks += dt / TICK;
+    const count = Math.min(Math.floor(this.ticks), 8);
+    this.ticks = Math.min(this.ticks - Math.floor(this.ticks), 1);
+    const hx = (x - px) * TICK / (dt * 0.1), hz = (z - pz) * TICK / (dt * 0.1);   // MK units per tick
+    let vy = this.vy * TICK / 0.1;
+    for (let i = count - 1; i >= 0; i--) {   // tick i (+ the leftover fraction) ticks before this frame's position
+      const target = this.ramp ? RAMP_AIR[this.ramp].dac : 1, step = this.ramp ? 1 : 0.07;
+      this.dac += THREE.MathUtils.clamp(target - this.dac, -step, step);
+      if (this.air && !this.ramp && this.y - floor >= 5) this.dac = 2 - 0.07;
+      const gravity = this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY;
+      const next = vy + (-gravity - vy * 0.12 * 5800) / 6000 / this.dac;
+      let y = this.y + vy * 0.1 - 0.002;
+      const back = (i + this.ticks) * 0.1, fy = floor + (n.x * hx + n.z * hz) * back / n.y;   // floor plane there
+      const depth = (y - fy) * n.y / 0.1;
+      if (depth <= 0) {
+        if (this.air) { this.air = false; this.land(); }
+        y -= n.y * depth * 0.1 * 0.1;
+        vy = next - (hx * n.x + next * n.y + hz * n.z) * n.y * (depth < -2 ? 2 : 1);
+      } else {
+        if (!this.air) { this.air = true; this.airTicks = 0; }
+        this.airTicks++; vy = next;
+      }
+      this.y = y;
+    }
+    this.vy = vy * 0.1 / TICK;
+    this.lead = vy * 0.1 * this.ticks;
+    if (this.air) {
+      if (g && sunk && this.y < fluid - 0.55) this.fell = { kind: 'water', base: fluid };
+      else if (!g && this.y < f.pos.y - 30) this.fell = { kind: 'drop', base: this.y };   // fell into the void
+      return g;
+    }
+    if (floor !== g?.y) g = null;   // on the route plane
+    if (!g || !g.ramp) this.ramp = null;
+    return g;
+  }
+
+  // Landing bounce (player_controller.c): 4+ ticks in the air at speed (speed / 18 * 216 >= 20) squashes the sprite
+  // with unk_DB4.unkC 1.5, 28+ ticks 2.8, 35+ ticks 3 at any speed (POOMP)
+  land() {
+    const ticks = this.airTicks || 0, fast = Math.abs(this.v) * 9 / MAX_SPEED / 18 * 216 >= 20;
+    const c = ticks >= 35 ? 3 : ticks >= 28 && fast ? 2.8 : ticks >= 4 && fast ? 1.5 : 0;
+    if (c) this.bounce = { c, t: 0, acc: 0, dip: 0 };
+    this.airTicks = 0;
+  }
+
+  // func_80022DB4 per 30 Hz frame: dip = t * c - 0.7 t^2, each time it goes under 0 the bounce restarts at 0.8 c;
+  // func_80022E84 lowers the sprite's top vertices (18 units high) by the dip
+  stepBounce(dt) {
+    const b = this.bounce;
+    if (b) {
+      for (b.acc += dt * 30; b.acc >= 1 && b.c; b.acc--) {
+        b.t++;
+        const d = Math.trunc(b.t * b.c - 0.7 * b.t * b.t);
+        if (d < 0) { b.c *= 0.8; b.t = 0; if (b.c <= 0.1) b.c = 0; }
+        b.dip = Math.max(d, 0);
+      }
+      if (!b.c) this.bounce = null;
+    }
+    this.mesh.userData.squash = this.bounce ? this.bounce.dip / 18 : 0;
   }
 
   syncMesh(dt = 0) {
@@ -542,8 +795,10 @@ export class Kart {
       }
     }
     // ballistic height: leave the ground when it falls away faster than gravity (ramp lips, crests)
-    if (this.y == null || !dt) { if (g) this.y = g.y; this.vy = 0; this.air = false; this.dac = 1; this.ramp = null; }
+    if (this.y == null || !dt) { if (g) this.y = g.y; this.vy = 0; this.air = false; this.dac = 1; this.ramp = null; this.arc = null; this.airTicks = 0; this.ticks = 0; this.lead = 0; }
+    else if (!PHYSICS.glue && (this.air || g)) { this.arc = null; g = this.tickHeight(g, f, x, z, px, pz, dt); }
     else {
+      this.lead = 0;
       // BOOST_RAMP_* surface: trigger_*_ramp_boost / apply_boost_ramp_*_effect hold top speed until touchdown
       if (!this.air && g && g.ramp) this.ramp = g.ramp;
       if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
@@ -551,16 +806,16 @@ export class Kart {
       const target = this.ramp ? RAMP_AIR[this.ramp].dac : 1, step = (this.ramp ? 1 : 0.07) * MK_FPS * dt;
       this.dac = this.dac + THREE.MathUtils.clamp(target - this.dac, -step, step);
       if (this.air && !this.ramp && g && this.y - g.y >= 5) this.dac = 2 - 0.07;
-      const accel = () => (-(this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY) * GRAVITY_SCALE - AIR_DRAG * this.vy) / this.dac;
+      const accel = (vy = this.vy) => (-(this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY) * GRAVITY_SCALE - AIR_DRAG * vy) / this.dac;
       if (this.air) {
-        this.vy += accel() * dt; this.y += this.vy * dt;
+        this.vy += accel() * dt; this.y += this.vy * dt; this.airTicks += dt / TICK;
         // ground under the course's fluid level (water, lava: func_802AAB4C) or none at all (the void) is no landing:
         // the kart sinks / drops and Lakitu fishes it out (src/lakitu.js). Outside a ramp flight, other ground well
         // below the route is floored at the route.
         const fluid = t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
         const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
         if (this.y <= floor) {
-          this.air = false; this.y = floor; this.vy = 0;
+          this.air = false; this.y = floor; this.vy = 0; this.land();
           if (floor !== g.y) g = null;   // landed on the route plane
           if (!g || !g.ramp) this.ramp = null;
         }
@@ -568,23 +823,24 @@ export class Kart {
         else if (!g && this.y < f.pos.y - 30) this.fell = { kind: 'drop', base: this.y };   // fell into the void
       } else if (g) {
         const fall = this.y + (this.vy + accel() * dt) * dt;
-        if (g.y < fall - 0.05) { this.air = true; this.vy += accel() * dt; this.y = fall; }
+        // glued: only a BOOST_RAMP_* lip or a real drop (ground gone GLUE_DROP below) takes off; crests and seams don't
+        if (g.y < fall - 0.05 && (this.ramp || g.y < this.y - GLUE_DROP)) { this.air = true; this.airTicks = 0; this.vy += accel() * dt; this.y = fall; }
         else {
-          const n = g.normal;   // vertical speed of the slope under the kart (not frame-to-frame, so steps don't launch)
-          this.vy = n.y > 0.2 ? THREE.MathUtils.clamp(-(n.x * (x - px) + n.z * (z - pz)) / (n.y * dt), -0.6 * Math.abs(this.v), 0.6 * Math.abs(this.v)) : 0;
-          this.y = g.y;
+          this.vy = this.slopeRate(g, x - px, z - pz, dt); this.y = g.y;
           if (!g.ramp) this.ramp = null;
         }
-      }
+      } else this.arc = null;
     }
+    this.stepBounce(dt);
     if (g && !this.air) {
-      this.groundY = g.y; this.world.y = g.y;
+      this.groundY = g.y; this.world.y = PHYSICS.glue ? g.y : this.y + this.lead;
       if (!this.ramp) this.lastGroundS = this.s;   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
       this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
       this.up.copy(this.groundN);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope
     } else if (this.air) {
-      this.groundY = this.y; this.world.y = this.y;
+      this.groundY = this.y; this.world.y = this.y + (PHYSICS.glue ? 0 : this.lead);
+
       this.up.copy(this.groundN || f.U);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
     } else {
