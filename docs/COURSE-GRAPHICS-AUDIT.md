@@ -22,7 +22,7 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | statue fire breath (`render_object_bowser_flame`) | — |
 | Banshee Boardwalk | trash bin, bat, Boos (`render_object_trash_bin` / `_bat` / `_boos`) | — |
 | Yoshi Valley | trees (13) | **done** |
-| | giant Yoshi egg (`ACTOR_YOSHI_EGG`) | — |
+| | giant Yoshi egg (`ACTOR_YOSHI_EGG`, lit 3D egg near / flat egg far) | **done** (tools/extract-yoshi-egg.py, src/yoshi-egg.js) |
 | | flag poles (`func_80055228`), hedgehogs (`render_object_hedgehogs`) | — |
 | Frappe Snowland | trees (30) | **done** |
 | | snowmen (`render_object_snowmans`), snowfall (`render_object_snowflakes_particles`, 1P) | — |
@@ -94,3 +94,15 @@ that TLUT into `piranha-1..9.png` plus `piranha.json`. src/piranha.js draws them
 - each camera has its own timer (`update_actor_piranha_plant`): + 1 a tick while the plant is in the camera's
   view wedge within 300, > 60 -> 6, otherwise 0; frame = min(8, timer / 6).
 Not ported yet: kart collisions (`collision_piranha_plant`) and a hit plant flying up (flag 0x400).
+## Yoshi egg (done)
+tools/extract-yoshi-egg.py reads `d_course_yoshi_valley_dl_16D70` (the 80-triangle lit egg, `gTextureYoshiValleyEggSpot`
+32x32, `d_course_yoshi_valley_lights4`) and `dl_egg_lod0` (the flat far egg, `gTextureYoshiValleyEgg` 64x32) from
+the course data segment (vertex arrays and textures verified byte-for-byte), plus the triangles of every
+`d_course_yoshi_valley_addr` TrackSections list with their section id. src/yoshi-egg.js:
+- `update_actor_yoshi_egg`: circles (-2300, 0, 704) at radius 70, pathRot + 0x5B a tick, eggRot - DEGREES(3) a tick;
+- `render_actor_yoshi_egg`: within 4000 of the camera; the screen's track section (pathCounter, from the floor
+  triangle under the camera / its kart, func_8029122C) 13-19 draws the 3D egg, F3DEX-lit with the light fixed in world
+  space while it turns, otherwise the flat egg turned to the camera's yaw;
+- EXTRA: the 3D egg is flipped back in its own x and turns the other way.
+Assumption: the port's chase camera rides higher than the console's, so a camera over 30 above its floor takes its
+kart's section. Not ported yet: the egg's ground shadow (D_0D007B20), kart collisions and the hop when hit (flag 0x400).

@@ -12,6 +12,7 @@ import { Penguins } from './penguins.js';
 import { Foliage } from './foliage.js';
 import { Props } from './props.js';
 import { PiranhaPlants } from './piranha.js';
+import { YoshiEgg } from './yoshi-egg.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -260,6 +261,7 @@ const penguins = trackDef?.id === 'sherbet' ? new Penguins(scene, track, audio) 
 const foliage = track.arena ? null : new Foliage(scene, track, trackDef || TRACKS[0]);   // spawn_foliage trees / bushes / cacti
 const props = track.arena ? null : new Props(scene, trackDef || TRACKS[0], { mirror });   // palm trees, spinning signs, DK trees
 const piranha = ['mario', 'royal'].includes(trackDef?.id) ? new PiranhaPlants(scene, trackDef) : null;   // spawn_piranha_plants
+const yoshiEgg = trackDef?.id === 'yoshi' ? new YoshiEgg(scene, trackDef, { mirror }) : null;   // ACTOR_YOSHI_EGG
 // his cloud's hum while he fishes a kart out or shows the reverse sign: 0x0100FA28 = SOUND_ARG_LOAD(0x01, 0x00, 0xFA, 0x28), bank 0
 lakitu.onHum = on => on ? audio.playSound(0, 0x28) : audio.stopSound(0, 0x28);
 // Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
@@ -1410,11 +1412,12 @@ function frame(now) {
   penguins?.update(dt, views.map(v => v.cam), karts);
   props?.update(dt);
   piranha?.update(dt, views.map(v => v.cam));
+  yoshiEgg?.update(dt, views.map(v => v.cam));
   exhaust.update(dt, karts, camera);
   drawMini();
   renderViews();
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, lakitu, penguins, foliage, props, piranha, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+window.__game = { track, items, lakitu, penguins, foliage, props, piranha, yoshiEgg, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
   get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };
