@@ -231,7 +231,7 @@ function noise(ctx, w, h, n, alpha) {
 // Wario Stadium and Toad's Turnpike wall bands) keeps its shape and mirrors its texture instead (u -> 1 - u).
 // Arrows, lane diagrams and plain sign backs stay mirrored so they still match the mirrored course.
 // Returns Map<batch index, Map<first index of triangle, { p: reflected corners } | { flipU: true }>>.
-const UNMIRROR_SIGN = /Sign|Number|Stainglass/, KEEP_MIRRORED = /Arrow|MergingLanes|FallingRocks|Backside|WoodenBack/;
+const UNMIRROR_SIGN = /Sign|Number|Stainglass|gLRTexture66C7A8/, KEEP_MIRRORED = /Arrow|MergingLanes|FallingRocks|Backside|WoodenBack/;
 function unmirroredSigns(course) {
   const tris = [], byVertex = new Map(), parent = [];
   const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
