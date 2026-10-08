@@ -33,8 +33,8 @@ export class Net extends EventTarget {
   get isOnline() { return this.state === 'racing' || this.state === 'signaling'; }
   get hostIsMe() { return this.myId === this.hostId; }
 
-  quickMatch({ name, course, char, players }) {
-    this._connect({ t: 'hello', name, version: VERSION, course, char, players });
+  quickMatch({ name, course, char, players, mode }) {
+    this._connect({ t: 'hello', name, version: VERSION, course, char, players, mode });
   }
   rejoin(room, id) { this._connect({ t: 'rejoin', room, id }); }
   ready() { this._send({ t: 'ready' }); }
