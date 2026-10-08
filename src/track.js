@@ -220,7 +220,6 @@ export class Track {
   // Native courses have no guard-wall tunnel: probe the course surface sideways from the
   // route at every sample and stop where it ends, steps sharply (cliffs, drops) or crosses a
   // steep face (rock walls, tree lines, fences) standing at kart height.
-  // Assumption: approximates MK64's surface collision (translucent batches count: Rainbow Road, ice).
   _nativeBounds() {
     const course = this.def.native, S = NATIVE_SCALE, CELL = 4, grid = new Map(), tris = [];
     const wallGrid = new Map(), walls = [];   // steep faces (normal > 60 deg from up): [a, b, c]
@@ -231,27 +230,24 @@ export class Track {
         map.get(key).push(t);
       }
     };
-    const rampOf = new Map();   // BOOST_RAMP_* collision surfaces (extract-course.py "ramps"): sorted vertex triple -> kind
-    for (const [kind, idx] of Object.entries(course.ramps || {})) {
-      for (let i = 0; i + 2 < idx.length; i += 3) rampOf.set(idx.slice(i, i + 3).sort((p, q) => p - q).join(), kind);
-    }
-    for (const batch of course.batches) {
-      for (let i = 0; i + 2 < batch.indices.length; i += 3) {
-        const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
-        const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
-        const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
-        const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-        const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
-        // only near-vertical faces (> 75 deg from up) block; embankments and banked turns are drivable
-        if (Math.abs(area) < 0.26 * Math.hypot(nx, area, nz)) {
-          bucket(wallGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), walls.push([a, b, c]) - 1);
-        }
-        if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
-        const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
-        const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
-        const ramp = rampOf.get(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join()) || null;
-        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp]) - 1);
+    // Only the game's collision mesh (extract-course.py "collision") is solid: water, lava and backdrop
+    // scenery are not. BOOST_RAMP_ASPHALT (0xFE, Royal Raceway) / BOOST_RAMP_WOOD (0xFC, DKJP) launch karts.
+    const { indices, surfaces } = course.collision;
+    for (let i = 0; i + 2 < indices.length; i += 3) {
+      const [a, b, c] = [0, 1, 2].map(k => course.vertices[indices[i + k]].slice(0, 3).map(v => v * S));
+      const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
+      const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+      const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
+      // only near-vertical faces (> 75 deg from up) block; embankments and banked turns are drivable
+      if (Math.abs(area) < 0.26 * Math.hypot(nx, area, nz)) {
+        bucket(wallGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), walls.push([a, b, c]) - 1);
       }
+      if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
+      const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
+      const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
+      const ramp = { 254: 'asphalt', 252: 'wood' }[surfaces[i / 3]] || null;
+      bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp]) - 1);
     }
     let hitNormal = null, hitRamp = null;
     const height = (x, z, yRef) => {
@@ -310,25 +306,45 @@ export class Track {
       }
       return false;
     };
-    const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
+    // An edge is open (no wall: cliffs, water's edge) where the floor ends near road level (not on top of a
+    // climbed slope) with no wall, and for the next 3 units the highest floor (if any) lies more than 4 below:
+    // karts drive off it and fall (kart.js syncMesh).
+    const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] }, edge = { [-1]: [], [1]: [] };
     for (let i = 0; i < this.n; i++) {
       const p = this.pos[i], R = this.R[i];
       const y0 = height(p.x, p.z, p.y) ?? p.y;
       for (const sgn of [-1, 1]) {
-        let prev = y0, d = STEP;
+        let prev = y0, d = STEP, open = false;
         for (; d <= MAX; d += STEP) {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn;
           if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev)) break;   // the route itself may graze ramp sides
           const y = height(x, z, prev);
-          if (y === null || Math.abs(y - prev) > 1.2) break;   // > ~67 deg per step = cliff/drop
+          if (y === null || Math.abs(y - prev) > 1.2) {   // > ~67 deg per step = cliff/drop
+            open = y === null && prev - y0 < 1.5 && [0, 1, 2, 3].every(e => {
+              const g = this.groundBelow(p.x + R.x * (d + e) * sgn, p.z + R.z * (d + e) * sgn, Infinity);
+              return !g || g.y < prev - 4;
+            });
+            break;
+          }
           prev = y;
         }
         raw[sgn].push(Math.max(2.5, d - STEP));
+        edge[sgn].push(open);
       }
     }
     // a wall is only as open as its narrowest neighbour (no slipping through single-sample gaps)
-    const tighten = b => b.map((_, i) => Math.min(...[-2, -1, 0, 1, 2].map(k => b[(i + k + this.n) % this.n])));
+    const near = (b, i) => [-2, -1, 0, 1, 2].map(k => b[(i + k + this.n) % this.n]);
+    const tighten = b => b.map((_, i) => Math.min(...near(b, i)));
     this.wallL = tighten(raw[-1]); this.wallR = tighten(raw[1]);
+    this.openL = edge[-1].map((_, i) => near(edge[-1], i).every(Boolean));
+    this.openR = edge[1].map((_, i) => near(edge[1], i).every(Boolean));
+  }
+
+  // Is the lateral bound at arc-length s on side sgn an open edge (kart may drive over it and fall)?
+  openAt(s, sgn) {
+    const o = sgn > 0 ? this.openR : this.openL;
+    if (!o) return false;
+    return o[Math.round((((s % this.length) + this.length) % this.length) / this.ds) % this.n];
   }
 
   _build() {

@@ -163,9 +163,10 @@ export class Kart {
     const yaw = k * ds;                 // frame rotates under us
     this.psi -= yaw; this.phi -= yaw;
 
-    // walls
+    // walls. An open edge has none for a human driver: the kart drives over it and falls (syncMesh). CPU karts
+    // follow the path and stay on (assumption: their steering here is too loose to race next to drops).
     const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2;
-    if (Math.abs(this.d) > wall) {
+    if (Math.abs(this.d) > wall && !(this.isPlayer && t.openAt(this.s, sgn))) {
       this.d = sgn * wall;
       const into = sgn * Math.sin(this.phi) * this.v;
       if (into > 0) { this.v *= 0.82; this.hitWall = 0.25; }
@@ -205,9 +206,15 @@ export class Kart {
       if (this.air) g = t.groundBelow(x, z, this.y + 0.5);
       else {
         g = t.groundAt(x, z, this.groundY ?? this.world.y);
-        // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the old route-plane fallback
-        // (karts leave the course only through the air, see below)
+        // climbing off a ramp lip over a gap: fly
         if (!g && this.groundY != null && this.vy > 0.5) g = t.groundBelow(x, z, this.groundY + 0.5);
+        // past an open edge (Track.openAt) with no floor under the kart: it falls. Elsewhere a missing floor
+        // keeps the route-plane fallback.
+        const side = Math.sign(this.d);
+        if (!g && this.groundY != null && this.isPlayer && t.openAt(this.s, side) && Math.abs(this.d) > t.wallAt(this.s, side) - 1.2) {
+          this.air = true; this.takeoffY = this.y;
+          g = t.groundBelow(x, z, this.y + 0.5);
+        }
       }
     }
     // ballistic height: leave the ground when it falls away faster than gravity (ramp lips, crests)

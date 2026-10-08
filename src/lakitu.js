@@ -41,10 +41,11 @@ const LAP_PATH = spline(11, [[50, 20, 80, 10], [20, 19, 40, 10], [0, 18, 30, 10]
 const FLUID = { choco: -80, bowser: -50, banshee: -80, frappe: -50, royal: -60, sherbet: -18, rainbow: 0, dk: -475 };
 
 export function fluidLevel(track) {
-  const id = track.def.id, verts = track.def.native?.vertices || [];
-  let min = Infinity;
-  for (const v of verts) min = Math.min(min, v[1]);
-  return (FLUID[id] ?? (min === Infinity ? -1e4 : min - 10)) * NATIVE_SCALE;
+  const course = track.def.native;
+  if (!course) return -1e4 * NATIVE_SCALE;
+  let min = 0;   // gCourseMinY starts at 0 and takes the lowest collision triangle (add_collision_triangle)
+  for (const i of course.collision.indices) min = Math.min(min, course.vertices[i][1]);
+  return (FLUID[track.def.id] ?? min - 10) * NATIVE_SCALE;
 }
 
 // func_8008ACE0: uniform cubic B-spline basis

@@ -69,6 +69,14 @@ for _id, _sections in {
 COURSES['banshee_boardwalk']['xlu'] = ['878']
 COURSES['wario_stadium']['xlu'] = ['EC0']
 COURSES['wario_stadium']['unused'] = ['3B0']  # only under the unreferenced aggregate list F20
+# course_generate_collision_mesh (render_courses.c): lists added before (or, for battle courses, instead of) the
+# TrackSections table; Mario Raceway's 8E8 is the 1P list (2D68 in split screen).
+COURSES['mario_raceway']['collision'] = [('1140', 'SURFACE_DEFAULT'), ('8E8', 'SURFACE_DEFAULT')]
+COURSES['banshee_boardwalk']['table'] = 'd_course_banshee_boardwalk_track_sections'
+COURSES['block_fort']['collision'] = [('15C0', 'ASPHALT')]
+COURSES['skyscraper']['collision'] = [('1110', 'ASPHALT'), ('258', 'ASPHALT')]
+COURSES['double_deck']['collision'] = [('738', 'ASPHALT')]
+COURSES['big_donut']['collision'] = [(n, 'BRIDGE') for n in ('1018', '450', 'AC0', 'B58', '230')]
 
 
 def numbers(text):
@@ -156,11 +164,12 @@ def convert(source, rom, course_id):
     inputs = [f'courses/{course_id}/course_vertices.inc.c',
               f'courses/{course_id}/course_displaylists.inc.c',
               f'courses/{course_id}/course_data.c', f'courses/{course_id}/course_offsets.c',
-              'assets.json', 'data/other_textures.s', 'src/racing/render_courses.c']
+              'assets.json', 'data/other_textures.s', 'src/racing/render_courses.c', 'include/mk64.h']
     if (source / f'assets/courses/{course_id}.json').exists():   # named course textures (race courses only)
         inputs.append(f'assets/courses/{course_id}.json')
     texts = {name: (source / name).read_text() for name in inputs}
     vertices = []
+    vertex_flags = []   # CourseVtx flag: 4 on all three vertices = no collision triangle (add_collision_triangle)
     packed = bytearray()
     for line in texts[inputs[0]].splitlines():
         if 'MACRO_COLOR_FLAG' not in line:
@@ -169,6 +178,7 @@ def convert(source, rom, course_id):
         packed.extend(struct.pack('>5h4B', x, y, z, s, t, (r & 252) | (flag & 3),
                                   (g & 252) | ((flag >> 2) & 3), b, alpha))
         vertices.append([x, y, z, s, t, r & 252, g & 252, b])
+        vertex_flags.append(flag)
     # Find the original compressed vertex block by its declared decoded size.
     vertex_offset = None
     for match in re.finditer(b'MIO0', rom):
@@ -361,7 +371,7 @@ def convert(source, rom, course_id):
         split[(key, layer)]['indices'].extend(tri)
     batches = split
     assets = json.loads(texts['assets.json'])
-    course_assets = json.loads(texts[inputs[7]]) if len(inputs) > 7 else {}
+    course_assets = json.loads(texts[inputs[8]]) if len(inputs) > 8 else {}
     symbols = dict(re.findall(r'glabel (\w+)\s*\.incbin "([^"]+)"', texts['data/other_textures.s']))
     textures, images = {}, {}
     for batch in batches.values():
@@ -402,27 +412,57 @@ def convert(source, rom, course_id):
         provenance['translucentLists'] = [resolve(n) for n in cfg['xlu']]
     if cfg.get('sections'):
         provenance['sectionArrays'] = [n for n, _ in cfg['sections']]
-    # Boost-ramp collision surfaces (TrackSections d_course_<course>_addr, read by
-    # parse_course_displaylists): BOOST_RAMP_ASPHALT (0xFE, Royal Raceway), BOOST_RAMP_WOOD (0xFC, DKJP).
-    ramps = {}
-    table = re.search(rf'TrackSections d_course_{course_id}_addr\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
-    for name, surface in re.findall(r'\{\s*(\w+),\s*(\w+),', table.group(1) if table else ''):
-        kind = {'BOOST_RAMP_ASPHALT': 'asphalt', '254': 'asphalt', 'BOOST_RAMP_WOOD': 'wood', '252': 'wood'}.get(surface)
-        if not kind:
-            continue
-        slots, stack = {}, [name]
-        while stack:
-            for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[stack.pop()], re.S):
-                a = [v.strip() for v in args.split(',')]
-                if command == 'gsSPDisplayList':
-                    stack.append(a[0])
-                elif command == 'gsSPVertex':
-                    address, count, start = [int(v, 0) for v in a]
-                    for i in range(count):
-                        slots[start + i] = (address & 0xffffff) // 16 + i
-                elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
-                    for j in range(0, len(a), 4):
-                        ramps.setdefault(kind, []).extend(slots[int(v, 0)] for v in a[j:j + 3])
+    # Collision mesh: what course_generate_collision_mesh builds gCollisionMesh from (the course's
+    # extra generate_collision_mesh_* lists, then the TrackSections table parse_course_displaylists walks),
+    # not the visible geometry. indices = vertex triples, surfaces = one SURFACE_TYPE per triangle.
+    enum = re.search(r'enum SURFACE_TYPE \{(.*?)\};', texts['include/mk64.h'], re.S).group(1)
+    surface_ids, value = {}, -1
+    for item in re.sub(r'/\*.*?\*/|//[^\n]*', '', enum, flags=re.S).split(','):
+        name, _, explicit = (p.strip() for p in item.partition('='))
+        if name:
+            value = int(explicit, 0) if explicit else value + 1
+            surface_ids[name] = value
+    collision, collided = dict(indices=[], surfaces=[]), set()
+
+    def collide(name, surface, flags, slots):   # generate_collision_mesh -> add_collision_triangle
+        for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[name], re.S):
+            a = [v.strip() for v in args.split(',')]
+            if command == 'gsSPDisplayList':
+                collide(a[0], surface, flags, slots)
+            elif command == 'gsSPVertex':
+                address, count, start = [int(v, 0) for v in a]
+                for i in range(count):
+                    slots[start + i] = (address & 0xffffff) // 16 + i
+            elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
+                for j in range(0, len(a), 4):
+                    tri = [slots[int(v, 0)] for v in a[j:j + 3]]
+                    if all(vertex_flags[v] == 4 for v in tri) or tuple(sorted(tri)) in collided:
+                        continue
+                    (x1, y1, z1), (x2, y2, z2), (x3, y3, z3) = (vertices[v][:3] for v in tri)
+                    cx = (y2 - y1) * (z3 - z2) - (z2 - z1) * (y3 - y2)
+                    cy = (z2 - z1) * (x3 - x2) - (x2 - x1) * (z3 - z2)
+                    cz = (x2 - x1) * (y3 - y2) - (y2 - y1) * (x3 - x2)
+                    magnitude = (cx * cx + cy * cy + cz * cz) ** 0.5
+                    if not magnitude:
+                        continue
+                    ny = abs(cy / magnitude)
+                    if (flags & 0x8000 and ny > 0.9) or (flags & 0x2000 and ny < 0.1):   # walls only / floors only
+                        continue
+                    collided.add(tuple(sorted(tri)))
+                    collision['indices'].extend(tri)
+                    collision['surfaces'].append(surface)
+    for name, surface in cfg.get('collision', []):
+        collide(resolve(name), surface_ids[surface], 0, {})
+    table_name = cfg.get('table', f'd_course_{course_id}_addr')
+    table = re.search(rf'TrackSections {table_name}\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
+    if not table and not cfg.get('battle'):
+        raise ValueError(f'Missing collision table {table_name}')
+    for name, surface, _section, flags in re.findall(r'\{\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+)\s*\}', table.group(1) if table else ''):
+        if name == '0x00000000':   # terminator
+            break
+        collide(name, surface_ids[surface] if surface in surface_ids else int(surface, 0), int(flags, 0), {})
+    if not collision['surfaces']:
+        raise ValueError('Empty collision mesh')
     extra = {}
     if cfg.get('battle'):
         provenance['battle'] = True
@@ -436,7 +476,7 @@ def convert(source, rom, course_id):
         provenance.update(pathBlockRomOffset=path_block, pathBlockOffset=path_offset,
                           pathBytesSha256=hashlib.sha256(path_bytes).hexdigest())
     course = dict(name=cfg['name'], vertices=vertices, path=route[:-1], batches=list(batches.values()),
-                  **({'ramps': ramps} if ramps else {}), **extra,
+                  collision=collision, **extra,
                   textures=textures, provenance=dict(**provenance,
                   vertexRomOffset=vertex_offset, vertexBytesSha256=hashlib.sha256(packed).hexdigest(),
                   sources={name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}))
