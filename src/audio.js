@@ -1,6 +1,8 @@
 // WebAudio: procedural engine hum, skid noise and countdown beeps; ROM voice samples and ROM music (src/m64.js).
 import workletUrl from './m64-worklet.js?worker&url';
 
+const BASE = import.meta.env?.BASE_URL ?? '/';
+
 // play_sequence ids per course (race_logic.c:420-487)
 const COURSE_SEQ = {
   mario: 3, royal: 3, luigi: 3, wario: 3, moomoo: 4, yoshi: 4, choco: 5, koopa: 6, banshee: 7,
@@ -21,7 +23,7 @@ export class AudioSys {
     const ctx = this.init();
     if (!ctx) return;
     const buf = this.samples[name] || (this.samples[name] =
-      fetch(`mk64/audio/${name}.wav`).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)));
+      fetch(`${BASE}mk64/audio/${name}.wav`).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)));
     let done = false;
     const go = () => {
       if (done) return;
@@ -68,7 +70,7 @@ export class AudioSys {
   sequencer() {
     if (this.seqNode) return this.seqNode;
     const ctx = this.init();
-    const get = n => fetch(`mk64/audio/${n}.bin`).then(r => r.arrayBuffer());
+    const get = n => fetch(`${BASE}mk64/audio/${n}.bin`).then(r => r.arrayBuffer());
     return (this.seqNode = Promise.all([ctx.audioWorklet.addModule(workletUrl), get('ctl'), get('tbl'), get('seq'), get('banksets')])
       .then(([, ctl, tbl, seq, banksets]) => {
         const node = new AudioWorkletNode(ctx, 'm64', { numberOfInputs: 0, outputChannelCount: [2] });

@@ -904,6 +904,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 HD.onChange(resize);
 let resTimer = 0;
+$('help').textContent = $('help').textContent.replace('1×/2×/4×/Native', HD.PRESETS.map(p => p.label.split(' ')[0]).join('/'));   // the web build has no 4x
 function showRes() {
   const el = $('res');
   el.textContent = `${HD.presetLabel()} · textures ${HD.tier()}×`;
