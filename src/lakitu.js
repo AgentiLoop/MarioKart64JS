@@ -1,7 +1,8 @@
 // Lakitu, the referee on his cloud (n64decomp/mk64 src/update_objects.c update_object_lakitu, placed by
 // func_8007A66C / func_8007A778, drawn by render_lakitu). One referee per screen player, seen only in that view:
 //   countdown  update_object_lakitu_countdown: flies in on spline D_800E67B8 and holds out the signal, red, red,
-//              blue -> GO (the race start waits for his blue light)
+//              blue -> GO (the race start waits for his blue light); once the blue light is out ('ready') the
+//              rocket start window opens (main.js revEngine)
 //   secondlap / finallap  update_object_lakitu_second_lap / _final_lap: the lap signs (spline D_800E694C)
 //   flag       update_object_lakitu_red_flag: waves the checkered flag (looping spline D_800E6834) once his
 //              player has finished, while the kart drives on
@@ -161,7 +162,7 @@ class Referee {
           case 7: if (this.wait(20)) events?.('red'); break;   // tlutList += 0x200: no lights -> red
           case 8: this.anim(8, 15, 6, 0); break;
           case 9: if (this.wait(8)) events?.('red'); break;
-          case 10: this.anim(16, 23, 6, 0); break;
+          case 10: if (this.anim(16, 23, 6, 0)) events?.('ready'); break;   // D_801656F0 = 1: rocket start window
           case 11: if (this.wait(8)) events?.('green'); break;  // red -> blue, SOUND_ACTION_GREEN_LIGHT
           case 12: this.anim(24, 27, 6, 0); break;
           case 13: this.state++; break;

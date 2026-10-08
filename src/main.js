@@ -189,7 +189,7 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
   setViews([player]);
   banner.textContent = '';
   items.reset();
-  lakitu.startCountdown(countdownLight);
+  startCountdown();
 }
 
 // track menu (shown until a track is picked; picking reloads with ?track=id)
@@ -219,8 +219,52 @@ const lakitu = new Lakitu(scene, track);
 // SOUND_ACTION_COUNTDOWN_LIGHT 0x49008003 / SOUND_ACTION_GREEN_LIGHT 0x49008004 (bank 4)
 function countdownLight(light) {
   if (state !== 'countdown') return;
+  if (light === 'ready') { revs.ready = 0; return; }
   if (light === 'red') { audio.playSound(4, 0x03); return; }
   state = 'race'; audio.playSound(4, 0x04);
+  rocketStart();
+}
+// Rocket start (player_accelerate_during_start_sequence / player_decelerate_during_start_sequence): holding A through
+// the countdown revs the engine, currentSpeed against the gTopSpeedTable top speed, + gKartAccelerationTables[band]
+// x 3 (x 2.5 from 60%) a frame, - 5 a frame let go. From the end of Lakitu's blue-light animation (D_801656F0) a
+// fresh press within 8 frames (20 in time trials) sets START_BOOST_TRIGGER, kept only while A stays down; revs at
+// 90% of top speed without it set START_SPINOUT_TRIGGER (cleared once they fall to 70%). At GO the boost is a mushroom
+// (apply_triggers -> func_8002A704, voice n 1) and the spinout an early-start spin (func_8008F104, voice n 3).
+// Assumption: the player's start sequence runs at Lakitu's 60 Hz object tick (gRaceFrameCounter counts those).
+const START_ACCEL = { mario: [2, 2, 2, 1.6, 1.4, 1.2, 1, 0.8, 0.6, 0.4], yoshi: [2, 2, 2.5, 2.6, 2.6, 2, 1.5, 0.8, 0.8, 0.8],
+  donkeykong: [2, 2, 2, 1.6, 1, 1, 1, 1.8, 1.8, 1.2] };
+Object.assign(START_ACCEL, { luigi: START_ACCEL.mario, toad: START_ACCEL.yoshi, peach: START_ACCEL.yoshi, wario: START_ACCEL.donkeykong, bowser: START_ACCEL.donkeykong });
+let revs = null;
+function startCountdown() {
+  revs = { rev: 0, held: false, ready: null, boost: false, spin: false, acc: 0 };
+  lakitu.startCountdown(countdownLight);
+}
+function revEngine(dt, inp) {
+  const r = revs, top = 320 * Math.sqrt(ccSpeedScale(cc, playerChar)), accel = START_ACCEL[playerChar] || START_ACCEL.mario;
+  for (r.acc += dt * 60; r.acc >= 1; r.acc--) {
+    const a = inp.throttle > 0;
+    if (r.ready !== null) r.ready++;
+    if (a) {
+      const band = Math.floor(r.rev / top * 10);
+      if (band >= 0 && band <= 9) r.rev += accel[band] * (band < 6 ? 3 : 2.5);
+      if (r.ready !== null) {
+        if (r.ready < (raceMode === 'time_trials' ? 20 : 8) && !r.held) r.boost = true;
+        else if (r.rev >= top * 0.9 && !r.boost) r.spin = true;
+      }
+    } else {
+      r.rev = Math.min(top, Math.max(0, r.rev - 5));
+      if (r.rev <= top * 0.7) r.spin = false;
+      r.boost = false;
+    }
+    r.held = a;
+  }
+}
+function rocketStart() {
+  const r = revs;
+  revs = null;
+  if (!r || !player || autopilot) return;
+  if (r.boost) { player.boost = Math.max(player.boost, 1.8); player.v += 6; audio.playSound(1, 0x0b); items.voice(player, 1); }
+  if (r.spin) { player.spin = 1.1; player.v /= 3; player.drift = 0; player.boost = 0; items.voice(player, 3); }
 }
 const itemEl = $('item'), itemWin = $('itemWin'), itemName = $('itemName');
 // gItemWindowTextures order (tools/extract-item-window.py); preloaded so the roulette never waits on a fetch
@@ -730,7 +774,7 @@ function setupOnline() {
   setViews(karts);   // every player's view, in grid order, like the console's split screen
   banner.textContent = '';
   items.reset();
-  lakitu.startCountdown(countdownLight);
+  startCountdown();
 }
 function sendPose() {
   const k = player;
@@ -1126,6 +1170,7 @@ function frame(now) {
   }
   if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
     for (const k of karts) { if (k.remote) puppetStep(k, now); else k.update(dt, { throttle: 0, brake: 0, steer: 0, drift: false }); }
+    if (revs && player && !autopilot) revEngine(dt, playerInput());
   } else {
     raceTime += dt;
     for (const k of karts) if (k.remote) puppetStep(k, now);
