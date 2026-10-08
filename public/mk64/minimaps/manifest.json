@@ -1,0 +1,166 @@
+{
+ "romSha1": "579c48e211ae952530ffc8738709f078d5dd215e",
+ "source": "n64decomp/mk64 assets/course_outlines.json",
+ "courses": {
+  "mario": {
+   "image": "mario.png",
+   "symbol": "minimap_mario_raceway",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7474188,
+   "i4Sha256": "fa700ceebc1342f88c8999a4c11e0b3dd1fae3c9ef5e4f4bcd64dd17ba768c49"
+  },
+  "choco": {
+   "image": "choco.png",
+   "symbol": "minimap_choco_mountain",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7474896,
+   "i4Sha256": "9f9591babb97e7a6836bcf9e2e18af9703f71731fa19014882796e3d9e4cd1d7"
+  },
+  "bowser": {
+   "image": "bowser.png",
+   "symbol": "minimap_bowsers_castle",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7475672,
+   "i4Sha256": "02260b3d6faea90a3c7b7b08023cfd1cba01e8b4f9fd095533165401806e9680"
+  },
+  "banshee": {
+   "image": "banshee.png",
+   "symbol": "minimap_banshee_boardwalk",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7476284,
+   "i4Sha256": "395dd62d10a273f1b65705ac4228ce4b4d015d8e3d1893b15c9d8a057b3694e4"
+  },
+  "yoshi": {
+   "image": "yoshi.png",
+   "symbol": "minimap_yoshi_valley",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7476788,
+   "i4Sha256": "874e136f24fa41a5166a395f2b3ead94219830ee189e3dd12f26b13364be4d41"
+  },
+  "frappe": {
+   "image": "frappe.png",
+   "symbol": "minimap_frappe_snowland",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7477848,
+   "i4Sha256": "07df5013d1c3ae676346ea363173e5ab0c1979890333326aa8e9ab2a9637523b"
+  },
+  "koopa": {
+   "image": "koopa.png",
+   "symbol": "minimap_koopa_troopa_beach",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7478480,
+   "i4Sha256": "dba2d6dc0bafa32bb43ff8e57a012ec6247fd5606ebdc9bd7f545d5773cd0ea3"
+  },
+  "royal": {
+   "image": "royal.png",
+   "symbol": "minimap_royal_raceway",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7479096,
+   "i4Sha256": "64dc6a90866a437ea164f8835126015e69048994f24a050ef7fc0e719955edf1"
+  },
+  "luigi": {
+   "image": "luigi.png",
+   "symbol": "minimap_luigi_raceway",
+   "width": 64,
+   "height": 96,
+   "romOffset": 7479824,
+   "i4Sha256": "23e1184a40ee2c244eb889f02c72ce5b824cc52e4539c4ede2812efba86c102b"
+  },
+  "moomoo": {
+   "image": "moomoo.png",
+   "symbol": "minimap_moo_moo_farm",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7480460,
+   "i4Sha256": "7adb9259618e059f03f1d40fff026b33c95101f29347fd504ccf037bfcc50b34"
+  },
+  "toad": {
+   "image": "toad.png",
+   "symbol": "minimap_toads_turnpike",
+   "width": 128,
+   "height": 64,
+   "romOffset": 7481028,
+   "i4Sha256": "e8fcfd690cbc3f2d35a62f8a37508a264bf63fe52711cf2358f9f4fa3be27b29"
+  },
+  "kalimari": {
+   "image": "kalimari.png",
+   "symbol": "minimap_kalimari_desert",
+   "width": 64,
+   "height": 96,
+   "romOffset": 7481792,
+   "i4Sha256": "19e1894374e543771625cc21929cf6ee87d7308ce29ee90b98106edb1e4c3b00"
+  },
+  "sherbet": {
+   "image": "sherbet.png",
+   "symbol": "minimap_sherbet_land",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7482668,
+   "i4Sha256": "80c70db50d53a2dc80fa16054d6bb692018425f39d761523cc877b9b8c7d6677"
+  },
+  "rainbow": {
+   "image": "rainbow.png",
+   "symbol": "minimap_rainbow_road",
+   "width": 64,
+   "height": 96,
+   "romOffset": 7483444,
+   "i4Sha256": "bbd56168e3d83a7f4619e90467195a00e220a5c99377585ed919a812e2b897f8"
+  },
+  "wario": {
+   "image": "wario.png",
+   "symbol": "minimap_wario_stadium",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7484272,
+   "i4Sha256": "47cf53a22013b649a38cf095ed78e6576ffe4ee53eb026007948efd8c441a9fe"
+  },
+  "block-fort": {
+   "image": "block-fort.png",
+   "symbol": "minimap_block_fort",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7484996,
+   "i4Sha256": "d6e0e3ca389ae6b071a7fefd2b3d8f1bd1cc7c8b5f2f84986f45d8138ecae487"
+  },
+  "skyscraper": {
+   "image": "skyscraper.png",
+   "symbol": "minimap_skyscraper",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7485668,
+   "i4Sha256": "6e49e0a4eedd49226d7e6c9bd0d17230762db0cbb6c48c67a864eb75858bfea7"
+  },
+  "double-deck": {
+   "image": "double-deck.png",
+   "symbol": "minimap_double_deck",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7486232,
+   "i4Sha256": "a72f4fc41569fe9ec0065a461378ee2ec65f8ffdc666df1575ad3113d3fa5b55"
+  },
+  "dk": {
+   "image": "dk.png",
+   "symbol": "minimap_dks_jungle_parkway",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7486620,
+   "i4Sha256": "f2745a935bf47007ddff143b8412b2c57838c2c9668c42e9749b5f40e1b44811"
+  },
+  "big-donut": {
+   "image": "big-donut.png",
+   "symbol": "minimap_big_donut",
+   "width": 64,
+   "height": 64,
+   "romOffset": 7487364,
+   "i4Sha256": "0ed98f51674d3421268d1081bbf57bee63abf8e81e5d262f13266f94fc172a01"
+  }
+ }
+}

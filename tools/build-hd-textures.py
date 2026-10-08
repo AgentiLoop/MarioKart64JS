@@ -178,6 +178,12 @@ def main():
         else:
             print(f'  incomplete HD frames: sky/{path.name}')
     single('sky/star.png', named('common_data/D_0D0293D8'), intensity=True)
+    # course outlines (minimaps): I4 blocks matched by CRC like the clouds
+    for path in sorted((NATIVE / 'minimaps').glob('*.png')):
+        img = Image.open(path).convert('RGBA')
+        nib = [a // 17 for a in img.getchannel('A').get_flattened_data()]
+        buf = bytes(nib[i] << 4 | nib[i + 1] for i in range(0, len(nib), 2))
+        single(f'minimaps/{path.name}', pack.by_texels(buf, *img.size, 4, 0), intensity=True)
     # item box "?" card: common_texture_item_box_question_mark, RGBA16 32x64 (by CRC)
     img = Image.open(NATIVE / 'item-box' / 'question-mark.png').convert('RGBA')
     single('item-box/question-mark.png', pack.by_texels(texels16(img, 'rgba16'), *img.size, 0, 2))

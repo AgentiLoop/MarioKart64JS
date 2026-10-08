@@ -68,8 +68,10 @@ item hit pops one, and a kart with none left is out and stays where it stopped. 
 (the banner says WINNER! / LOSER). Item boxes sit where the ROM's `item_box_spawns` put them and hand out the same
 items as the races (mushroom turbo, banana slick, red-shell seeker — the seeker homes on the nearest kart). Falling
 into Big Donut's lava, through Skyscraper's gaps or off Block Fort's edge brings you back to your start spot after a
-short rescue. 2P–4P BATTLE runs online exactly like the races: the room's arena, split screen, each game driving its
-own kart and sending its position and heading, hits decided by the player who gets hit.
+short rescue. The arena map is the ROM's course outline (`gCourseOutlineTextures`, `tools/extract-minimaps.py`) with
+the karts and item boxes placed through the console's `gMiniMapMarkerScale` / `gMiniMapX` / `gMiniMapY`. 2P–4P BATTLE
+runs online exactly like the races: the room's arena, split screen, each game driving its own kart and sending its
+position and heading, hits decided by the player who gets hit.
 
 ## Asset extraction
 
@@ -78,6 +80,7 @@ own kart and sending its position and heading, hits decided by the player who ge
 - `extract-karts.py` — kart sprite atlases (8 drivers)
 - `extract-faces.py` — character-select face animation frames (17 per driver)
 - `extract-previews.py` — course preview thumbnails (16 race + 4 battle)
+- `extract-minimaps.py` — course outline minimaps (I4 MIO0, all 20 courses; the battle arenas draw theirs)
 - `extract-course.py` — course geometry, textures and track path (`--course big_donut|block_fort|double_deck|skyscraper` for the pathless battle arenas, with their item box spawns)
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns

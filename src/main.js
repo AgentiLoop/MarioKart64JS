@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
+import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn, BATTLE_MINIMAP } from './track.js';
 import { Kart } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -846,20 +846,28 @@ function playerInput() {
 
 // minimap
 const mm = [];
+let miniOutline = null;   // arena: the ROM course outline (BATTLE_MINIMAP), 64x64 drawn over the 300px map
 {
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
-  if (track.arena) ({ minX, maxX, minZ, maxZ } = track.bounds);
-  else for (const p of track.pos) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
-  const sc = 300 / Math.max(maxX - minX, maxZ - minZ);
-  mm.push(sc, minX, minZ, 20 + (300 - (maxX - minX) * sc) / 2, 20 + (300 - (maxZ - minZ) * sc) / 2);
+  if (track.arena) {
+    // outline pixel (x, y) -> map px: the 64px outline fills the 300px map; karts map through gMiniMapMarkerScale
+    const m = BATTLE_MINIMAP[trackDef.id], px = 300 / 64, sc = m.scale / NATIVE_SCALE * px;
+    mm.push(sc, -m.x * px / sc, -m.y * px / sc, 20, 20);
+    miniOutline = new Image();
+    const load = () => { miniOutline.src = HD.hdSource(`minimaps/${trackDef.id}.png`).url; };
+    load(); HD.onChange(load);
+  } else {
+    for (const p of track.pos) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+    const sc = 300 / Math.max(maxX - minX, maxZ - minZ);
+    mm.push(sc, minX, minZ, 20 + (300 - (maxX - minX) * sc) / 2, 20 + (300 - (maxZ - minZ) * sc) / 2);
+  }
 }
 function drawMini() {
   const [sc, minX, minZ, ox, oy] = mm;
   mini.clearRect(0, 0, 340, 340);
   mini.lineWidth = 9; mini.strokeStyle = '#fff'; mini.lineJoin = 'round'; mini.beginPath();
-  if (track.arena) {   // arena: its footprint and the item boxes
-    const b = track.bounds;
-    mini.strokeRect(ox, oy, (b.maxX - b.minX) * sc, (b.maxZ - b.minZ) * sc);
+  if (track.arena) {   // arena: the ROM outline and the item boxes
+    if (miniOutline.complete && miniOutline.naturalWidth) mini.drawImage(miniOutline, ox, oy, 300, 300);
     mini.fillStyle = '#ffd23a';
     for (const bx of items.boxes) if (bx.cd <= 0) mini.fillRect(ox + (bx.x - minX) * sc - 3, oy + (bx.z - minZ) * sc - 3, 6, 6);
   } else {
@@ -1104,4 +1112,4 @@ function frame(now) {
 let lastTick = 4;
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys, renderer, scene, camera };
+window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys, renderer, scene, camera, mm, get miniOutline() { return miniOutline; } };

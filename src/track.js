@@ -32,6 +32,15 @@ export const BATTLE_SPAWNS = {
   'double-deck': { y: 55, xz: [[0, 160], [0, -160], [-160, 0], [160, 0]], rot: [32768, 0, -16384, 16384], fall: null },
   'big-donut': { y: 200, xz: [[0, 575], [0, -575], [-575, 0], [575, 0]], rot: [-16384, 16384, 0, 32768], fall: 100 },
 };
+// Arena minimaps: the ROM course outline (gCourseOutlineTextures, public/mk64/minimaps/<id>.png, 64x64) with
+// gMiniMapMarkerScale / gMiniMapX / gMiniMapY from track_minimap_settings (code_8006E9C0.c): a kart at MK64
+// (x, z) sits at outline pixel (x + px * scale, y + pz * scale) (draw_minimap_character, render_objects.c).
+export const BATTLE_MINIMAP = {
+  'block-fort': { scale: 0.0335, x: 32, y: 32 },
+  skyscraper: { scale: 0.0445, x: 32, y: 32 },
+  'double-deck': { scale: 0.0285, x: 32, y: 32 },
+  'big-donut': { scale: 0.0257, x: 32, y: 31 },
+};
 
 // Per-course sky gradients, verbatim from mk64-master yamls/courses/*_metadata.yml
 // (sky_colors / sky_colors2 -> sTopSkyBoxColors / sBottomSkyBoxColors). Each entry is
