@@ -1,0 +1,90 @@
+{
+  "romSha1": "579c48e211ae952530ffc8738709f078d5dd215e",
+  "source": "n64decomp/mk64 data/texture_tkmk00.s, src/data/textures.c",
+  "images": {
+    "game_select": {
+      "format": "tkmk00",
+      "width": 200,
+      "height": 32,
+      "romOffset": "0x803dc0",
+      "pngSha256": "7cf97b8e4d5460856665fb5d4d8051c9f8004f80b84ceb80d7810ff04998fb6b"
+    },
+    "menu_1p_game": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 54,
+      "romOffset": "0x8049c0",
+      "pngSha256": "2e207a06d8fd8dc176e9b309c69ae391c0093c0e9d60bf3874a9d9ffe2deb341"
+    },
+    "menu_2p_game": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 54,
+      "romOffset": "0x804ec0",
+      "pngSha256": "b8ce0cdfa9bd2a18992232b62ff9a748a2515883efd65fe6631a69a4de4324bb"
+    },
+    "menu_3p_game": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 54,
+      "romOffset": "0x8055c0",
+      "pngSha256": "78e1d9aeebef7af008e519916c602a32894852d143c0b96f273f1f0304e01355"
+    },
+    "menu_4p_game": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 54,
+      "romOffset": "0x805fc0",
+      "pngSha256": "da684b1a6b3db3bf9f425abfbca8f8ba9b8acc2cfac082d7b81c98fddff59322"
+    },
+    "mode_mario_gp": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x8071c0",
+      "pngSha256": "282e58741a3046dfdc5c0e44422525ec326596df4e58017daed2a05edd907dd7"
+    },
+    "mode_time_trials": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x806dc0",
+      "pngSha256": "622984aa561e6482ffb4e840b3acb9c3b081882c68b811b34760a06c0b21b86a"
+    },
+    "mode_vs": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x8075c0",
+      "pngSha256": "d56c670fdde8177b8fcbcae73d0c7999e07b6607859eb9b64fa603cbe63063bd"
+    },
+    "mode_battle": {
+      "format": "tkmk00",
+      "width": 64,
+      "height": 18,
+      "romOffset": "0x806ac0",
+      "pngSha256": "0b3c7309494c4862b2089213d038f2ddc72a851ef676d7387a2f85e6346afb2a"
+    },
+    "l_option": {
+      "format": "tkmk00",
+      "width": 58,
+      "height": 19,
+      "romOffset": "0x8078c0",
+      "pngSha256": "af484d42bac2ffb8c3211a05b92e2c8b23ff4b0546518513c00ffb97ce5fbd1f"
+    },
+    "r_data": {
+      "format": "tkmk00",
+      "width": 58,
+      "height": 19,
+      "romOffset": "0x807bc0",
+      "pngSha256": "0d78ca52f4982a6329995bc5358f1f54d5cf16558ad648b7e234c7841511d640"
+    },
+    "small_green_triangle": {
+      "format": "rgba16",
+      "width": 12,
+      "height": 7,
+      "romOffset": "0x7e563c",
+      "pngSha256": "9ef5f8f228c767119d8792c9e790cde328a06a1a054eed96ab68d2d27efb1416"
+    }
+  }
+}

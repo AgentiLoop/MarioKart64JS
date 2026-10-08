@@ -200,13 +200,13 @@ const ITEM_WINDOW = ['none', 'banana', 'banana_bunch', 'green_shell', 'triple_gr
 const ordinal = n => ['st', 'nd', 'rd'][n - 1] || 'th';
 const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 
-// ------- title screen & menu flow (no ?track=): title -> course menu -> character select -> ?track=id&char=c -------
-// All three live inside #screen, a 320x240 frame scaled uniformly to the viewport (N64 4:3 output).
+// ------- title screen & menu flow (no ?track=): title -> game select -> course menu -> character select -> ?track=id&char=c[&players=n] -------
+// All screens live inside #screen, a 320x240 frame scaled uniformly to the viewport (N64 4:3 output).
 const screenEl = $('screen'), hintEl = $('hint');
-const titleEl = $('title'), pushStart = $('pushStart'), menuEl = $('menu'), charEl = $('char');
+const titleEl = $('title'), pushStart = $('pushStart'), gameEl = $('gameSel'), menuEl = $('menu'), charEl = $('char');
 let curScreen = null;
 function showScreen(el, hint) {
-  for (const s of [titleEl, menuEl, charEl]) s.style.display = s === el ? 'block' : 'none';
+  for (const s of [titleEl, gameEl, menuEl, charEl]) s.style.display = s === el ? 'block' : 'none';
   curScreen = el;
   hintEl.textContent = hint;
 }
@@ -237,13 +237,65 @@ function enterMenus() {
   // the title screen, so the first press only unlocks audio (playing them here) and the next one advances.
   if (audio.ctx && audio.ctx.state !== 'running') { audio.ctx.resume(); return; }
   snd('enter');   // splash_menu_act: A/Start plays SOUND_INTRO_ENTER_MENU
-  showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
-  cupMode('cup');
+  enterGameSelect();
   audio.playMusic(2);   // SEQ_MENU_MAIN_MENU (menus.c:1861)
 }
 function backToTitle() {
   showScreen(titleEl, 'Press Enter / Start / click anywhere to continue');
   audio.playMusic(1);   // SEQ_MENU_TITLE_SCREEN (menus.c:1844)
+}
+
+// ------- main menu: MAIN_MENU (GAME SELECT) at the ROM's pixel positions (D_800E70A0) -------
+// Banner 200x32 at (61,17); the 1P..4P GAME columns at x 21/92/163/234, y 62: a 64x54 card over a box, then one
+// 64x18 mode row per mode at y+65+18i (seg2_menu_Np_column), the green cursor triangle at (+27,+56); OPTION (21,200),
+// DATA (85,200). func_800A8270: the chosen column's box is the cream (255,249,220) chosen colour, flashing grey while
+// the cursor is still on the columns (MAIN_MENU_PLAYER_SELECT); once a count is picked the mode row flashes instead
+// (MAIN_MENU_MODE_SELECT). The cc sub-select and OK are skipped: picking a mode goes straight to course select.
+// 2P-4P GAME are online: `players` rides along to the race URL, which waits for that many players (src/net.js).
+const PCOL_X = [21, 92, 163, 234];
+const PMODES = [['mario_gp', 'time_trials'], ['mario_gp', 'vs', 'battle'], ['vs', 'battle'], ['vs', 'battle']];
+let pcount = 0, pmode = 0, gameMode = 'player';   // 'player' | 'mode'
+function buildGameSelect() {
+  const cols = $('pcols');
+  PCOL_X.forEach((x, i) => {
+    const b = document.createElement('button');
+    b.className = 'pcol'; b.style.left = `${x}px`;
+    b.setAttribute('aria-label', `${i + 1}P game`);
+    let html = '<div class="box"></div><img class="card" alt="" />';
+    PMODES[i].forEach((m, j) => { html += `<div class="mbox" style="top:${65 + 18 * j}px"></div><img class="mode" style="top:${65 + 18 * j}px" alt="" data-mode="${m}" />`; });
+    html += '<img class="tri" alt="" />';
+    b.innerHTML = html;
+    HD.setImg(b.querySelector('.card'), `mainmenu/menu_${i + 1}p_game.png`);
+    b.querySelectorAll('.mode').forEach(img => HD.setImg(img, `mainmenu/mode_${img.dataset.mode}.png`));
+    HD.setImg(b.querySelector('.tri'), 'mainmenu/small_green_triangle.png');
+    b.onclick = () => {
+      if (gameMode === 'player' || pcount !== i) { pcount = i; gameMode = 'mode'; pmode = 0; snd('select'); updateGameSelect(); }
+      else pickMode();
+    };
+    b.querySelectorAll('.mode').forEach((img, j) => { img.onclick = e => { e.stopPropagation(); pcount = i; pmode = j; gameMode = 'mode'; pickMode(); }; });
+    cols.appendChild(b);
+  });
+}
+function updateGameSelect() {
+  [...$('pcols').children].forEach((b, i) => b.setAttribute('aria-pressed', i === pcount && gameMode === 'mode'));
+}
+function enterGameSelect() {
+  gameMode = 'player'; pmode = 0;
+  showScreen(gameEl, 'Game select: ←/→ number of players, Enter · ↑/↓ mode, Enter · Esc goes back · 2P-4P race online');
+  updateGameSelect();
+}
+function pickMode() {
+  snd('okClicked');
+  showScreen(menuEl, 'Course select: ←/→ pick a cup, Enter · ↑/↓ pick a course, Enter · Enter on OK starts · Esc goes back');
+  cupMode('cup');
+}
+function gameStep(now) {
+  if (curScreen !== gameEl) return;
+  menuTick = Math.floor(now / 1000 * 30);
+  [...$('pcols').children].forEach((b, i) => {
+    b.querySelector('.box').style.background = boxColour(i === pcount, gameMode !== 'player');
+    b.querySelectorAll('.mbox').forEach((m, j) => { m.style.background = boxColour(i === pcount && j === pmode && gameMode === 'mode', false); });
+  });
 }
 
 // ------- course select: COURSE_SELECT_MENU at the ROM's pixel positions (single-course / VS style) -------
@@ -462,7 +514,7 @@ function confirmChar() {
   localStorage.setItem('mk64char', c);
   snd('okClicked');
   leaving = true;   // let SOUND_MENU_OK_CLICKED play before the page reloads into the race
-  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}`; }, 500);
+  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}${pcount ? `&players=${pcount + 1}` : ''}`; }, 500);
 }
 function backFromChar() {
   snd('back');
@@ -477,6 +529,7 @@ if (!trackDef) {
   screenEl.style.display = 'block';
   hintEl.style.display = 'block';
   fitScreen();
+  buildGameSelect();
   buildCourseMenu();
   backToTitle();
   audio.welcome();   // menu_items.c:2618 plays SOUND_INTRO_WELCOME as the title screen comes up
@@ -504,6 +557,24 @@ addEventListener('keydown', e => {
       if (e.code === 'Escape' || e.code === 'Backspace') { e.preventDefault(); backFromChar(); return; }
       return;
     }
+    if (curScreen === gameEl) {
+      // main_menu_act: MAIN_MENU_PLAYER_SELECT left/right over the columns, A picks; MAIN_MENU_MODE_SELECT up/down the rows
+      const enter = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space';
+      const back = e.code === 'Escape' || e.code === 'Backspace';
+      if (e.code.startsWith('Arrow') || enter || back) e.preventDefault();
+      if (gameMode === 'player') {
+        if (e.code === 'ArrowLeft' && pcount > 0) { pcount--; snd('move'); }
+        else if (e.code === 'ArrowRight' && pcount < 3) { pcount++; snd('move'); }
+        else if (enter) { gameMode = 'mode'; pmode = 0; snd('select'); updateGameSelect(); }
+        else if (back) { backToTitle(); snd('back'); }
+      } else {
+        if (e.code === 'ArrowUp' && pmode > 0) { pmode--; snd('move'); }
+        else if (e.code === 'ArrowDown' && pmode < PMODES[pcount].length - 1) { pmode++; snd('move'); }
+        else if (enter) pickMode();
+        else if (back) { gameMode = 'player'; snd('back'); updateGameSelect(); }
+      }
+      return;
+    }
     if (curScreen === menuEl) {
       // SUB_MENU_MAP_SELECT_CUP: left/right cup; _COURSE: up/down course; _OK: A starts, B steps back
       const enter = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space';
@@ -513,7 +584,7 @@ addEventListener('keydown', e => {
         if (e.code === 'ArrowLeft' && cupSel > 0) { cupSel--; cupMode('cup'); snd('move'); }
         else if (e.code === 'ArrowRight' && cupSel < 3) { cupSel++; cupMode('cup'); snd('move'); }
         else if (enter) { cupMode('course'); snd('select'); }
-        else if (back) { backToTitle(); snd('back'); }
+        else if (back) { enterGameSelect(); snd('back'); }
       } else if (courseMode === 'course') {
         if (e.code === 'ArrowUp' && courseIdx > 0) { courseIdx--; cupMode('course'); snd('move'); }
         else if (e.code === 'ArrowDown' && courseIdx < 3) { courseIdx++; cupMode('course'); snd('move'); }
@@ -670,6 +741,7 @@ function frame(now) {
     const a = 1 - Math.exp(-3 * dt);
     camera.position.lerp(target, a); flyLook.lerp(look, a); camera.lookAt(flyLook);
     titleStep(now);   // blink PUSH START while the attract fly-along runs behind the title overlay
+    gameStep(now);    // GAME SELECT column / mode row flash boxes
     charStep(now);    // animate the character-select faces when that screen is open
     courseStep(now);  // cup / course / OK flash boxes on the course-select screen
     updateSky();

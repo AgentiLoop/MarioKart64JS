@@ -24,6 +24,20 @@
   #copyright { left: 98px; top: 199px; width: 124px; height: 17px; }
   #pushStart { left: 81px; top: 179px; width: 159px; height: 16px; }
 
+  /* ---------- main menu: MAIN_MENU (game select) at ROM positions (D_800E70A0, seg2_menu_Np_column, func_800A8270) ---------- */
+  #gameSelect { left: 61px; top: 17px; width: 200px; height: 32px; }
+  .pcol { position: absolute; top: 62px; width: 64px; height: 120px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .pcol .box { position: absolute; left: 0; width: 64px; height: 54px; background: rgb(1,1,1); }          /* 0x3F x 0x35 box under the NP GAME card */
+  .pcol .mbox { position: absolute; left: 0; width: 64px; height: 18px; background: rgb(1,1,1); }         /* mode rows: row + 0x41 + 0x12 * i */
+  .pcol .card { left: 0; top: 0; width: 64px; height: 54px; }
+  .pcol .mode { left: 0; width: 64px; height: 18px; }
+  .pcol .tri { left: 27px; top: 56px; width: 12px; height: 7px; }
+  #gameSel .lr { position: absolute; top: 200px; width: 58px; height: 19px; }                              /* OPTION (21,200), DATA (85,200) */
+  #gameSel .lr .box { position: absolute; left: 0; top: 0; width: 58px; height: 19px; background: rgb(1,1,1); }
+  #gameSel .lr img { left: 0; top: 0; width: 58px; height: 19px; }
+  #optionBtn { left: 21px; }
+  #dataBtn { left: 85px; }
+
   /* ---------- course select: COURSE_SELECT_MENU at ROM positions (gMenuTexturesTrackSelection, D_800E7148/7168/7208) ---------- */
   #mapSelect { left: 65px; top: 18px; width: 190px; height: 32px; }
   #menu button { position: absolute; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
@@ -86,6 +100,15 @@
     <img id="titleLogo" alt="TarioKart 64" src="/mk64/menu/logo_mario_kart_64.png" data-hd="menu/logo_mario_kart_64.png" />
     <img id="copyright" alt="" src="/mk64/menu/copyright_1996.png" data-hd="menu/copyright_1996.png" />
     <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" data-hd="menu/push_start_button.png" />
+  </div>
+
+  <!-- MAIN_MENU: tinted background, GAME SELECT banner, 1P..4P GAME columns with their mode rows, OPTION / DATA -->
+  <div id="gameSel" class="scr">
+    <img id="gameBg" class="bg" alt="" src="/mk64/menu/background_main_menu.png" data-hd="menu/background_main_menu.png" />
+    <img id="gameSelect" alt="Game select" src="/mk64/mainmenu/game_select.png" data-hd="mainmenu/game_select.png" />
+    <div id="pcols"></div>
+    <div id="optionBtn" class="lr"><div class="box"></div><img alt="Option" src="/mk64/mainmenu/l_option.png" data-hd="mainmenu/l_option.png" /></div>
+    <div id="dataBtn" class="lr"><div class="box"></div><img alt="Data" src="/mk64/mainmenu/r_data.png" data-hd="mainmenu/r_data.png" /></div>
   </div>
 
   <!-- COURSE_SELECT_MENU: tinted background, MAP SELECT banner, cup icons, course previews, title plates, OK -->
