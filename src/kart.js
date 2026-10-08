@@ -217,6 +217,7 @@ export class Kart {
         }
       }
     }
+    if (g) this.floor = g;   // meshIndexZX: the last collision triangle under the kart (func_802AAB4C's fluid areas)
     // ballistic height: leave the ground when it falls away faster than gravity (ramp lips, crests)
     if (this.y == null || !dt) { if (g) this.y = g.y; this.vy = 0; this.air = false; this.dac = 1; this.ramp = null; }
     else {
@@ -233,13 +234,14 @@ export class Kart {
         // Off the course: ground well below both the road and the takeoff point (water, a lower level), or none at
         // all, is no landing. The kart falls on until it hits it, sinks under the course's fluid level with no floor
         // within 600 MK64 units (LAKITU_RETRIEVAL, func_8002C4F8) or drops 30 below the road: Lakitu fishes it out.
+        let fluid;
         const ref = Math.min(f.pos.y, this.takeoffY ?? f.pos.y), low = !g || g.y < ref - 4;
         if (!low && this.y <= g.y) {
           this.air = false; this.y = g.y; this.vy = 0;
           if (!g.ramp) this.ramp = null;
         }
         else if (low && g && this.y <= g.y) { this.y = g.y; this.vy = 0; this.fell = { kind: 'drop', base: g.y }; g = null; }
-        else if (this.y < (t.fluidY ?? -Infinity) - 0.55 && (!g || g.y < this.y - 60)) this.fell = { kind: 'water', base: t.fluidY };
+        else if (this.y < (fluid = t.fluidAt?.(x, z, this.floor) ?? -Infinity) - 0.55 && (!g || g.y < this.y - 60)) this.fell = { kind: 'water', base: fluid };
         else if (this.y < ref - 30) this.fell = { kind: 'drop', base: this.y };
       } else if (g) {
         const fall = this.y + (this.vy + accel() * dt) * dt;

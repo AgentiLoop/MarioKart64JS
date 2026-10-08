@@ -414,7 +414,8 @@ def convert(source, rom, course_id):
         provenance['sectionArrays'] = [n for n, _ in cfg['sections']]
     # Collision mesh: what course_generate_collision_mesh builds gCollisionMesh from (the course's
     # extra generate_collision_mesh_* lists, then the TrackSections table parse_course_displaylists walks),
-    # not the visible geometry. indices = vertex triples, surfaces = one SURFACE_TYPE per triangle.
+    # not the visible geometry. indices = vertex triples, surfaces = one SURFACE_TYPE per triangle,
+    # sections = its track section id (0xFF for the extra generate_collision_mesh_with_default* lists).
     enum = re.search(r'enum SURFACE_TYPE \{(.*?)\};', texts['include/mk64.h'], re.S).group(1)
     surface_ids, value = {}, -1
     for item in re.sub(r'/\*.*?\*/|//[^\n]*', '', enum, flags=re.S).split(','):
@@ -422,13 +423,13 @@ def convert(source, rom, course_id):
         if name:
             value = int(explicit, 0) if explicit else value + 1
             surface_ids[name] = value
-    collision, collided = dict(indices=[], surfaces=[]), set()
+    collision, collided = dict(indices=[], surfaces=[], sections=[]), set()
 
-    def collide(name, surface, flags, slots):   # generate_collision_mesh -> add_collision_triangle
+    def collide(name, surface, section, flags, slots):   # generate_collision_mesh -> add_collision_triangle
         for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[name], re.S):
             a = [v.strip() for v in args.split(',')]
             if command == 'gsSPDisplayList':
-                collide(a[0], surface, flags, slots)
+                collide(a[0], surface, section, flags, slots)
             elif command == 'gsSPVertex':
                 address, count, start = [int(v, 0) for v in a]
                 for i in range(count):
@@ -451,16 +452,17 @@ def convert(source, rom, course_id):
                     collided.add(tuple(sorted(tri)))
                     collision['indices'].extend(tri)
                     collision['surfaces'].append(surface)
+                    collision['sections'].append(section)
     for name, surface in cfg.get('collision', []):
-        collide(resolve(name), surface_ids[surface], 0, {})
+        collide(resolve(name), surface_ids[surface], 0xFF, 0, {})
     table_name = cfg.get('table', f'd_course_{course_id}_addr')
     table = re.search(rf'TrackSections {table_name}\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
     if not table and not cfg.get('battle'):
         raise ValueError(f'Missing collision table {table_name}')
-    for name, surface, _section, flags in re.findall(r'\{\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+)\s*\}', table.group(1) if table else ''):
+    for name, surface, section, flags in re.findall(r'\{\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+)\s*\}', table.group(1) if table else ''):
         if name == '0x00000000':   # terminator
             break
-        collide(name, surface_ids[surface] if surface in surface_ids else int(surface, 0), int(flags, 0), {})
+        collide(name, surface_ids[surface] if surface in surface_ids else int(surface, 0), int(section, 0), int(flags, 0), {})
     if not collision['surfaces']:
         raise ValueError('Empty collision mesh')
     extra = {}

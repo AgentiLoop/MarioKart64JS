@@ -37,15 +37,47 @@ const FLAG_PATH = spline(20, [[20, 18, 30, 40], [0, 18, 20, 40], [-20, 18, 10, 4
 const LAP_PATH = spline(11, [[50, 20, 80, 10], [20, 19, 40, 10], [0, 18, 30, 10], [-8, 17, 20, 30], [-12, 16, 10, 30],
   [0, 15, 0, 30], [12, 15, 10, 10], [8, 16, 20, 10], [0, 17, 30, 10], [-20, 18, 40, 10], [-60, 19, 100, 10]]);
 // render_courses.c D_8015F8E4 (fluid / out-of-bounds level, MK64 units); the others use gCourseMinY - 10.
-// Assumption: func_802AAB4C's per-area overrides (Bowser's Castle moat, Koopa Beach, DKJP river) are left out.
 const FLUID = { choco: -80, bowser: -50, banshee: -80, frappe: -50, royal: -60, sherbet: -18, rainbow: 0, dk: -475 };
+const SNOW = 0x05, CAVE = 0x0F;   // SURFACE_TYPE (mk64.h)
+
+// gCourseMinY starts at 0 and takes the lowest collision triangle (add_collision_triangle)
+function courseMinY(course) {
+  let min = 0;
+  for (const i of course.collision.indices) min = Math.min(min, course.vertices[i][1]);
+  return min;
+}
 
 export function fluidLevel(track) {
   const course = track.def.native;
   if (!course) return -1e4 * NATIVE_SCALE;
-  let min = 0;   // gCourseMinY starts at 0 and takes the lowest collision triangle (add_collision_triangle)
-  for (const i of course.collision.indices) min = Math.min(min, course.vertices[i][1]);
-  return (FLUID[track.def.id] ?? min - 10) * NATIVE_SCALE;
+  return (FLUID[track.def.id] ?? courseMinY(course) - 10) * NATIVE_SCALE;
+}
+
+// collision.c func_802AAB4C: the fluid level at a kart (scene units), with the per-area overrides: Bowser's
+// Castle moat by the drawbridge, the Koopa Troopa Beach pool, Sherbet Land's snow tunnel and D.K.'s Jungle
+// Parkway's river (-33.9) vs. the cave and the drop below it (-475). floor = the last collision triangle the
+// kart was over (meshIndexZX): { surface, section }.
+export function fluidAt(track, x, z, floor) {
+  const id = track.def.native ? track.def.id : null, S = NATIVE_SCALE;
+  x /= S; z /= S;
+  const surface = floor?.surface, section = floor?.section ?? 0xFF;
+  switch (id) {
+    case 'bowser': return x > 1859 || x < 1549 || z > -1102 || z < -1402 ? track.fluidY : 20 * S;
+    case 'koopa': return x > 239 || x < 67 || z > 2405 || z < 2233 ? track.fluidY : 0.8 * S;
+    case 'sherbet':
+      if (surface === SNOW) return (track.courseMinY ??= courseMinY(track.def.native)) * S - 10 * S;
+      return track.fluidY;
+    case 'dk':
+      if (section === 0xFF) {
+        if (surface === CAVE) return -475 * S;
+        if (x > -478) return -33.9 * S;
+        if (x < -838 || z > -436) return -475 * S;
+        if (z < -993) return -33.9 * S;
+        return (z < x ? -475 : -33.9) * S;
+      }
+      return (section >= 0x14 ? -475 : -33.9) * S;
+    default: return track.fluidY;
+  }
 }
 
 // func_8008ACE0: uniform cubic B-spline basis
@@ -193,6 +225,7 @@ export class Lakitu {
   constructor(scene, track) {
     this.scene = scene; this.track = track; this.acc = 0; this.referees = []; this.onLight = null;
     track.fluidY = fluidLevel(track);
+    track.fluidAt = (x, z, floor) => fluidAt(track, x, z, floor);
     this.textures = {};
     for (const mode of Object.keys(ANIMS)) {
       const tex = HD.loadTexture(`lakitu/${mode}.png`, { mipmaps: false });

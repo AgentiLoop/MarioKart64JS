@@ -232,7 +232,7 @@ export class Track {
     };
     // Only the game's collision mesh (extract-course.py "collision") is solid: water, lava and backdrop
     // scenery are not. BOOST_RAMP_ASPHALT (0xFE, Royal Raceway) / BOOST_RAMP_WOOD (0xFC, DKJP) launch karts.
-    const { indices, surfaces } = course.collision;
+    const { indices, surfaces, sections } = course.collision;
     for (let i = 0; i + 2 < indices.length; i += 3) {
       const [a, b, c] = [0, 1, 2].map(k => course.vertices[indices[i + k]].slice(0, 3).map(v => v * S));
       const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
@@ -247,40 +247,42 @@ export class Track {
       const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
       const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
       const ramp = { 254: 'asphalt', 252: 'wood' }[surfaces[i / 3]] || null;
-      bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp]) - 1);
+      bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp, surfaces[i / 3], sections[i / 3]]) - 1);
     }
-    let hitNormal = null, hitRamp = null;
+    let hit = null;
     const height = (x, z, yRef) => {
       let best = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal, ramp] = tris[t];
+        const [a, b, c, area] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; }
+        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hit = tris[t]; }
       }
       return best;
     };
-    // Ground under (x, z) nearest to yRef: { y, normal, ramp } or null. Used by karts to ride slopes.
+    // { y, normal, ramp, surface (SURFACE_TYPE), section (track section id, 0xFF none) } of a hit triangle
+    const ground = (y, [, , , , normal, ramp, surface, section]) => ({ y, normal, ramp, surface, section });
+    // Ground under (x, z) nearest to yRef, or null. Used by karts to ride slopes.
     this.groundAt = (x, z, yRef) => {
       const y = height(x, z, yRef);
-      return y === null ? null : { y, normal: hitNormal, ramp: hitRamp };
+      return y === null ? null : ground(y, hit);
     };
-    // Highest ground at or below yTop under (x, z): { y, normal, ramp } or null. Used by airborne karts.
+    // Highest ground at or below yTop under (x, z), or null. Used by airborne karts.
     this.groundBelow = (x, z, yTop) => {
-      let best = null, n = null, r = null;
+      let best = null, bt = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal, ramp] = tris[t];
+        const [a, b, c, area] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (y <= yTop && (best === null || y > best)) { best = y; n = normal; r = ramp; }
+        if (y <= yTop && (best === null || y > best)) { best = y; bt = tris[t]; }
       }
-      return best === null ? null : { y: best, normal: n, ramp: r };
+      return best === null ? null : ground(best, bt);
     };
     // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face?
     const blocked = (x0, z0, x1, z1, y) => {
