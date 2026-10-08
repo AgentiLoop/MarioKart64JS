@@ -175,8 +175,19 @@ export async function loadNativeCourse(def) {
   if (!res.ok) throw new Error(`Course data ${def.dir}: HTTP ${res.status}`);
   def.native = await res.json();
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
+  if (!def.battle) def.finishLine = await loadFinishLine();
   return def;
 }
+// Start/finish gantry model (tools/extract-finish-line.py), shared by every race course.
+let finishLinePromise = null;
+function loadFinishLine() {
+  finishLinePromise ??= fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/finish-line/finish-line.json`)
+    .then(r => { if (!r.ok) throw new Error(`Finish line data: HTTP ${r.status}`); return r.json(); });
+  return finishLinePromise;
+}
+// func_80297340 places it at the first track path point with y - 15 and no rotation
+// (code_800029B0.c:219-226): Toad's Turnpike shifts x by -138 and Wario Stadium by -12.
+const FINISH_LINE_DX = { toad: -138, wario: -12 };
 // Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
 // radians with the kart facing (sin h, 0, cos h).
 export function battleSpawn(id, i) {
@@ -253,8 +264,53 @@ export class Track {
     this.pos = []; this.T = []; this.U = []; this.R = []; this.kU = [];
     this._build();
     this.group = new THREE.Group();
-    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); }
+    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); this._buildFinishLine(); }
     else this._buildMeshes();
+  }
+
+  // The decomp's finish post + banner (common_data 0x1840 / 0x1AB8 / 0x1B68): banner and white back quad are
+  // G_CULL_BACK, so the banner reads from the +z side and a blank back from -z; the posts are double-sided
+  // G_RM_AA_ZB_TEX_EDGE cutouts. Vertices are course units, the model sits at the origin of its own plane.
+  _buildFinishLine() {
+    const model = this.def.finishLine?.model;
+    if (!model) return;
+    const [x, y, z] = this.def.native.path[0];
+    const root = new THREE.Group();
+    root.position.set((x + (FINISH_LINE_DX[this.def.id] ?? 0)) * NATIVE_SCALE, (y - 15) * NATIVE_SCALE, z * NATIVE_SCALE);
+    const sizes = this.def.finishLine.images;
+    for (const part of Object.values(model)) {
+      for (const g of part.groups) {
+        const positions = [], colors = [], uvs = [], color = new THREE.Color();
+        const size = g.texture && sizes[g.texture];
+        for (const [vx, vy, vz, s, t, r, gg, b] of g.vertices) {
+          positions.push(vx * NATIVE_SCALE, vy * NATIVE_SCALE, vz * NATIVE_SCALE);
+          color.setRGB(r / 255, gg / 255, b / 255, THREE.SRGBColorSpace);
+          colors.push(color.r, color.g, color.b);
+          if (size) uvs.push(s / 32 / size.width, t / 32 / size.height);   // S10.5 texels, rows top-down
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        if (size) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(g.triangles.flat());
+        let map = null;
+        if (size) {
+          map = HD.loadTexture(`finish-line/${g.texture}.png`);
+          map.colorSpace = THREE.SRGBColorSpace;
+          map.flipY = false;
+          map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;   // every tile is G_TX_CLAMP
+          this.textures.push(map);
+        }
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+          map, vertexColors: true, toneMapped: false, fog: false,
+          side: part.cullCleared ? THREE.DoubleSide : THREE.FrontSide,
+          alphaTest: part.cullCleared ? 0.5 : 0,
+        }));
+        mesh.name = `finish-${g.texture || 'back'}`;
+        root.add(mesh);
+      }
+    }
+    this.group.add(root);
   }
 
   // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).

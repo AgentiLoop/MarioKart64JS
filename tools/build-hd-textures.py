@@ -150,6 +150,17 @@ def main():
             fmt = tex.get('format', 'rgba16')
             single(rel, pack.by_texels(texels16(img, fmt), *img.size, 3 if fmt == 'ia16' else 0, 2))
 
+    # start/finish gantry (tools/extract-finish-line.py): the poles are rgba16 (CRC from the PNG); the banner
+    # panels are CI8, so extract-finish-line.py stores the CRC of their palette indices (Misc/Banner files).
+    fl = NATIVE / 'finish-line'
+    for name in ('post1', 'post2'):
+        img = Image.open(fl / f'{name}.png').convert('RGBA')
+        single(f'finish-line/{name}.png', pack.by_texels(texels16(img, 'rgba16'), *img.size, 0, 2))
+    for i in range(1, 9):
+        crc = json.loads((fl / 'finish-line.json').read_text())['images'][f'banner{i}']['riceCrc']
+        found = sorted((pack.base / 'Misc' / 'Banner').glob(f'MARIOKART64#{crc}#2#1#*_ciByRGBA.png'))
+        single(f'finish-line/banner{i}.png', found[0] if found else None)
+
     # karts / faces atlases
     # wheel phase 0 like extract-karts.py; frames 289+ have no wheels and no _wheelN variants
     for kind, folder, tier in (('karts', lambda d, f: f'karts/{d}_kart/{f}_wheel0'
