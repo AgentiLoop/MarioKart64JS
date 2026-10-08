@@ -116,8 +116,18 @@ function poseShatter(g, t, rot, { opaque, xlu }) {
 // G_CC_MODULATERGBA, G_CULL_BACK cleared; its vertices span y -3..4, so it stands 3 units up.
 async function loadItemModels() {
   const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/items/items.json`);
-  const { models, shells, shellQuads } = await res.json();
+  const { models, shells, shellQuads, explosion } = await res.json();
   const out = { shells: {} };
+  // item-hit explosion (func_80068724): lightning_zap_0 / 1 side by side on two quads, G_CC_MODULATEIDECALA
+  // (texel intensity x the red / yellow vertex colours, alpha from the texel only), G_RM_ZB_CLD_SURF (no z write)
+  {
+    const map = HD.loadTexture(`items/${explosion.image}`);
+    map.colorSpace = THREE.SRGBColorSpace; map.flipY = false;
+    const vertices = explosion.quads.flat().map(v => [...v.slice(0, 8), 255]);
+    const triangles = explosion.quads.flatMap((_, q) => explosion.triangles.map(t => t.map(i => i + 4 * q)));
+    out.explosion = listMesh({ vertices, triangles }, new THREE.MeshBasicMaterial({ map, vertexColors: true, transparent: true,
+      depthWrite: false, side: THREE.DoubleSide, toneMapped: false }), [explosion.width, explosion.height]);
+  }
   for (const [name, m] of Object.entries(models)) {
     const map = HD.loadTexture(`items/${m.image}`);
     map.colorSpace = THREE.SRGBColorSpace; map.flipY = false;
@@ -199,6 +209,7 @@ export class Items {
       this.protos.banana = models.banana;
       this.protos.flat_banana = models['flat-banana'];
       this.sprites = models.shells;
+      this.protos.explosion = models.explosion;
       for (const [k, s] of Object.entries(models.shells)) this.protos[k] = s.mesh;
       // fake item box: the box with its "?" upside down (common_model_fake_itembox)
       const fake = new THREE.Group(), b = box.box.clone(), c = box.card.clone();
@@ -207,7 +218,7 @@ export class Items {
       fake.children[0].position.y = 2 * BOX_SCALE;
       this.protos.fake_item_box = fake;
     });
-    this.hazards = []; this.shots = []; this.trails = new Set(); this.debris = [];
+    this.hazards = []; this.shots = []; this.trails = new Set(); this.debris = []; this.booms = [];
     this.strat = new Map(); this.gp = false; this.clock = 0;
   }
 
@@ -217,7 +228,8 @@ export class Items {
     for (const o of this.shots) this.group.remove(o.mesh);
     for (const k of this.trails) this.clearTrail(k);
     for (const d of this.debris) this.group.remove(d.mesh);
-    this.hazards = []; this.shots = []; this.debris = [];
+    for (const b of this.booms) this.group.remove(b.mesh);
+    this.hazards = []; this.shots = []; this.debris = []; this.booms = [];
     for (const b of this.boxes) { b.cd = 0; b.state = 2; }
     this.audio.stopSound(...SND_ROULETTE);
     this.audio.stopSound(...SND_THUNDER_LOOP); this.audio.stopSound(...SND_STAR); this.thunder = false;
@@ -430,7 +442,7 @@ export class Items {
     const p = this.spot(kart, back ? -3 : 3), mesh = this.makeMesh(kind);
     const speed = Math.max(SHELL_MIN * (kart.top || 60), 1.2 * Math.abs(kart.v));
     this.shots.push({ kind, ...p, h: kart.h + (back ? Math.PI : 0), dir: back ? -1 : 1, speed, owner: kart, safe: 0.6, mesh,
-      ttl: kind === 'green_shell' ? 8 : 12, target: kind === 'blue_shell' ? this.leader(karts, kart) : null });
+      ttl: kind === 'green_shell' ? 8 : kind === 'blue_shell' ? Infinity : 12, t: 0, top: kart.top || 60 });
     this.snd(kart, SND_FIRE); this.voice(kart, V_THROW);
   }
 
@@ -499,7 +511,7 @@ export class Items {
   // common_model_flat_banana turned zxy by +2 / -8 / +5 degrees a frame (render_actor_banana); DESTROYED_SHELL /
   // GREEN_SHELL_HIT_A_RACER keep the spinning sprite. A fake item box breaks into the item box's pieces for 20
   // frames (DESTROYED_FAKE_ITEM_BOX: update_actor_fake_item_box state 2, rot +6 / -4 / +2 a frame). The blue
-  // shell is just gone here.
+  // shell pops like the others (destroy_destructable_actor: DESTROYED_SHELL for any shell type).
   wreck(mesh, kind) {
     if (kind === 'fake_item_box' && this.boxParts) {
       mesh.clear();
@@ -508,7 +520,7 @@ export class Items {
       this.debris.push({ mesh, kind, shatter, rot, t: 0, acc: 0 });
       return;
     }
-    if (kind !== 'banana' && !kind.endsWith('shell') || kind === 'blue_shell') { this.group.remove(mesh); return; }
+    if (kind !== 'banana' && !kind.endsWith('shell')) { this.group.remove(mesh); return; }
     const d = { mesh, kind, base: mesh.position.clone(), up: new THREE.Vector3(0, 1, 0).applyQuaternion(mesh.quaternion),
       y: 0, vy: 3, t: 0x3C, acc: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ') };
     if (kind === 'banana') {
@@ -560,13 +572,52 @@ export class Items {
     if (kart.remote || kart.spin > 0 || kart.tumble || kart.invuln > 0 || kart.star > 0 || kart.boo > 0 || kart.out || kart.rescue > 0) return false;
     const tumble = TUMBLE_BY[kind];
     kart.invuln = 2.2; kart.drift = 0; kart.boost = 0;
-    if (tumble) { kart.startTumble(tumble); this.voice(kart, V_HURT); this.snd(kart, SND_EXPLOSION); }
+    if (tumble) { kart.startTumble(tumble); this.voice(kart, V_HURT); this.snd(kart, SND_EXPLOSION); if (kart.isPlayer) this.boom(kart); }
     else { kart.spin = 1.1; kart.v *= 0.3; }
     if (this.arena) kart.balloons = Math.max(0, kart.balloons - 1);   // battle: every hit pops a balloon
     if (kind === 'banana') this.voice(kart, V_SPUN);
     else if (kart.isPlayer || (owner && owner.isPlayer)) this.audio.playSound(...SND_CRASH);
     if (owner && owner !== kart) this.voice(owner, V_LAUGH);
     return true;
+  }
+
+  // Item-hit explosion, only a human sees it (func_8006E420 -> func_8006D194, on its own screen): any tumble trigger
+  // sets kartGraphics EXPLOSION (func_8008C310), which starts particlePool2 type 4 at scale 1 (func_80062914). Each
+  // 30 Hz step (func_80064EA4): the first three +1.2 up to 3.5, then -1.8 until it is gone, i.e. 1, 2.2, 3.4, 3.5, 1.7.
+  // func_80068724 draws it 3 units below player->pos (boundingBoxSize 5.5 / 6 above the ground) and 10 units
+  // towards the camera, turned to face it (unk_048), scaled by scale x player->size.
+  boom(kart) {
+    if (!this.protos.explosion) return;
+    let b = this.booms.find(b => b.kart === kart);
+    if (!b) {
+      const mesh = this.protos.explosion.clone(), cam = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+      mesh.renderOrder = 3; mesh.frustumCulled = false;
+      const lift = ((CHAR_ID[kart.mesh.userData.character] === 5 || CHAR_ID[kart.mesh.userData.character] === 7 ? 6 : 5.5) - 3) * BOX_SCALE;
+      mesh.onBeforeRender = (_r, _s, camera) => {
+        const k = kart.mesh, size = b.scale * k.scale.x;
+        _p.copy(k.position).addScaledVector(up, lift * k.scale.x);
+        _z.subVectors(camera.getWorldPosition(cam), _p); _z.y = 0;
+        if (_z.lengthSq() < 1e-8) return;
+        _z.normalize();
+        _p.addScaledVector(_z, 10 * BOX_SCALE * k.scale.x);
+        _x.crossVectors(_z, up);   // the quads' +x is screen-left (lightning_zap_0 left of _1)
+        mesh.matrixWorld.makeBasis(_x.multiplyScalar(size), _u.copy(up).multiplyScalar(size), _z.multiplyScalar(-size)).setPosition(_p);
+      };
+      b = { kart, mesh };
+      this.booms.push(b);
+      this.group.add(mesh);
+    }
+    b.scale = 1; b.t = 0; b.acc = 0;
+  }
+  updateBooms(dt) {
+    for (let i = this.booms.length - 1; i >= 0; i--) {
+      const b = this.booms[i];
+      for (b.acc += dt; b.acc >= 1 / FPS && b.scale > 0; b.acc -= 1 / FPS) {
+        b.t++;
+        b.scale = b.t < 4 ? Math.min(3.5, b.scale + 1.2) : b.scale - 1.8;
+      }
+      if (b.scale <= 0) { this.group.remove(b.mesh); this.booms.splice(i, 1); }
+    }
   }
 
   // Grand Prix CPUs: cpu_use_item_strategy, one step per 30 Hz frame (every other player update). CPUs get no items
@@ -704,6 +755,7 @@ export class Items {
     this.spinShells(dt);
     if (this.thunder && !karts.some(k => k.shrink > 0)) { this.audio.stopSound(...SND_THUNDER_LOOP); this.thunder = false; }
     this.updateDebris(dt);
+    this.updateBooms(dt);
     // bananas and fake item boxes sit where dropped until someone runs into them
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.safe -= dt;
@@ -718,9 +770,9 @@ export class Items {
       for (const k of karts) {
         if (gone || (k === o.owner && o.safe > 0) || k.out) continue;
         if (this.touch(k, o, 2.3)) {
-          if (o.kind === 'blue_shell' && k !== o.target) { this.hit(k, o.kind, o.owner); continue; }   // it knocks over anyone in its path
+          // the blue shell knocks over anyone in its path and is only used up on its target (actor->unk_04)
+          if (o.kind === 'blue_shell' && k !== o.target) { this.hit(k, o.kind, o.owner); continue; }
           this.hit(k, o.kind, o.owner); gone = smash = true;
-          if (o.kind === 'blue_shell') for (const n of karts) if (n !== k && this.touch(n, o, 6)) this.hit(n, o.kind, o.owner);   // blast
         }
       }
       // shells that meet a dropped banana / fake box take each other out
@@ -728,7 +780,6 @@ export class Items {
         if (o.kind !== 'blue_shell' && this.near(o, this.hazards[j], 2)) { this.wreck(this.hazards[j].mesh, this.hazards[j].kind); this.hazards.splice(j, 1); gone = smash = true; }
       }
       this.put(o.mesh, o);
-      if (o.kind === 'blue_shell') o.mesh.position.y += 2.5;   // it flies over the track
       if (gone) { if (smash) this.wreck(o.mesh, o.kind); else this.group.remove(o.mesh); this.shots.splice(i, 1); }
     }
   }
@@ -823,9 +874,30 @@ export class Items {
 
   // Track: green shells run straight along the course, kept on the road; red shells home on the racer
   // ahead; the blue shell chases the leader. Returns true when the shell is spent.
+  // Blue shell (update_actor_red_blue_shell): MOVING_SHELL straight on for someTimer 0x1E updates (0.5 s, its owner
+  // safe), then BLUE_SHELL_LOCK_ON along the path (func_802B3B44, at most 6 units an update) after whoever is first
+  // (gPlayerPositionLUT[0], its owner too), and within 200 units of them state 9 (func_802B3E7C) straight at that
+  // racer, 8 units an update. It stays on the ground the whole way.
   moveShot(o, karts, dt) {
     const L = this.track.length;
-    let target = o.target;
+    if (o.kind === 'blue_shell') {
+      o.t += dt;
+      if (o.t < 0.5) { o.s = (o.s + o.speed * dt) % L; return false; }
+      if (!o.lock) {
+        o.target = this.leader(karts, null);
+        if (o.target && Math.hypot(this.delta(o.target.s, o.s), o.target.d - o.d) < 20) o.lock = true;
+      }
+      const step = (o.lock ? 8 : 6) / 5.885 * o.top * dt, k = o.target;
+      if (o.lock && k) {
+        const ds = this.delta(k.s, o.s), dd = k.d - o.d, dist = Math.hypot(ds, dd), f = Math.min(1, step / (dist || 1));
+        o.s = (o.s + ds * f + L) % L; o.d += dd * f;
+      } else {
+        o.s = (o.s + step) % L;
+        o.d += THREE.MathUtils.clamp(-o.d, -18 * dt, 18 * dt);   // the path runs down the middle of the road
+      }
+      return false;
+    }
+    let target = null;
     if (o.kind === 'red_shell') {
       let best = 120; target = null;
       for (const k of karts) {
@@ -834,7 +906,7 @@ export class Items {
         if (ds > -2 && ds < best) { best = ds; target = k; }
       }
     }
-    o.s = (o.s + (o.dir || 1) * o.speed * (o.kind === 'blue_shell' ? 1.4 : 1) * dt + L) % L;
+    o.s = (o.s + (o.dir || 1) * o.speed * dt + L) % L;
     if (target) o.d += THREE.MathUtils.clamp(target.d - o.d, -18 * dt, 18 * dt);
     o.d = THREE.MathUtils.clamp(o.d, -10, 10);
     return false;

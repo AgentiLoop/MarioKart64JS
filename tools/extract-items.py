@@ -36,6 +36,12 @@ SHELL_FRAMES = {
     'blue': (0x5038, [0x68FE20, 0x69004C, 0x690284, 0x6904C4, 0x690708, 0x690960, 0x690BBC, 0x690DF8]),
 }
 SHELL_QUADS = {'shell': 0x5238, 'shellMirrored': 0x5278}
+# Item-hit explosion (func_80068724, particlePool2 type 4 set by func_8008C310 on every tumble trigger):
+# gTextureLightningBolt0 / 1 (textures/standalone/lightning_zap_0 / 1.ia8, 32x64 IA8, MIO0 @ the assets.json offsets)
+# on quads D_800E8A00 / D_800E8A40 (main code data, ROM = RAM - 0x80000400 + 0x1000), gSPTexture scale 0.5
+# (D_0D008DB8), G_CC_MODULATEIDECALA: texel intensity x the red / yellow vertex colours, texel alpha.
+EXPLOSION_TEXTURES = [0x6A04E4, 0x6A0798]
+EXPLOSION_QUADS = [0x800E8A00, 0x800E8A40]
 
 
 def red_tlut(green):
@@ -90,6 +96,17 @@ def main():
         out['shells'][name] = dict(image=image, frameWidth=32, frameHeight=32, frames=len(frames),
                                    rgbaSha256=hashlib.sha256(rgba).hexdigest())
         print('%-12s %d frames' % (name + ' shell', len(frames)))
+    halves = [karts.mio0(rom[o:])[:32 * 64] for o in EXPLOSION_TEXTURES]
+    rgba = b''.join(bytes(((v >> 4) * 17,) * 3 + ((v & 15) * 17,)) for y in range(64) for h in halves for v in h[y * 32:y * 32 + 32])
+    (args.output / 'explosion.png').write_bytes(karts.png(64, 64, rgba))
+    quads = []
+    for i, ram in enumerate(EXPLOSION_QUADS):
+        off = ram - 0x80000400 + 0x1000
+        verts = [list(struct.unpack('>3hH2h4B', rom[off + 16 * j:off + 16 * j + 16])) for j in range(4)]
+        quads.append([v[:3] + [v[4] * 0.5 + i * 32 * 32, v[5] * 0.5] + v[6:] for v in verts])
+    out['explosion'] = dict(image='explosion.png', width=64, height=64, quads=quads, triangles=[[0, 1, 2], [0, 2, 3]],
+                            rgbaSha256=hashlib.sha256(rgba).hexdigest())
+    print('explosion    64x64, 2 quads')
     (args.output / 'items.json').write_text(json.dumps(out, indent=1) + '\n')
 
 
