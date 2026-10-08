@@ -88,7 +88,23 @@ export class AudioSys {
     this.sequencer().then(n => n.port.postMessage({ type: 'play', player: 0, seq }));
   }
   stopMusic() {
-    if (this.seqNode) this.seqNode.then(n => n.port.postMessage({ type: 'stop', player: 0, frames: 10 }));
+    if (this.seqNode) this.seqNode.then(n => {
+      n.port.postMessage({ type: 'stop', player: 0, frames: 10 });
+      n.port.postMessage({ type: 'stop', player: 1, frames: 10 });
+    });
+  }
+  // A human's star (external.c func_800CA59C / func_800CA730, 1-2 players): the course music stops (0x100100FF,
+  // 8-frame fade) and SEQ_EVENT_RACE_POWERUP_STAR 0x11 plays on sequence player 1 (play_sequence2); when the star
+  // ends player 1 stops (0x110100FF) and play_sequence(D_800EA15C) restarts the course music on player 0
+  starMusic(on) {
+    if (!!this.star === on) return;
+    this.star = on;
+    if (this.muted || !this.init()) return;
+    this.sequencer().then(n => {
+      n.port.postMessage({ type: 'stop', player: on ? 0 : 1, frames: 8 });
+      if (on) n.port.postMessage({ type: 'play', player: 1, seq: 0x11 });
+    });
+    if (!on && this.wantMusic) this.playMusic(this.wantMusic);
   }
   // ROM sound effect: sequence 0 on player 2 (include/sounds.h SOUND_ARG_LOAD(bank << 4 | 9, .., .., id))
   playSound(bank, id) {
@@ -106,7 +122,9 @@ export class AudioSys {
   voice(characterId) { this.playSound(2, characterId * 0x10 + 0x0e); }
   toggleMusic() {
     this.muted = !this.muted;
-    if (this.muted) this.stopMusic(); else if (this.wantMusic) this.playMusic(this.wantMusic);
+    if (this.muted) this.stopMusic();
+    else if (this.star) this.sequencer().then(n => n.port.postMessage({ type: 'play', player: 1, seq: 0x11 }));
+    else if (this.wantMusic) this.playMusic(this.wantMusic);
     return !this.muted;
   }
   update(speed01, skid, offroad, boost) {

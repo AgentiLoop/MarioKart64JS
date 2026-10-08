@@ -23,12 +23,13 @@ const ACTOR_HZ = 60;
 const SND_BOX = [1, 0x06], SND_ROULETTE = [0, 0x1c], SND_DECIDED = [0, 0x47];
 // item sounds: 0x19008012 item pulled out / dropped, 0x19008004 shell fired, 0x19019053 held item knocked away,
 // 0x19018010 crash (shell / star hit), 0x1900A40B mushroom (trigger_shroom), 0x1900F013 + SOUND_ITEM_THUNDERBOLT
-// 0x5101C00C lightning (looped until nobody is shrunk, func_800C8920), SOUND_ITEM_STAR 0x31029008 (until the star ends)
+// 0x5101C00C lightning (looped until nobody is shrunk, func_800C8920); a human's star plays the star music (AudioSys.starMusic)
 const SND_DROP = [1, 0x12], SND_FIRE = [1, 0x04], SND_KNOCK = [1, 0x53], SND_CRASH = [1, 0x10], SND_SHROOM = [1, 0x0b],
-  SND_THUNDER = [1, 0x13], SND_THUNDER_LOOP = [5, 0x0c], SND_STAR = [3, 0x08];
-// driver voices, bank 2, characterId * 0x10 + n: 0 throw, 1 boost, 3 spun out (add_spinout_effect), 6 laugh at a victim
+  SND_THUNDER = [1, 0x13], SND_THUNDER_LOOP = [5, 0x0c];
+// driver voices, bank 2, characterId * 0x10 + n: 0 throw, 1 boost / star, 3 spun out (add_spinout_effect), 6 laugh at
+// a victim, 8 star ended (func_800CA730)
 const CHAR_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, wario: 5, peach: 6, bowser: 7 };
-const V_THROW = 0, V_BOOST = 1, V_SPUN = 3, V_HURT = 5, V_LAUGH = 6;
+const V_THROW = 0, V_BOOST = 1, V_SPUN = 3, V_HURT = 5, V_LAUGH = 6, V_STAR_END = 8;
 const SND_EXPLOSION = [1, 0x05];   // SOUND_ACTION_EXPLOSION
 // what each hit does (Kart TUMBLE): green shell LOW_TUMBLE_TRIGGER, red / blue shell HIGH_TUMBLE_TRIGGER, star kart
 // HIT_BY_STAR_TRIGGER (trigger_high_tumble too), fake item box VERTICAL_TUMBLE_TRIGGER; bananas (and the rest) spin
@@ -232,7 +233,7 @@ export class Items {
     this.hazards = []; this.shots = []; this.debris = []; this.booms = [];
     for (const b of this.boxes) { b.cd = 0; b.state = 2; }
     this.audio.stopSound(...SND_ROULETTE);
-    this.audio.stopSound(...SND_THUNDER_LOOP); this.audio.stopSound(...SND_STAR); this.thunder = false;
+    this.audio.stopSound(...SND_THUNDER_LOOP); this.audio.starMusic(false); this.thunder = false;
   }
 
   makeMesh(kind) {
@@ -435,7 +436,10 @@ export class Items {
         for (const k of karts) if (k !== kart) this.strike(k);
         this.audio.playSound(...SND_THUNDER); this.audio.playSound(...SND_THUNDER_LOOP); this.thunder = true;
         break;
-      case 'star': kart.star = STAR_TIME; kart.spin = 0; this.snd(kart, SND_STAR); break;
+      case 'star':   // trigger_star -> func_800CA59C: voice n 1 and the star music for a human
+        kart.star = STAR_TIME; kart.spin = 0;
+        if (kart.isPlayer) { this.voice(kart, V_BOOST); this.audio.starMusic(true); }
+        break;
       case 'boo': kart.boo = BOO_TIME; if (kart.fx) kart.fx.other = 255; this.steal(kart, karts); break;
     }
   }
@@ -819,7 +823,7 @@ export class Items {
   effects(k, karts, dt) {
     if (k.star > 0) {
       k.star -= dt; k.boost = Math.max(k.boost, 0.1);
-      if (k.star <= 0 && k.isPlayer) this.audio.stopSound(...SND_STAR);   // func_800CAACC
+      if (k.star <= 0 && k.isPlayer) { this.voice(k, V_STAR_END); this.audio.starMusic(false); }   // func_800CA730
       for (const o of karts) if (o !== k && !(o.star > 0) && this.touch(o, k, 2.5)) this.hit(o, 'star', k);
     }
     if (k.boo > 0) k.boo = Math.max(1e-9, k.boo - dt);   // held just above 0 while it fades back in (fxStep ends it)
