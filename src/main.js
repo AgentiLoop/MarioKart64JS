@@ -30,6 +30,8 @@ const cc = CC_INDEX[ccParam] ?? CC_INDEX[150];
 const mirror = !!trackDef && ccParam === 'extra';
 // GAME SELECT mode (?mode=mario_gp|vs|time_trials|battle); links without one race as Grand Prix (two CPU rivals).
 const raceMode = params.get('mode') || 'mario_gp';
+// ?autopilot (or window.__game.autopilot = true): the CPU driver (Kart.think / Items.aiUse) drives your kart - for testing
+let autopilot = params.has('autopilot');
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
@@ -1124,8 +1126,8 @@ function frame(now) {
       for (const [id, k] of karts.entries()) {
         if (k.remote) continue;
         if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
-        else if (!k.isPlayer) items.aiUse(k, karts, h);
-        const inp = k.isPlayer ? playerInput() : k.think(h, karts);
+        else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
+        const inp = k.isPlayer && !autopilot ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
         if (!battle && !k.finished && k.crossings >= LAPS) {
@@ -1169,4 +1171,5 @@ function frame(now) {
 let lastTick = 4;
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys, renderer, scene, camera };
+window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+  get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };
