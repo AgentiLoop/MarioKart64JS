@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE } from './track.js';
-import { Kart, CC_INDEX, ccSpeedScale } from './kart.js';
+import { Kart, CC_INDEX, ccSpeedScale, pickRivals, cpuSpeedControl } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -27,6 +27,8 @@ const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show t
 const ccParam = params.get('cc');
 const cc = CC_INDEX[ccParam] ?? CC_INDEX[150];
 const mirror = !!trackDef && ccParam === 'extra';
+// GAME SELECT mode (?mode=mario_gp|vs|time_trials|battle); links without one race as Grand Prix (two CPU rivals).
+const raceMode = params.get('mode') || 'mario_gp';
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
@@ -175,6 +177,7 @@ function setup(count = 8) {   // count: karts on the grid (8 for 1P; 2-4 when an
     scene.add(k.mesh); karts.push(k);
     if (c === playerChar) player = k;
   });
+  if (raceMode === 'mario_gp') pickRivals(karts);
   setViews([player]);
   banner.textContent = '';
   items.reset();
@@ -553,7 +556,7 @@ function confirmChar() {
   localStorage.setItem('mk64char', c);
   snd('okClicked');
   leaving = true;   // let SOUND_MENU_OK_CLICKED play before the page reloads into the race
-  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}&cc=${CC_ROWS[ccSel].replace('cc', '')}${pcount ? `&players=${pcount + 1}` : ''}`; }, 500);
+  setTimeout(() => { location.search = `?track=${selCourse}&char=${c}&cc=${CC_ROWS[ccSel].replace('cc', '')}&mode=${PMODES[pcount][pmode]}${pcount ? `&players=${pcount + 1}` : ''}`; }, 500);
 }
 function backFromChar() {
   snd('back');
@@ -1015,6 +1018,8 @@ function frame(now) {
     raceTime += dt;
     for (const k of karts) if (k.remote) puppetStep(k, now);
     for (let s = 0; s < steps; s++) {
+      // VS / battle have no CPU karts on the console, so the CPUs that fill online seats just drive (no bands)
+      if (raceMode === 'mario_gp') cpuSpeedControl(karts, rank(), track, cc);
       for (const k of karts) {
         if (k.remote) continue;
         if (!k.isPlayer) items.aiUse(k, karts, h);
