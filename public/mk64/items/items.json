@@ -424,5 +424,11 @@
    ]
   ],
   "rgbaSha256": "f903b5a33d2ed5f5bdb88c6bfef4fb5b82f95fc76362f66698fc5dfddb8eb360"
+ },
+ "balloon": {
+  "image": "balloon.png",
+  "width": 64,
+  "height": 64,
+  "rgbaSha256": "25c8c9dd1ec047b5910666af0f6667499d475eadb93e78617fdff0973fcfd434"
  }
 }
