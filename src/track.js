@@ -443,7 +443,7 @@ export class Track {
           this.textures.push(map);
         }
         const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-          map, vertexColors: true, toneMapped: false, fog: false,
+          map, vertexColors: true, toneMapped: false, fog: true,
           side: part.cullCleared ? THREE.DoubleSide : THREE.FrontSide,
           alphaTest: part.cullCleared ? 0.5 : 0,
         }));
@@ -484,7 +484,7 @@ export class Track {
         map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;   // every sign tile is G_TX_CLAMP
         this.textures.push(map);
       }
-      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, fog: false }));
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, fog: true }));
       mesh.name = `sign-${g.texture || 'shade'}`;
       meshes.push(mesh);
     }
@@ -528,7 +528,7 @@ export class Track {
         return map;
       });
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-        map: frames[0], alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false, fog: false }));
+        map: frames[0], alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false, fog: true }));
       mesh.name = `neon-${sign.name}`;
       mesh.position.set(...sign.position.map(v => v * NATIVE_SCALE));
       mesh.frustumCulled = false;
