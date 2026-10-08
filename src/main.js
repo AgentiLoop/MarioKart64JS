@@ -160,9 +160,10 @@ if (cloudSet) {
   clouds.frustumCulled = false; clouds.renderOrder = -999;
   scene.add(clouds);
 }
+const _cloudSize = new THREE.Vector2();
 function updateClouds(vw, vh) {
   if (!clouds) return;
-  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const size = renderer.getDrawingBufferSize(_cloudSize);
   if (vw && vh) size.set(vw, vh);
   const kx = (size.y / 240) * 2 / size.x;   // native px -> NDC x, height-matched scaling
   const row = (1 - sky.material.uniforms.horizon.value) * 120;
@@ -1209,26 +1210,30 @@ function layoutViews() {
   if (n === 3) { document.body.appendChild(miniEl); Object.assign(miniEl.style, { position: 'fixed', left: `calc(75vw - 85px)`, top: `calc(75vh - 85px)`, zIndex: 3 }); }
   else if (miniEl.parentElement !== hudEl) { hudEl.prepend(miniEl); Object.assign(miniEl.style, { position: '', left: '', top: '', zIndex: '' }); }
 }
+const _camBehind = new THREE.Vector3(), _camTarget = new THREE.Vector3(), _sunOff = new THREE.Vector3(60, 100, 40), _bufSize = new THREE.Vector2();
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
   if (k.rescue?.watch) { camera.lookAt(k.world); return; }   // camera.c: holds still while Lakitu fishes the kart out
   if (k.rescue?.snap) { k.rescue.snap = false; v.init = false; }   // and cuts back behind it over the road
   const P = drawPose(k);   // the blended pose the kart is drawn at (fixed physics step), so it sits still on screen
-  const behind = P.fwd.clone().multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(P.up, 4.2);
-  const target = P.world.clone().add(behind);
+  const behind = _camBehind.copy(P.fwd).multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(P.up, 4.2);
+  const target = _camTarget.copy(P.world).add(behind);
   const a = v.init ? 1 - Math.exp(-dt * 7) : 1;
   v.pos.lerp(target, a);
   v.up.lerp(P.up, 1 - Math.exp(-dt * 4)).normalize();
+  // aim point: side to side exact, height eased (~80 ms) so road bumps and landings don't jolt the view
+  const lookY = v.look.y;
   v.look.copy(P.world).addScaledVector(P.up, 1.6).addScaledVector(P.fwd, 6);
+  if (v.init) v.look.y = lookY + (v.look.y - lookY) * (1 - Math.exp(-dt * 12));
   camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
   v.init = true;
-  if (k === player) { sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world); }
+  if (k === player) { sun.position.copy(k.world).add(_sunOff); sun.target.position.copy(k.world); }
 }
 function renderViews() {
   if (views.length === 1) { updateSky(camera); renderer.render(scene, camera); return; }
-  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const size = renderer.getDrawingBufferSize(_bufSize);
   renderer.setScissorTest(true);
   const rect = r => [Math.round(r[0] * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
   for (const v of views) {
