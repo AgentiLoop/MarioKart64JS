@@ -139,9 +139,9 @@ export function buildKartMesh(character = 'mario') {
   const prim = { value: new THREE.Color(0, 0, 0) };
   material.userData.prim = prim;
   material.onBeforeCompile = shader => {
-    shader.uniforms.uPrim = prim;
-    shader.fragmentShader = 'uniform vec3 uPrim;\n' + shader.fragmentShader.replace('#include <map_fragment>',
-      '#include <map_fragment>\n  diffuseColor.rgb = pow(min(pow(diffuseColor.rgb, vec3(1.0 / 2.2)) + uPrim, 1.0), vec3(2.2));');
+    Object.assign(shader.uniforms, { uPrim: prim, uColdPrim: coldPrim, uEnv: env });
+    shader.fragmentShader = 'uniform vec3 uPrim, uColdPrim, uEnv;\n' + shader.fragmentShader.replace('#include <map_fragment>',
+      '#include <map_fragment>\n  diffuseColor.rgb = pow(min(pow(diffuseColor.rgb, vec3(1.0 / 2.2)) * (1.0 - uEnv) + uPrim + uColdPrim, 1.0), vec3(2.2));');
   };
   const sprite = new THREE.Sprite(material);
   sprite.center.set(0.5, 0);
@@ -172,11 +172,15 @@ export function buildKartMesh(character = 'mario') {
   return g;
 }
 
+  // Sherbet Land's frozen kart (lakitu.js, render_player.c func_800235AC FRIGID / THAWING): its own prim colour on
+  // top and the ENV colour that takes its share out of the texel
+  const coldPrim = { value: new THREE.Color(0, 0, 0) }, env = { value: new THREE.Color(0, 0, 0) };
 export class Kart {
   constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null, speedScale = 1, cc = 2 }) {
     this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.speedScale = speedScale; this.cc = cc;
     this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
     // arena (battle) kart: roams freely as (x, z, heading h) with facing (sin h, 0, cos h); spawn = { x, y, z, h }
+  g.userData.setCold = (p, e) => { coldPrim.value.setRGB(p[0] / 255, p[1] / 255, p[2] / 255); env.value.setRGB(e[0] / 255, e[1] / 255, e[2] / 255); };
     this.free = !!track.arena;
     if (this.free) {
       this.spawn = spawn; this.x = spawn.x; this.z = spawn.z; this.h = spawn.h; this.slip = 0; this.rescue = 0; this.balloons = 3;

@@ -227,6 +227,8 @@ function countdownLight(light) {
   rocketStart();
 }
 // Rocket start (player_accelerate_during_start_sequence / player_decelerate_during_start_sequence): holding A through
+// Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
+lakitu.onSound = (bank, id) => audio.playSound(bank, id);
 // the countdown revs the engine, currentSpeed against the gTopSpeedTable top speed, + gKartAccelerationTables[band]
 // x 3 (x 2.5 from 60%) a frame, - 5 a frame let go. From the end of Lakitu's blue-light animation (D_801656F0) a
 // fresh press within 8 frames (20 in time trials) sets START_BOOST_TRIGGER, kept only while A stays down; revs at

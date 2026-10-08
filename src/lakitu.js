@@ -6,7 +6,9 @@
 //   secondlap / finallap  update_object_lakitu_second_lap / _final_lap: the lap signs (spline D_800E694C)
 //   flag       update_object_lakitu_red_flag: waves the checkered flag (looping spline D_800E6834) once his
 //              player has finished, while the kart drives on
-//   fishing    update_object_lakitu_fishing: comes down on the kart that fell off the course and hooks it
+//   fishing    update_object_lakitu_fishing: comes down on the kart that fell off the course and hooks it;
+//              on Sherbet Land (update_object_lakitu_fishing2) the kart comes out of the water frozen in an ice
+//              block that breaks once it's back on the road, and its frost thaws
 //   reverse    update_object_lakitu_reverse: holds up the reverse sign while his player drives the wrong way
 // Every kart that falls off (kart.js sets kart.fell) is fished out by the effects.c func_80090970 sequence: held,
 // lifted, faded out, put back over the last road point it drove on (gCopyNearestPathPointByPlayerId) and lowered
@@ -109,6 +111,7 @@ class Referee {
   }
 
   start(mode, kart) {
+    this.endIce();   // func_800791F0: a new scene takes the frost off
     this.mode = mode; this.kart = kart; this.state = 1; this.frame = 0; this.alpha = 1; this.wt = null; this.an = null;
     this.hum = mode === 'fishing' || mode === 'reverse';   // init_obj_lakitu_red_flag_fishing / _reverse: 0x0100FA28
     this.sp = null; this.visible = false; this.offset = [0, 0, 0];
@@ -117,7 +120,25 @@ class Referee {
     this.material.map = this.textures[mode]; this.material.needsUpdate = true;
   }
 
-  stop() { this.mode = null; this.mesh.visible = false; this.hum = false; }
+  stop() { this.endIce(); this.mode = null; this.mesh.visible = false; this.hum = false; }
+
+  // Sherbet Land (update_object_lakitu_fishing2): the ice block breaks if it hasn't yet and the kart's frost goes
+  endIce() {
+    if (!this.ice) return;
+    const k = this.kart;
+    this.ice = false; this.block = false;
+    if (k.rescue?.released) letGo(k, k.rescue); else if (k.rescue) k.rescue.frozen = false;
+    k.cold = null; k.mesh.userData.setCold([0, 0, 0], [0, 0, 0]);
+  }
+
+  // fishing2 unk_0D6 5: FROZEN_EFFECT off, the block breaks into shards (flags 0x10 / 0x20), 0x1900A056
+  shatter() {
+    const k = this.kart;
+    this.block = false;
+    if (k.rescue?.released) letGo(k, k.rescue);
+    this.sound?.(1, 0x56);
+    this.shards?.(k);
+  }
 
   // set_and_run_timer_object: next state after n + 1 ticks
   wait(n) { if (this.wt === null) this.wt = n; if (--this.wt < 0) { this.wt = null; this.state++; return true; } return false; }
@@ -197,13 +218,25 @@ class Referee {
       case 'fishing': {   // update_object_lakitu_fishing + func_80079A5C (offset 80 down to 5, later up to 100)
         // race karts carry the rescueTick object; arena karts a plain countdown (Kart.updateFree), already hanging
         // over their start spot, so he comes down from 30 instead of 80 to catch it before the 1.5 s drop
-        const r = typeof this.kart.rescue === 'object' ? this.kart.rescue : null, held = r || this.kart.rescue > 0;
+        const r = typeof this.kart.rescue === 'object' ? this.kart.rescue : null, held = r ? !r.released : this.kart.rescue > 0;
         if (this.state === 1) { this.offset = [0, r || !this.kart.free ? 80 : 30, 0]; this.stage = 1; this.state++; }
         else if (this.state === 2) { this.visible = true; this.state++; }
         else this.pingpong(0, 3, 2);
-        if (this.stage === 1 && (this.offset[1] = Math.max(5, this.offset[1] - 1)) === 5) { if (r) r.held = true; this.stage = 2; }
-        else if (this.stage === 2 && !held) { this.stage = 3; this.hum = false; }   // effects.c: the kart is let go
-        else if (this.stage === 3 && (this.offset[1] = Math.min(100, this.offset[1] + 1)) === 100) { this.stop(); return; }
+        if (this.stage === 1 && (this.offset[1] = Math.max(5, this.offset[1] - 1)) === 5) {
+          if (r) r.held = true;
+          this.stage = 2;
+          if (this.ice) { this.sound?.(1, 0x55); this.block = true; }   // fishing2: 0x1900A055, the ice block (flag 4)
+        }
+        else if (this.stage === 2 && !held) { this.stage = 3; this.t = 0; if (!this.ice) this.hum = false; }   // effects.c: the kart is let go
+        else if (this.stage >= 3) {
+          const up = (this.offset[1] = Math.min(100, this.offset[1] + 1)) === 100;
+          if (!this.ice) { if (up) { this.stop(); return; } }
+          // fishing2 unk_0D6 4-8: 30 ticks on, the ice breaks (0x1900A056, shards, the kart drives again); 160 later
+          // the frost starts to thaw (FRIGID -> THAWING); 60 more and he's gone, the hum with him
+          else if (this.stage === 3 && ++this.t > 30) { this.stage = 4; this.t = 0; this.shatter(); }
+          else if (this.stage === 4 && ++this.t > 160) { this.stage = 5; this.t = 0; if (this.kart.cold) this.kart.cold.mode = 'thaw'; }
+          else if (this.stage === 5 && ++this.t > 60) { this.stop(); return; }
+        }
         this.alpha = r ? r.alpha : 1;   // func_8007993C: fades with the kart (LAKITU_FIZZLE)
         break;
       }
@@ -247,6 +280,9 @@ export class Lakitu {
   constructor(scene, track) {
     this.scene = scene; this.track = track; this.acc = 0; this.referees = []; this.onLight = null;
     this.onHum = null; this.humming = false;   // main.js: the cloud's hum 0x0100FA28 on / off
+    this.onSound = null;   // main.js: (bank, id) one-shot ROM sound effects
+    this.ice = track.def.id === 'sherbet' ? new Ice(scene) : null;   // Lakitu fishes karts out of its water frozen
+    this.ticks = 0;
     track.fluidY = fluidLevel(track);
     track.fluidAt = (x, z, floor) => fluidAt(track, x, z, floor);
     this.textures = {};
@@ -265,6 +301,8 @@ export class Lakitu {
       v.cam.layers.enable(1 + i);
       const r = new Referee(this.scene, 1 + i, this.textures);
       r.kart = v.kart; r.cam = v.cam;
+      r.sound = (bank, id) => this.onSound?.(bank, id);
+      r.shards = k => this.ice?.shatter(k, views.length);
       return r;
     });
     this.syncHum();
@@ -310,9 +348,14 @@ export class Lakitu {
         }
         if (r.mode) r.tick(i === 0 ? this.onLight : null);
       });
+      this.ice?.tick();
+      // render_player.c func_800235AC, a 30 Hz colour step: FRIGID eases the prim colour to 0x646464 (0.5) and the
+      // ENV colour to 0xFF0000 (0.1), the red taken out of the kart; THAWING eases both back to black (0.1)
+      if (++this.ticks % 2 === 0) for (const k of karts) if (k.cold) coldStep(k);
     }
     this.syncHum();
     for (const r of this.referees) r.place(r.cam);
+    this.ice?.place(this.referees);
   }
 
   // detect_wrong_player_direction (human screen players): facing 136+ degrees off the course while losing progress
@@ -328,15 +371,30 @@ export class Lakitu {
     else if (deg < CORRECT_MAX) { k.wrongCount = 0; k.wrongWay = false; }
   }
 
-  // func_80079860 -> func_800797AC: a screen player's Lakitu comes down to hook it; CPU karts are held at once
+  // func_80079860 -> func_800797AC: a screen player's Lakitu comes down to hook it; CPU karts are held at once.
+  // Sherbet Land: a screen player's kart that went under the water level (LAKITU_RETRIEVAL) freezes (FRIGID_EFFECT)
+  // and is fished out in an ice block (update_object_lakitu_fishing2)
   rescue(k) {
     const f = k.fell;
     k.fell = null;
     k.rescue = { kind: f.kind, base: f.base, phase: 0, count: 0, alpha: 1, held: false, y: k.world.y, swing: 0, swingV: 0.5, swingDir: 1, watch: true };
     k.air = true; k.v = 0; k.vy = 0;
     const r = this.referees.find(q => q.kart === k);
-    if (r) r.start('fishing', k); else k.rescue.held = true;
+    if (!r) { k.rescue.held = true; return; }
+    r.start('fishing', k);
+    if (this.ice && k.world.y < this.track.fluidAt(k.world.x, k.world.z)) {
+      r.ice = true; k.rescue.frozen = true; k.cold = { mode: 'frigid', rgb: [0, 0, 0], env: [0, 0, 0] };
+    }
   }
+}
+
+function coldStep(k) {
+  const c = k.cold, frigid = c.mode === 'frigid', p = frigid ? 0x64 : 0, e = frigid ? [0xFF, 0, 0] : [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    c.rgb[i] = Math.trunc(c.rgb[i] - (c.rgb[i] - p) * (frigid ? 0.5 : 0.1));
+    c.env[i] = Math.trunc(c.env[i] - (c.env[i] - e[i]) * 0.1);
+  }
+  k.mesh.userData.setCold(c.rgb, c.env);
 }
 
 // effects.c func_80090970 (unk_222 phases 0-4), MK64 heights scaled by K over the fluid level / catch height / road
@@ -373,12 +431,14 @@ function rescueTick(k, track) {
     case 4:
       r.y += (r.road - r.y) * 0.04;
       if (++r.count >= 91) {   // let go: the kart drops the rest of the way under its own gravity
-        k.rescue = null;
-        k.y = r.y; k.vy = 0; k.air = true; k.takeoffY = r.road;
-        k.mesh.userData.setAlpha(1); k.mesh.userData.lean = 0;
-        return;
+        if (!r.frozen) { letGo(k, r); return; }
+        r.released = true; r.phase = 5;   // HELD_BY_LAKITU off, but FROZEN_EFFECT keeps LAKITU_SCENE: no control yet
       }
       break;
+    case 5:   // frozen in the ice block on the road until his referee breaks it (Referee.shatter -> letGo)
+      r.y += (r.road - r.y) * 0.04;
+      k.world.y = r.y; k.mesh.position.copy(k.world); k.mesh.userData.lean = 0;
+      return;
   }
   // unk_D9C: the hooked kart swings +-10 degrees
   r.swingV = Math.min(180, r.swingV + 8);
@@ -387,4 +447,100 @@ function rescueTick(k, track) {
   k.world.y = r.y; k.mesh.position.copy(k.world);
   k.mesh.userData.lean = r.swing * Math.PI * 2 / 65536;
   k.mesh.userData.setAlpha(r.alpha);
+}
+
+function letGo(k, r) {
+  k.rescue = null;
+  k.y = r.y; k.vy = 0; k.air = true; k.takeoffY = r.road;
+  k.mesh.userData.setAlpha(1); k.mesh.userData.lean = 0;
+}
+
+// Sherbet Land's ice (tools/extract-ice-block.py): the block a frozen kart is fished out in (render_ice_block,
+// d_course_sherbet_land_dl_ice_block at scale 0.02 on the kart) and the shards it breaks into (func_80083FD0 /
+// func_80083F18, D_0D005BD0). Both are lit like the console: D_800E4620's ambient plus a white light whose direction
+// D_80165834 turns every tick (func_800419F8), so the ice glints; the shards all share one spin (D_8016582C).
+// G_RM_AA_ZB_XLU_SURF, G_CC TEXEL0 x SHADE, culling off. Assumption: the shards show on every screen (the console
+// keeps them to their own player's screen in 3P / 4P).
+const MAX_SHARDS = 4 * 80, _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
+const _n = new THREE.Vector3(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
+const binary = a => a * Math.PI / 32768, rnd = n => Math.floor(Math.random() * n);
+class Ice {
+  constructor(scene) {
+    this.scene = scene; this.blocks = []; this.shards = []; this.light = [0, 0]; this.spin = [0, 0, 0]; this.data = null;
+    const tex = this.tex = HD.loadTexture('lakitu/ice.png', { mipmaps: false });
+    tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping;
+    fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/lakitu/iceblock.json`).then(r => r.json()).then(d => this.build(d)).catch(() => {});
+  }
+
+  build(d) {
+    const mat = () => new THREE.MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    const geo = this.blockGeo = new THREE.BufferGeometry(), S = 0.02 * K;
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(d.positions.map(v => v * S), 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(d.uvs.map((v, i) => i % 2 ? 1 - v : v), 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(d.positions.length), 3));
+    this.normals = d.normals;
+    this.blockMat = mat(); this.blockMat.vertexColors = true;
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(d.shard.positions.flat(), 3));
+    sg.setAttribute('uv', new THREE.Float32BufferAttribute(d.shard.uvs.flatMap(([u, v]) => [u, 1 - v]), 2));
+    this.shardMesh = new THREE.InstancedMesh(sg, mat(), MAX_SHARDS);
+    this.shardMesh.count = 0; this.shardMesh.frustumCulled = false;
+    this.scene.add(this.shardMesh);
+    this.ambient = d.lights.ambient.map(c => c / 255); this.color = d.lights.color.map(c => c / 255);
+    this.data = d;
+  }
+
+  // N64 lighting: ambient + colour x max(0, n . dir), dir = (0, 0, 120) turned by D_80165834 (vec3f_rotate_x_y),
+  // as a linear-space multiplier for the sRGB texel
+  shade(nx, ny, nz, out, o = 0) {
+    const s1 = Math.sin(binary(this.light[0])), c1 = Math.cos(binary(this.light[0]));
+    const s2 = Math.sin(binary(this.light[1])), c2 = Math.cos(binary(this.light[1]));
+    const d = Math.max(0, (-nx * s2 + ny * s1 * c2 + nz * c1 * c2) * 120 / 127);
+    for (let i = 0; i < 3; i++) out[o + i] = Math.min(1, this.ambient[i] + this.color[i] * d) ** 2.2;
+  }
+
+  // func_8008421C: D_8018D3C0 shards (80 / 40 / 30 for 1 / 2 / 3-4 screens) fanned out D_801657A2 apart
+  shatter(k, screens) {
+    const [n, step] = screens <= 1 ? [80, 4.5] : screens === 2 ? [40, 9] : [30, 12];
+    for (let i = 0; i < n && this.shards.length < MAX_SHARDS; i++) {
+      const a = i * step * Math.PI / 180, speed = 1 + rnd(10) * 0.1;
+      this.shards.push({ scale: 0.04 + rnd(500) * 0.0002, vy: 1 + rnd(50) * 0.05, vx: speed * Math.sin(a), vz: speed * Math.cos(a), life: 100,
+        x: k.world.x + (rnd(20) - 10) * K, y: k.world.y + KART_MID + (rnd(10) - 10) * K, z: k.world.z + (rnd(20) - 10) * K });
+    }
+  }
+
+  // func_800842C8 (one object tick): the light and the shards' spin turn, each shard flies for 100 ticks
+  tick() {
+    this.light[0] += 0x200; this.light[1] += 0x400;
+    this.spin[0] += 0x2000; this.spin[1] += 0x1000; this.spin[2] += 0x1800;
+    for (const s of this.shards) { s.vy -= 0.12; s.x += s.vx * K; s.y += s.vy * K; s.z += s.vz * K; s.life--; }
+    this.shards = this.shards.filter(s => s.life >= 0);
+  }
+
+  place(referees) {
+    if (!this.data) return;
+    const col = this.blockGeo.attributes.color, nrm = this.normals;
+    if (referees.some(r => r.block)) {
+      for (let i = 0; i < nrm.length; i += 3) this.shade(nrm[i], nrm[i + 1], nrm[i + 2], col.array, i);
+      col.needsUpdate = true;
+    }
+    referees.forEach((r, i) => {
+      let m = this.blocks[i];
+      if (!m) { m = this.blocks[i] = new THREE.Mesh(this.blockGeo, this.blockMat); m.frustumCulled = false; this.scene.add(m); }
+      m.visible = !!r.block;
+      if (m.visible) m.position.set(r.kart.world.x, r.kart.world.y + KART_MID, r.kart.world.z);
+    });
+    for (let i = referees.length; i < this.blocks.length; i++) this.blocks[i].visible = false;
+    const mesh = this.shardMesh;
+    mesh.count = this.shards.length;
+    if (!mesh.count) return;
+    _e.set(binary(this.spin[0]), binary(this.spin[1]), binary(this.spin[2]));
+    _q.setFromEuler(_e);
+    _n.set(0, 0, 1).applyQuaternion(_q);
+    const c = [0, 0, 0];
+    this.shade(_n.x, _n.y, _n.z, c);
+    mesh.material.color.setRGB(c[0], c[1], c[2]);
+    this.shards.forEach((s, i) => mesh.setMatrixAt(i, _m.compose(_p.set(s.x, s.y, s.z), _q, _s.setScalar(s.scale * K))));
+    mesh.instanceMatrix.needsUpdate = true;
+  }
 }
