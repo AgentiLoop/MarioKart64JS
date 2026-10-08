@@ -245,7 +245,8 @@ def main():
     for name in ('game_select', 'menu_1p_game', 'menu_2p_game', 'menu_3p_game', 'menu_4p_game', 'mode_mario_gp',
                  'mode_time_trials', 'mode_vs', 'mode_battle', 'l_option', 'r_data', '50cc', '100cc', '150cc', 'extra'):
         single(f'mainmenu/{name}.png', named(f'texture_tkmk00/texture_{name}'),
-               post=(lambda img: right_bevel(img, 'mainmenu/game_select.png')) if name == 'game_select' else None)
+               post=(lambda img, rel=f'mainmenu/{name}.png': right_bevel(img, rel))
+               if name == 'game_select' or name.endswith('p_game') else None)
     single('mainmenu/small_green_triangle.png', named('player_selection/texture_small_green_triangle'))
 
     # render tiers
