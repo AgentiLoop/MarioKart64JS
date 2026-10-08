@@ -32,7 +32,7 @@ Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to
 - **Native courses** — all 16 MK64 tracks reconstructed from the ROM's course geometry + textures (MIO0/CI8/RGBA16 decoders in `tools/`), plus the four battle courses (Big Donut, Block Fort, Double Deck, Skyscraper).
 - **Battle mode** — free-roam driving on the arena's collision mesh (ramps, decks, walls; fall into the lava or off the edge and Lakitu puts you back), three balloons per kart, item boxes at the ROM's spots, last kart standing wins.
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls. Karts go airborne off ramps and crests with the decomp's gravity and air drag, and the boost ramps (Royal Raceway, D.K.'s Jungle Parkway) launch long, floaty jumps.
-- **Items** — item boxes give MK64 items (shell, banana, mushroom…).
+- **Items** — the 15 MK64 items rolled from the ROM's `gen_random_item` curves (Grand Prix by rank, VS by player count, battle): bananas and banana bunches (the ROM banana model), green / red / blue shells, triple shells circling the kart, fake item boxes, lightning (spin + shrink), star, boo (steals an item), single / double / triple and super mushrooms.
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars, kart exhaust smoke.
 - **HUD** — position, lap, race timer, speedometer, minimap.
 - **Sound** — the ROM's "Welcome to Mario Kart" voice on the title screen, and the ROM's own music: `src/m64.js` ports the decomp's sequence player (seqplayer.c / playback.c / effects.c), decodes the VADPCM instruments and plays the .m64 sequences in an AudioWorklet — title, menu and per-course race themes.
@@ -53,7 +53,7 @@ carrying the full HUD. Enter while waiting races the CPU instead; Esc goes back 
 - **Each game drives only its own kart** and sends its pose about 30 times a second; the other karts replay those
   poses 0.1 s in the past, so they move smoothly between packets. The lowest player id is the host and only decides
   the start: every game says READY once its mesh is up, the host answers GO and all of them run the 3-2-1 countdown.
-- **Items:** you roll and use your own; every slick or seeker you drop appears in the other games, and only the player
+- **Items:** you roll and use your own; every banana, shell, fake item box, star, boo or lightning you use appears in the other games, and only the player
   who gets hit decides that they were hit (their spin arrives in their pose). VS rules: no CPU karts online.
 - **Connection:** the games find each other through public STUN servers (`ICE_SERVERS` in `src/net.js`); there is no
   TURN relay, so a player behind a very strict (symmetric) NAT may not connect. `?lobby=ws://localhost:8787/api/mp`
@@ -66,7 +66,7 @@ karts), then one of the four arenas — Big Donut, Block Fort, Double Deck, Skys
 select, and a driver. Every kart starts with **three balloons** on the console's start spots (`spawn_players.c`); any
 item hit pops one, and a kart with none left is out and stays where it stopped. The **last kart with balloons wins**
 (the banner says WINNER! / LOSER). Item boxes sit where the ROM's `item_box_spawns` put them and hand out the same
-items as the races (mushroom turbo, banana slick, red-shell seeker — the seeker homes on the nearest kart). Falling
+items as the console's battle curve (`common_battle_item_curve`: bananas, shells, fake item boxes, stars, boos; red shells home on the nearest kart, green ones bounce off walls). Falling
 into Big Donut's lava, through Skyscraper's gaps or off Block Fort's edge brings you back to your start spot after a
 short rescue. 2P–4P BATTLE runs online exactly like the races: the room's arena, split screen, each game driving its
 own kart and sending its position and heading, hits decided by the player who gets hit.
@@ -81,6 +81,7 @@ own kart and sending its position and heading, hits decided by the player who ge
 - `extract-course.py` — course geometry, textures and track path (`--course big_donut|block_fort|double_deck|skyscraper` for the pathless battle arenas, with their item box spawns)
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
+- `extract-items.py` — banana actor models (`common_model_banana` / `common_model_flat_banana`) and their textures
 - `extract-smoke.py` — kart exhaust smoke puff frames (`src/smoke.js`)
 - `extract-sounds.py` — "Welcome to Mario Kart" voice WAV plus the raw audio banks, sample tables, sequences and bank sets that `src/m64.js` plays
 - `extract-mainmenu.py` — GAME SELECT banner, 1P–4P GAME cards, mode plates, OPTION / DATA and the cursor triangle

@@ -666,7 +666,7 @@ addEventListener('keydown', e => {
 // player arrives (or as soon as it is full). Everyone races the room's course, so a player who picked another one
 // reloads onto it (?room=&you= rejoin the room). Every game drives only its own kart and sends its pose ~30 times a
 // second; the other karts are puppets replaying those poses 0.1 s in the past. Items: you roll and use your own,
-// every slick / seeker you drop appears in the other games, and only the player who gets hit decides it (their spin
+// every banana / shell / star / boo / lightning you use appears in the other games, and only the player who gets hit decides it (their spin
 // arrives in their pose). The lowest id is the host: each game says READY once its mesh is up, the host answers
 // GO and all run the 3-2-1 countdown together. Multiplayer is 2-4 karts total, never 8: the humans who showed up,
 // and only when nobody comes (Enter on the lobby) CPU karts fill the seats up to the player count that was picked.
@@ -777,15 +777,14 @@ function puppetStep(k, now) {
   if (src.air) { k.world.y = y; k.mesh.position.y = y; }
 }
 function useItem() {
-  const item = player.item;
-  items.use(player);
-  if (online && item && !player.item) net.send(battle ? { t: 'item', item, x: player.x, z: player.z, h: player.h, y: player.y } : { t: 'item', item, s: player.s, d: player.d });
+  const item = items.use(player, karts);   // what was fired: the other games replay it with items.fire
+  if (online && item) net.send(battle ? { t: 'item', item, x: player.x, z: player.z, h: player.h, y: player.y } : { t: 'item', item, s: player.s, d: player.d });
 }
 function onlineData(from, m) {
   const k = peerKart(from);
   switch (m.t) {
     case 'p': if (k) { m.rx = performance.now(); k.poses.push(m); if (k.poses.length > 30) k.poses.shift(); } break;
-    case 'item': if (k) { if (battle) { k.x = m.x; k.z = m.z; k.h = m.h; k.y = m.y; } else { k.s = m.s; k.d = m.d; } k.item = m.item; items.use(k); } break;
+    case 'item': if (k) { if (battle) { k.x = m.x; k.z = m.z; k.h = m.h; k.y = m.y; } else { k.s = m.s; k.d = m.d; } items.fire(k, m.item, karts); } break;
     case 'ready': netReady.add(from); hostCheckGo(); break;
     case 'go': startRace(); break;
   }
