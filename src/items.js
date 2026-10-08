@@ -153,6 +153,7 @@ export class Items {
     this.protos = {}; this.sprites = {}; this.spinning = [];
     this.protosReady = Promise.all([loadItemModels(), this.boxModel]).then(([models, box]) => {
       this.protos.banana = models.banana;
+      this.protos.flat_banana = models['flat-banana'];
       this.sprites = models.shells;
       for (const [k, s] of Object.entries(models.shells)) this.protos[k] = s.mesh;
       // fake item box: the box with its "?" upside down (common_model_fake_itembox)
@@ -162,7 +163,7 @@ export class Items {
       fake.children[0].position.y = 2 * BOX_SCALE;
       this.protos.fake_item_box = fake;
     });
-    this.hazards = []; this.shots = []; this.trails = new Set();
+    this.hazards = []; this.shots = []; this.trails = new Set(); this.debris = [];
     this.strat = new Map(); this.gp = false; this.clock = 0;
   }
 
@@ -171,7 +172,8 @@ export class Items {
     for (const h of this.hazards) this.group.remove(h.mesh);
     for (const o of this.shots) this.group.remove(o.mesh);
     for (const k of this.trails) this.clearTrail(k);
-    this.hazards = []; this.shots = [];
+    for (const d of this.debris) this.group.remove(d.mesh);
+    this.hazards = []; this.shots = []; this.debris = [];
     for (const b of this.boxes) { b.cd = 0; b.mesh.visible = true; }
     this.audio.stopSound(...SND_ROULETTE);
   }
@@ -374,6 +376,33 @@ export class Items {
     if (this.arena) k.balloons = Math.max(0, k.balloons - 1);
   }
 
+  // A banana or shell that was run into stays in the world for 0x3C frames: it pops up at 3 units a frame, falls
+  // 0.3 a frame faster each frame (at most 5) with no ground under it. DESTROYED_BANANA swaps in
+  // common_model_flat_banana turned zxy by +2 / -8 / +5 degrees a frame (render_actor_banana); DESTROYED_SHELL /
+  // GREEN_SHELL_HIT_A_RACER keep the spinning sprite. The blue shell and the fake item box are just gone here.
+  wreck(mesh, kind) {
+    if (kind !== 'banana' && !kind.endsWith('shell') || kind === 'blue_shell') { this.group.remove(mesh); return; }
+    const d = { mesh, kind, base: mesh.position.clone(), up: new THREE.Vector3(0, 1, 0).applyQuaternion(mesh.quaternion),
+      y: 0, vy: 3, t: 0x3C, acc: 0, rot: new THREE.Euler(0, 0, 0, 'YXZ') };
+    if (kind === 'banana') {
+      const flat = () => { if (!mesh.parent) return; mesh.clear(); d.model = this.protos.flat_banana.clone(); mesh.add(d.model); };
+      if (this.protos.flat_banana) flat(); else this.protosReady.then(flat);
+    }
+    this.debris.push(d);
+  }
+  updateDebris(dt) {
+    for (let i = this.debris.length - 1; i >= 0; i--) {
+      const d = this.debris[i];
+      for (d.acc += dt; d.acc >= 1 / FPS && d.t > 0; d.acc -= 1 / FPS) {
+        d.vy = Math.max(-5, d.vy - 0.3); d.y += d.vy; d.t--;
+        d.rot.x += 2 * DEG; d.rot.y -= 8 * DEG; d.rot.z += 5 * DEG;
+      }
+      d.mesh.position.copy(d.base).addScaledVector(d.up, d.y * BOX_SCALE);
+      if (d.model) d.model.rotation.copy(d.rot);
+      if (d.t <= 0) { this.group.remove(d.mesh); this.debris.splice(i, 1); }
+    }
+  }
+
   popTrail(kart) {
     const m = kart.trail.meshes.pop();
     if (m) this.group.remove(m);
@@ -512,31 +541,32 @@ export class Items {
     }
     this.updateTrails(karts, dt);
     this.spinShells(dt);
+    this.updateDebris(dt);
     // bananas and fake item boxes sit where dropped until someone runs into them
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.safe -= dt;
       this.put(h.mesh, h);
       const k = karts.find(k => (k !== h.owner || h.safe <= 0) && this.touch(k, h, 2.2));
-      if (k && (this.hit(k) || k.star > 0 || k.remote)) { this.group.remove(h.mesh); this.hazards.splice(i, 1); }
+      if (k && (this.hit(k) || k.star > 0 || k.remote)) { this.wreck(h.mesh, h.kind); this.hazards.splice(i, 1); }
     }
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const o = this.shots[i]; o.ttl -= dt; o.safe -= dt;
-      let gone = o.ttl <= 0 || (this.arena ? this.moveArenaShot(o, karts, dt) : this.moveShot(o, karts, dt));
+      let gone = o.ttl <= 0 || (this.arena ? this.moveArenaShot(o, karts, dt) : this.moveShot(o, karts, dt)), smash = false;
       for (const k of karts) {
         if (gone || (k === o.owner && o.safe > 0) || k.out) continue;
         if (this.touch(k, o, 2.3)) {
           if (o.kind === 'blue_shell' && k !== o.target) { this.hit(k); continue; }   // it knocks over anyone in its path
-          this.hit(k); gone = true;
+          this.hit(k); gone = smash = true;
           if (o.kind === 'blue_shell') for (const n of karts) if (n !== k && this.touch(n, o, 6)) this.hit(n);   // blast
         }
       }
       // shells that meet a dropped banana / fake box take each other out
       for (let j = this.hazards.length - 1; !gone && j >= 0; j--) {
-        if (o.kind !== 'blue_shell' && this.near(o, this.hazards[j], 2)) { this.group.remove(this.hazards[j].mesh); this.hazards.splice(j, 1); gone = true; }
+        if (o.kind !== 'blue_shell' && this.near(o, this.hazards[j], 2)) { this.wreck(this.hazards[j].mesh, this.hazards[j].kind); this.hazards.splice(j, 1); gone = smash = true; }
       }
       this.put(o.mesh, o);
       if (o.kind === 'blue_shell') o.mesh.position.y += 2.5;   // it flies over the track
-      if (gone) { this.group.remove(o.mesh); this.shots.splice(i, 1); }
+      if (gone) { if (smash) this.wreck(o.mesh, o.kind); else this.group.remove(o.mesh); this.shots.splice(i, 1); }
     }
   }
   near(a, b, r) {
@@ -586,7 +616,7 @@ export class Items {
         if (o === k || o.out || !k.trail) continue;
         const i = k.trail.meshes.findIndex(m => m.userData.p && this.touch(o, m.userData.p, 2));
         if (i >= 0 && this.hit(o)) {
-          this.group.remove(k.trail.meshes[i]); k.trail.meshes.splice(i, 1);
+          this.wreck(k.trail.meshes[i], k.trail.kind); k.trail.meshes.splice(i, 1);
           if (!k.trail.meshes.length) { k.trail = null; this.trails.delete(k); break; }
         }
       }
