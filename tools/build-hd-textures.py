@@ -206,6 +206,10 @@ def main():
         single(f'charselect/name_{driver}.png', named(f'texture_tkmk00/texture_name_{"dk" if driver == "donkeykong" else driver}'))
     for border in ('p1_border_blue', 'p2_border_red', 'p3_border_orange', 'p4_border_green'):
         single(f'charselect/{border}.png', named(f'player_selection/{border}'))
+    for name in ('game_select', 'menu_1p_game', 'menu_2p_game', 'menu_3p_game', 'menu_4p_game', 'mode_mario_gp',
+                 'mode_time_trials', 'mode_vs', 'mode_battle', 'l_option', 'r_data'):
+        single(f'mainmenu/{name}.png', named(f'texture_tkmk00/texture_{name}'))
+    single('mainmenu/small_green_triangle.png', named('player_selection/texture_small_green_triangle'))
 
     # render tiers
     files, cache = {}, {}
