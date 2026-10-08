@@ -6,6 +6,7 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 - `npm install && npm run dev` → http://localhost:5173
 - Title screen → GAME SELECT (1P / 2P / 3P / 4P GAME) → SELECT COURSE → PLAYER SELECT → race (Enter / click / arrows)
 - 2P–4P GAME races **online, peer-to-peer, with the console's split screen** (see [Online play](#online-play))
+- **BATTLE** on any GAME column: the four battle arenas with balloons — alone against three CPU karts, or 2–4 players online (see [Battle mode](#battle-mode))
 - Controls: ↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · G resolution (1× 240p / 2× 480p / 4× 960p / Native) · N music · M course menu. Gamepad supported.
 
 ## Screenshots
@@ -27,8 +28,9 @@ Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to
 - **Game select** — the MAIN_MENU screen at its ROM positions (`tools/extract-mainmenu.py`): the 1P–4P GAME columns with their mode rows (Mario GP / Time Trials / VS / Battle), OPTION and DATA. 1P races the CPU as before; 2P–4P go online.
 - **Online multiplayer** — 2–4 players peer-to-peer over WebRTC with the lobby on mk64js.gokart.games, and every game shows the split screen of the original (2P stacked, 3P/4P quadrants, the 3P map in the empty fourth).
 - **Title screen** — ROM-extracted Mario Kart 64 logo, "©1996 Nintendo" copyright, flashing PUSH START button (blink at the native `(gGlobalTimer / 8) % 3` cadence) over the TKMK00-decoded blue-sky background.
-- **Course select** — 16 native MK64 courses with ROM course-preview thumbnails on the sunset menu background.
-- **Native courses** — all 16 MK64 tracks reconstructed from the ROM's course geometry + textures (MIO0/CI8/RGBA16 decoders in `tools/`).
+- **Course select** — 16 native MK64 courses with ROM course-preview thumbnails on the sunset menu background; BATTLE goes to the battle course select (the four arenas, no cups).
+- **Native courses** — all 16 MK64 tracks reconstructed from the ROM's course geometry + textures (MIO0/CI8/RGBA16 decoders in `tools/`), plus the four battle courses (Big Donut, Block Fort, Double Deck, Skyscraper).
+- **Battle mode** — free-roam driving on the arena's collision mesh (ramps, decks, walls; fall into the lava or off the edge and Lakitu puts you back), three balloons per kart, item boxes at the ROM's spots, last kart standing wins.
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls. Karts go airborne off ramps and crests with the decomp's gravity and air drag, and the boost ramps (Royal Raceway, D.K.'s Jungle Parkway) launch long, floaty jumps.
 - **Items** — item boxes give MK64 items (shell, banana, mushroom…).
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars, kart exhaust smoke.
@@ -57,6 +59,18 @@ carrying the full HUD. Enter while waiting races the CPU instead; Esc goes back 
   TURN relay, so a player behind a very strict (symmetric) NAT may not connect. `?lobby=ws://localhost:8787/api/mp`
   on the game URL uses another lobby (`cd website && npx wrangler dev --port 8787`).
 
+## Battle mode
+
+Pick **BATTLE** on the game select screen (1P GAME has it too, which the console doesn't: this port battles three CPU
+karts), then one of the four arenas — Big Donut, Block Fort, Double Deck, Skyscraper — straight from the battle course
+select, and a driver. Every kart starts with **three balloons** on the console's start spots (`spawn_players.c`); any
+item hit pops one, and a kart with none left is out and stays where it stopped. The **last kart with balloons wins**
+(the banner says WINNER! / LOSER). Item boxes sit where the ROM's `item_box_spawns` put them and hand out the same
+items as the races (mushroom turbo, banana slick, red-shell seeker — the seeker homes on the nearest kart). Falling
+into Big Donut's lava, through Skyscraper's gaps or off Block Fort's edge brings you back to your start spot after a
+short rescue. 2P–4P BATTLE runs online exactly like the races: the room's arena, split screen, each game driving its
+own kart and sending its position and heading, hits decided by the player who gets hit.
+
 ## Asset extraction
 
 `tools/` contains Python scripts that pull assets straight from a Mario Kart 64 (USA) ROM:
@@ -64,6 +78,7 @@ carrying the full HUD. Enter while waiting races the CPU instead; Esc goes back 
 - `extract-karts.py` — kart sprite atlases (8 drivers)
 - `extract-faces.py` — character-select face animation frames (17 per driver)
 - `extract-previews.py` — course preview thumbnails (16 race + 4 battle)
+- `extract-course.py` — course geometry, textures and track path (`--course big_donut|block_fort|double_deck|skyscraper` for the pathless battle arenas, with their item box spawns)
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
 - `extract-smoke.py` — kart exhaust smoke puff frames (`src/smoke.js`)
