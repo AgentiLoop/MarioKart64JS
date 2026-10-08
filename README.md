@@ -33,6 +33,7 @@ Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to
 - **Battle mode** — free-roam driving on the arena's collision mesh (ramps, decks, walls; fall into the lava or off the edge and Lakitu puts you back), three balloons per kart, item boxes at the ROM's spots, last kart standing wins.
 - **Driving** — kart physics in the track Frenet frame; karts ride the native course surface and can't drive through walls. Karts go airborne off ramps and crests with the decomp's gravity and air drag, and the boost ramps (Royal Raceway, D.K.'s Jungle Parkway) launch long, floaty jumps.
 - **Start/finish gantry** — the ROM's finish banner and posts stand over the start line on all 16 race courses (banner reads from the approach side, blank from behind).
+- **Track signs** — Mario Raceway's two Mario signs (turning 1° per tick, as `update_actor_mario_sign` does) and Wario Stadium's three Wario signs, at the decomp's spawn spots.
 - **Items** — item boxes give MK64 items (shell, banana, mushroom…).
 - **Presentation** — N64-style 240-line upscaled render, or 2×/4×/Native with smooth mipmapped textures and optional HD texture tiers (G cycles, remembered), native skybox gradients, clouds/stars, kart exhaust smoke.
 - **HUD** — position, lap, race timer, speedometer, minimap.
@@ -83,6 +84,7 @@ own kart and sending its position and heading, hits decided by the player who ge
 - `tkmk00.py` — TKMK00 decoder (menu backgrounds)
 - `extract-item-boxes.py` — item box model, "?" card texture and per-course spawns
 - `extract-finish-line.py` — the start/finish gantry (8-panel banner, poles, blank back) decoded from `common_data`; placed at the first track path point like `func_80297340`
+- `extract-signs.py` — the Mario Raceway / Wario Stadium sign actors (display lists + spawn spots from the decomp, vertices verified against the ROM, textures cut from it)
 - `extract-smoke.py` — kart exhaust smoke puff frames (`src/smoke.js`)
 - `extract-sounds.py` — "Welcome to Mario Kart" voice WAV plus the raw audio banks, sample tables, sequences and bank sets that `src/m64.js` plays
 - `extract-mainmenu.py` — GAME SELECT banner, 1P–4P GAME cards, mode plates, OPTION / DATA and the cursor triangle

@@ -161,6 +161,13 @@ def main():
         found = sorted((pack.base / 'Misc' / 'Banner').glob(f'MARIOKART64#{crc}#2#1#*_ciByRGBA.png'))
         single(f'finish-line/banner{i}.png', found[0] if found else None)
 
+    # Mario Raceway / Wario Stadium sign actors (tools/extract-signs.py): rgba16 textures
+    for path in sorted(NATIVE.glob('*/signs.json')):
+        for tex in json.loads(path.read_text())['textures'].values():
+            rel = f'{path.parent.name}/{tex["image"]}'
+            img = Image.open(NATIVE / rel).convert('RGBA')
+            single(rel, pack.by_texels(texels16(img, 'rgba16'), *img.size, 0, 2))
+
     # karts / faces atlases
     # wheel phase 0 like extract-karts.py; frames 289+ have no wheels and no _wheelN variants
     for kind, folder, tier in (('karts', lambda d, f: f'karts/{d}_kart/{f}_wheel0'

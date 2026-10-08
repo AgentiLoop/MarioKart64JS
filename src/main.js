@@ -1020,6 +1020,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const steps = 2, h = dt / steps;
+  track.update(dt);
 
   if (!trackDef || (online && !raceGo)) {   // menu / online lobby open: fly along the road (like ../GoKart attract.gd), no race
     flyS += 20 * dt;

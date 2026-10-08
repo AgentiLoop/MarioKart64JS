@@ -176,8 +176,17 @@ export async function loadNativeCourse(def) {
   def.native = await res.json();
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
   if (!def.battle) def.finishLine = await loadFinishLine();
+  if (SIGN_COURSES.includes(def.id)) {
+    const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/signs.json`);
+    if (!res.ok) throw new Error(`Sign data ${def.dir}: HTTP ${res.status}`);
+    def.signs = await res.json();
+  }
   return def;
 }
+// Courses with sign actors (tools/extract-signs.py): ACTOR_MARIO_SIGN x2, ACTOR_WARIO_SIGN x3.
+const SIGN_COURSES = ['mario', 'wario'];
+// update_actor_mario_sign turns the sign DEGREES(1) = 182 binary angles per object update (30 Hz assumed, as for clouds).
+const SIGN_SPIN = 30 * 182 * 2 * Math.PI / 65536;
 // Start/finish gantry model (tools/extract-finish-line.py), shared by every race course.
 let finishLinePromise = null;
 function loadFinishLine() {
@@ -264,7 +273,7 @@ export class Track {
     this.pos = []; this.T = []; this.U = []; this.R = []; this.kU = [];
     this._build();
     this.group = new THREE.Group();
-    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); this._buildFinishLine(); }
+    if (def.native) { this._buildNativeMeshes(); this._nativeBounds(); this._buildFinishLine(); this._buildSigns(); }
     else this._buildMeshes();
   }
 
@@ -311,6 +320,57 @@ export class Track {
       }
     }
     this.group.add(root);
+  }
+
+  // Sign actors (render_actor_mario_sign / render_actor_wario_sign): the sign display list at the actor position
+  // with lighting off, back faces culled, textures clamped. Mario's signs turn about y, Wario's stand still.
+  _buildSigns() {
+    const data = this.def.signs;
+    this.spinners = [];
+    if (!data) return;
+    const dir = this.def.dir, meshes = [];
+    for (const g of data.model) {
+      const positions = [], colors = [], uvs = [], color = new THREE.Color();
+      const tex = g.texture && data.textures[g.texture];
+      for (const [vx, vy, vz, s, t, r, gg, b] of g.vertices) {
+        positions.push(vx * NATIVE_SCALE, vy * NATIVE_SCALE, vz * NATIVE_SCALE);
+        color.setRGB(r / 255, gg / 255, b / 255, THREE.SRGBColorSpace);
+        colors.push(color.r, color.g, color.b);
+        if (tex) uvs.push(s / 32 / tex.width, t / 32 / tex.height);   // S10.5 texels, rows top-down
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      if (tex) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(g.triangles.flat());
+      let map = null;
+      if (tex) {
+        map = HD.loadTexture(`${dir}/${tex.image}`);
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.flipY = false;
+        map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;   // every sign tile is G_TX_CLAMP
+        this.textures.push(map);
+      }
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, fog: false }));
+      mesh.name = `sign-${g.texture || 'shade'}`;
+      meshes.push(mesh);
+    }
+    for (const [x, y, z] of data.positions) {
+      const root = new THREE.Group();
+      root.position.set(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
+      for (const mesh of meshes) {
+        const copy = new THREE.Mesh(mesh.geometry, mesh.material);
+        copy.name = mesh.name;
+        root.add(copy);
+      }
+      this.group.add(root);
+      if (data.spin) this.spinners.push(root);
+    }
+  }
+
+  // Advance the animated scenery by dt seconds.
+  update(dt) {
+    for (const sign of this.spinners ?? []) sign.rotation.y += dt * SIGN_SPIN;
   }
 
   // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).
