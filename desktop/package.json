@@ -1,15 +1,17 @@
 {
   "name": "mariokart64js",
   "productName": "MarioKart64JS",
-  "version": "0.0.1",
-  "description": "MarioKart64JS desktop pre-release (Electron)",
+  "version": "0.0.2",
+  "description": "MarioKart64JS desktop (Electron for Windows and Linux; macOS uses webkit/build.sh)",
   "author": "Todd Bruss",
   "main": "main.cjs",
   "private": true,
   "scripts": {
     "game": "cd .. && npm run build && rm -rf desktop/game && rsync -a dist/ desktop/game/",
     "start": "electron .",
-    "dist": "electron-builder --mac --win --linux --publish never"
+    "dist": "npm run dist:win && npm run dist:linux",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never"
   },
   "devDependencies": {
     "electron": "^44.6.0",
@@ -24,23 +26,11 @@
     "files": [
       "main.cjs",
       "package.json",
+      "icon/MK64JS.png",
       "game/**"
     ],
-    "mac": {
-      "category": "public.app-category.games",
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "universal"
-          ]
-        }
-      ],
-      "identity": "Todd Bruss (469UCUB275)",
-      "hardenedRuntime": true,
-      "notarize": false
-    },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "zip",
@@ -52,6 +42,7 @@
       ]
     },
     "linux": {
+      "icon": "build/icon.png",
       "category": "Game",
       "target": [
         {
@@ -65,3 +56,4 @@
     }
   }
 }
+
