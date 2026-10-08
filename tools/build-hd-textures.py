@@ -103,12 +103,23 @@ def open_hd(path, intensity=False):
 
 def right_bevel(img, rel):
     """The HD pack's cup icons end in black where the native 65x40 ones have the grey right bevel column
-    (like the course title plates): paste the native last column back, nearest-scaled to this tier."""
+    (like the course title plates): paste the native last column and bottom row back, nearest-scaled to
+    this tier, then cut the top-right and bottom-left corner pixels into 45-degree diagonals like the
+    HD title plates."""
     native = Image.open(NATIVE / rel).convert('RGBA')
     t = img.width // native.width
-    col = native.crop((native.width - 1, 0, native.width, native.height)).resize((t, native.height * t), Image.NEAREST)
-    img.paste(col, (img.width - t, 0))
+    w, h = img.size
+    col = native.crop((native.width - 1, 1, native.width, native.height)).resize((t, (native.height - 1) * t), Image.NEAREST)
+    row = native.crop((1, native.height - 1, native.width, native.height)).resize(((native.width - 1) * t, t), Image.NEAREST)
+    img.paste(col, (w - t, t))
+    img.paste(row, (t, h - t))
+    black, grey = native.getpixel((0, 0)), native.getpixel((native.width - 1, 1))
+    for i in range(t):
+        for j in range(t):
+            img.putpixel((w - t + i, j), grey if i + j >= t - 1 else black)        # top-right
+            img.putpixel((i, h - t + j), grey if i + j >= t - 1 else black)        # bottom-left
     return img
+
 
 
 def tint_lut(colour, arg1=0x19):
