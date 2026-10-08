@@ -174,8 +174,10 @@ export class Items {
     kart.item = null;
   }
 
+  // Online: only the player who gets hit decides it (../GoKart online_race.gd), so puppets are never hit here;
+  // their spin arrives in their own pose packets.
   hit(kart) {
-    if (kart.spin > 0 || kart.invuln > 0) return false;
+    if (kart.remote || kart.spin > 0 || kart.invuln > 0) return false;
     kart.spin = 1.1; kart.invuln = 2.2; kart.v *= 0.3; kart.drift = 0; kart.boost = 0;
     this.audio.sfx('hit');
     return true;
@@ -212,7 +214,7 @@ export class Items {
         // MK64: any kart touching a box breaks it; only an empty-handed kart gets an item
         if (Math.abs(this.delta(k.s, b.s)) < 3 && Math.abs(k.d - b.d) < 3) {
           if (k.isPlayer) { if (!k.item && (!k.win || k.win.state >= 9)) this.startRoulette(k); }
-          else if (!k.item) { k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2; }
+          else if (!k.item && !k.remote) { k.item = this.roll(k, karts); k.itemTimer = 0.8 + Math.random() * 2.2; }
           b.cd = BOX_RESPAWN; b.mesh.visible = false;
           break;
         }
@@ -244,7 +246,7 @@ export class Items {
       if (target) o.d += THREE.MathUtils.clamp(target.d - o.d, -18 * dt, 18 * dt);
       o.d = THREE.MathUtils.clamp(o.d, -10, 10);
       for (const k of karts) {
-        if (k === o.owner || gone) continue;
+        if (k === o.owner || k.remote || gone) continue;
         if (Math.abs(this.delta(k.s, o.s)) < 2.4 && Math.abs(k.d - o.d) < 2.2) { this.hit(k); gone = true; }
       }
       this.place(o.mesh, o.s, o.d, 1.0);

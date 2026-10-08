@@ -86,6 +86,16 @@
   #item { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: none; text-align: center; font-size: 22px; white-space: nowrap; }
   #itemWin { display: block; margin: 0 auto; image-rendering: pixelated; }
   #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
+
+  /* ---------- online lobby (2P-4P GAME): waits for the other players over the attract fly-along ---------- */
+  #lobby { position: fixed; inset: 0; display: none; z-index: 8; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-align: center; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; background: rgba(0,0,30,.35); }
+  #lobbyTitle { margin-top: 14vh; font-size: 46px; font-style: italic; color: #ffd23a; }
+  #lobbyCount { font-size: 120px; font-style: italic; line-height: 1.1; color: #ffe033; }
+  #lobbyList { font-size: 30px; line-height: 1.4; min-height: 6em; }
+  #lobbyList div { color: #7dff6a; }
+  #lobbyList div.me { color: #fff; }
+  #lobbyMsg { font-size: 22px; color: #ff8a7a; min-height: 1.4em; }
+  #lobbyHint { position: absolute; left: 0; right: 0; bottom: 40px; font-size: 16px; opacity: .8; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
 </style>
 </head>
 <body>
@@ -142,6 +152,13 @@
   <div id="speed">0<small> km/h</small></div>
   <div id="banner"></div>
   <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item · R restart · Gamepad: A gas, B brake, LB/RB drift, X item, Start restart · M course menu · N music on/off · G resolution 1×/2×/4×/Native</div>
+</div>
+<div id="lobby">
+  <div id="lobbyTitle">WAITING FOR PLAYERS</div>
+  <div id="lobbyCount"></div>
+  <div id="lobbyList"></div>
+  <div id="lobbyMsg"></div>
+  <div id="lobbyHint">Players joining within the countdown race together · Enter races the CPU instead · Esc goes back to the menu</div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>

@@ -6,6 +6,7 @@ import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
 import * as HD from './hd.js';
 import { Exhaust } from './smoke.js';
+import { Net } from './net.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -16,8 +17,9 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-const trackId = new URLSearchParams(location.search).get('track');
-const playerChar = new URLSearchParams(location.search).get('char') || localStorage.getItem('mk64char') || 'mario';
+const params = new URLSearchParams(location.search);
+const trackId = params.get('track');
+const playerChar = params.get('char') || localStorage.getItem('mk64char') || 'mario';
 const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show the track menu
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
@@ -533,8 +535,8 @@ if (!trackDef) {
   buildCourseMenu();
   backToTitle();
   audio.welcome();   // menu_items.c:2618 plays SOUND_INTRO_WELCOME as the title screen comes up
-} else {
-  $('hud').style.display = 'block';
+} else if (!params.get('players')) {
+  $('hud').style.display = 'block';   // online: the HUD comes up with GO (startRace)
 }
 titleEl.addEventListener('click', enterMenus);
 addEventListener('keydown', e => {
@@ -599,16 +601,167 @@ addEventListener('keydown', e => {
   }
 });
 
+// ------- online (2P-4P GAME): ../GoKart-style lobby + WebRTC mesh (src/net.js) -------
+// The race page with ?players=N quick-matches on mk64js.gokart.games: a room for N starts 15 s after its first
+// player arrives (or as soon as it is full). Everyone races the room's course, so a player who picked another one
+// reloads onto it (?room=&you= rejoin the room). Every game drives only its own kart and sends its pose ~30 times a
+// second; the other karts are puppets replaying those poses 0.1 s in the past. Items: you roll and use your own,
+// every slick / seeker you drop appears in the other games, and only the player who gets hit decides it (their spin
+// arrives in their pose). The lowest id is the host: each game says READY once its mesh is up, the host answers
+// GO and all run the 3-2-1 countdown together. VS rules: no CPU karts.
+const PLAYERS_WANTED = Math.min(4, Math.max(0, +params.get('players') || 0));
+const online = !!trackDef && PLAYERS_WANTED >= 2;
+const net = online ? new Net() : null;
+const lobbyEl = $('lobby'), lobbyCount = $('lobbyCount'), lobbyList = $('lobbyList'), lobbyMsg = $('lobbyMsg');
+const SEND_INTERVAL = 1 / 30, PUPPET_DELAY = 0.1;
+let sendClock = 0, netReady = new Set(), raceGo = false;
+const peerKart = id => karts.find(k => k.netId === id);
+// Drivers by player id (the same on every peer): a driver picked twice goes to the first free one, in native order.
+function resolveChars(players) {
+  const taken = new Set(), out = new Map();
+  for (const p of players) {
+    const c = characters.includes(p.char) && !taken.has(p.char) ? p.char : characters.find(x => !taken.has(x));
+    taken.add(c); out.set(p.id, c);
+  }
+  return out;
+}
+function lobbyShow(players, countdown, max) {
+  lobbyCount.textContent = countdown >= 0 ? countdown : '';
+  lobbyList.innerHTML = '';
+  const chars = resolveChars(players);
+  for (const p of players) {
+    const d = document.createElement('div');
+    d.textContent = `P${p.id}  ${NAMES[chars.get(p.id)].toUpperCase()}${p.id === net.myId ? ' (YOU)' : ''}`;
+    if (p.id === net.myId) d.className = 'me';
+    lobbyList.appendChild(d);
+  }
+  for (let i = players.length; i < max; i++) { const d = document.createElement('div'); d.textContent = '· · ·'; d.style.opacity = .5; lobbyList.appendChild(d); }
+}
+// Grid in id order (the same on every peer).
+function setupOnline() {
+  for (const k of karts) { scene.remove(k.mesh); k.mesh.userData.dispose(); }
+  karts = []; finishOrder = []; raceTime = 0; state = 'countdown'; countdown = 3.4; raceGo = false;
+  const slots = [[-6, 14], [6, 14], [-6, 24], [6, 24]];
+  const chars = resolveChars(net.players);
+  net.players.forEach((p, i) => {
+    const c = chars.get(p.id), ci = characters.indexOf(c);
+    const [d, back] = slots[i];
+    const mine = p.id === net.myId;
+    const k = new Kart(track, { color: PALETTE[ci], s: track.length - back, d, isPlayer: mine, name: names[ci], character: c });
+    k.netId = p.id; k.remote = !mine; k.poses = [];
+    k.prevS = k.s; k.crossings = 0;
+    scene.add(k.mesh); karts.push(k);
+    if (mine) player = k;
+  });
+  camPos.copy(player.world); camInit = false;
+  banner.textContent = '';
+  items.reset();
+}
+function sendPose() {
+  const k = player;
+  net.send({ t: 'p', s: k.s, d: k.d, psi: k.psi, v: k.v, y: k.world.y, air: k.air ? 1 : 0,
+    dr: k.drift, b: k.boost, sp: k.spin, sv: k.steerVis, c: k.crossings, f: k.finished ? k.finishTime : -1 }, false);
+}
+// Replay the puppet's poses PUPPET_DELAY behind their arrival; extrapolate along the road past the newest.
+function puppetStep(k, now) {
+  const P = k.poses;
+  if (!P.length) return;
+  const L = track.length, t = now - PUPPET_DELAY * 1000;
+  while (P.length > 2 && P[1].rx <= t) P.shift();
+  const a = P[0], b = P[1];
+  let s = a.s, d = a.d, psi = a.psi, v = a.v, y = a.y, src = a;
+  if (b && b.rx > a.rx) {
+    const u = Math.min(1, Math.max(0, (t - a.rx) / (b.rx - a.rx)));
+    let ds = b.s - a.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
+    s = a.s + ds * u; d += (b.d - a.d) * u; psi += (b.psi - a.psi) * u; v += (b.v - a.v) * u; y += (b.y - a.y) * u;
+    if (u >= 1) src = b;
+  } else if (!b) {
+    s += v * Math.min(0.3, Math.max(0, (t - a.rx) / 1000));   // dead reckoning along the road
+  }
+  k.s = ((s % L) + L) % L; k.d = d; k.psi = k.phi = psi; k.v = v;
+  k.drift = src.dr; k.boost = src.b; k.spin = src.sp; k.spinAngle = src.sp > 0 ? (k.spinAngle + 11 / 60) : 0; k.steerVis = src.sv;
+  k.crossings = src.c;
+  if (src.f >= 0 && !k.finished) { k.finished = true; k.finishTime = src.f; finishOrder.push(k); }
+  k.syncMesh(0);
+  if (src.air) { k.world.y = y; k.mesh.position.y = y; }
+}
+function useItem() {
+  const item = player.item;
+  items.use(player);
+  if (online && item && !player.item) net.send({ t: 'item', item, s: player.s, d: player.d });
+}
+function onlineData(from, m) {
+  const k = peerKart(from);
+  switch (m.t) {
+    case 'p': if (k) { m.rx = performance.now(); k.poses.push(m); if (k.poses.length > 30) k.poses.shift(); } break;
+    case 'item': if (k) { k.s = m.s; k.d = m.d; k.item = m.item; items.use(k); } break;
+    case 'ready': netReady.add(from); hostCheckGo(); break;
+    case 'go': startRace(); break;
+  }
+}
+function hostCheckGo() {
+  if (!net.hostIsMe || raceGo) return;
+  if (net.players.every(p => p.id === net.myId || netReady.has(p.id))) { net.send({ t: 'go' }); startRace(); }
+}
+function startRace() {
+  if (raceGo) return;
+  raceGo = true;
+  lobbyEl.style.display = 'none';
+  $('hud').style.display = 'block';
+}
+function raceCpuInstead() {   // Enter on the lobby: give up waiting and race the CPU alone
+  net.leave();
+  setup();
+  startRace();
+}
+if (online) {
+  lobbyEl.style.display = 'block';
+  lobbyCount.textContent = '';
+  net.addEventListener('room', e => lobbyShow(e.detail.players, e.detail.countdown, e.detail.max));
+  net.addEventListener('start', e => {
+    const m = e.detail;
+    if (m.course !== trackDef.id) {   // the room races the host's course: reload onto it, then rejoin
+      location.search = `?track=${m.course}&char=${playerChar}&players=${PLAYERS_WANTED}&room=${m.code}&you=${m.you}`;
+      return;
+    }
+    lobbyShow(m.players, -1, m.players.length);
+    lobbyMsg.textContent = 'CONNECTING…';
+    net.ready();
+  });
+  net.addEventListener('mesh', () => {
+    lobbyMsg.textContent = 'READY';
+    setupOnline();
+    netReady.add(net.myId);
+    net.send({ t: 'ready' });
+    hostCheckGo();
+  });
+  net.addEventListener('data', e => onlineData(e.detail.from, e.detail.msg));
+  net.addEventListener('left', e => {
+    const k = peerKart(e.detail.id);
+    if (k) { scene.remove(k.mesh); k.mesh.userData.dispose(); karts = karts.filter(q => q !== k); }
+    if (karts.length <= 1 && state !== 'finished') { banner.textContent = 'OPPONENT LEFT'; setTimeout(() => { if (banner.textContent === 'OPPONENT LEFT') banner.textContent = ''; }, 3000); }
+    hostCheckGo();
+  });
+  net.addEventListener('error', e => { lobbyMsg.textContent = e.detail.message; lobbyCount.textContent = ''; });
+  if (params.get('room')) net.rejoin(params.get('room'), +params.get('you'));
+  else net.quickMatch({ name: NAMES[playerChar] || playerChar, course: trackDef.id, char: playerChar, players: PLAYERS_WANTED });
+  addEventListener('keydown', e => {
+    if (lobbyEl.style.display !== 'block' || raceGo) return;
+    if (e.code === 'Escape' || e.code === 'Backspace') { net.leave(); location.search = ''; }
+    else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && net.state === 'lobby') raceCpuInstead();
+  });
+}
+
 // input
 const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (trackDef) audio.start();   // menu: no engine hum (audio.update never runs there, so it droned)
-  if (e.code === 'KeyR') setup();
+  if (e.code === 'KeyR' && !online) setup();
   if (e.code === 'KeyM') location.search = '';
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
-  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) items.use(player);
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -619,8 +772,8 @@ function pollPad() {
   if (!pad) return null;
   const b = i => !!(pad.buttons[i] && pad.buttons[i].pressed);
   const item = b(2) || b(3), start = b(9);
-  if (item && !padItemHeld && state !== 'countdown' && player) items.use(player);
-  if (start && !padStartHeld) setup();
+  if (item && !padItemHeld && state !== 'countdown' && player) useItem();
+  if (start && !padStartHeld && !online) setup();
   padItemHeld = item; padStartHeld = start;
   let sx = pad.axes[0] || 0;
   if (Math.abs(sx) < 0.15) sx = 0;
@@ -710,10 +863,10 @@ function collide() {
     const dd = b.d - a.d;
     if (Math.abs(ds) < 3.4 && Math.abs(dd) < 2.1) {
       const push = (2.1 - Math.abs(dd)) * 0.5 * (dd >= 0 ? 1 : -1);
-      a.d -= push; b.d += push;
       const sepS = (3.4 - Math.abs(ds)) * 0.25 * (ds >= 0 ? 1 : -1);
-      a.s -= sepS; b.s += sepS;
-      const avg = (a.v + b.v) / 2; a.v = a.v * 0.7 + avg * 0.3; b.v = b.v * 0.7 + avg * 0.3;
+      const avg = (a.v + b.v) / 2;
+      if (!a.remote) { a.d -= push; a.s -= sepS; a.v = a.v * 0.7 + avg * 0.3; }   // online: a puppet's pose is its owner's truth
+      if (!b.remote) { b.d += push; b.s += sepS; b.v = b.v * 0.7 + avg * 0.3; }
     }
   }
 }
@@ -732,7 +885,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const steps = 2, h = dt / steps;
 
-  if (!trackDef) {   // menu open: fly along the road (like ../GoKart attract.gd), no race
+  if (!trackDef || (online && !raceGo)) {   // menu / online lobby open: fly along the road (like ../GoKart attract.gd), no race
     flyS += 20 * dt;
     track.frameAt(flyS, flyA); track.frameAt(flyS + 40, flyB);
     const target = flyA.pos.clone().addScaledVector(flyA.R, 10).addScaledVector(flyA.U, 12);
@@ -755,11 +908,13 @@ function frame(now) {
     if (countdown <= 0.4 && !player.started) { player.started = true; }
     if (countdown <= 0.4) { state = 'race'; audio.beep(true); setTimeout(() => { if (state === 'race') banner.textContent = ''; }, 900); }
     else if (Math.ceil(countdown - 0.4) !== lastTick) { lastTick = Math.ceil(countdown - 0.4); audio.beep(false); }
-    for (const k of karts) k.update(dt, { throttle: 0, brake: 0, steer: 0, drift: false });
+    for (const k of karts) { if (k.remote) puppetStep(k, now); else k.update(dt, { throttle: 0, brake: 0, steer: 0, drift: false }); }
   } else {
     raceTime += dt;
+    for (const k of karts) if (k.remote) puppetStep(k, now);
     for (let s = 0; s < steps; s++) {
       for (const k of karts) {
+        if (k.remote) continue;
         if (!k.isPlayer) items.aiUse(k, karts, h);
         const inp = k.isPlayer ? playerInput() : k.think(h, karts);
         if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
@@ -773,6 +928,7 @@ function frame(now) {
       items.update(h, karts);
     }
   }
+  if (online) { sendClock += dt; if (sendClock >= SEND_INTERVAL) { sendClock = 0; sendPose(); } }
   const win = player.win;
   itemEl.style.display = win ? 'block' : 'none';
   if (win) {
@@ -796,6 +952,6 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 let lastTick = 4;
-if (trackDef) setup();
+if (trackDef && !online) setup();
 requestAnimationFrame(frame);
 window.__game = { track, items, get karts() { return karts; }, get player() { return player; }, keys, renderer, scene, camera };
