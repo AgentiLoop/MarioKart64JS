@@ -215,6 +215,8 @@ const items = new Items(track, scene, audio);
 items.gp = raceMode === 'mario_gp';   // GP CPUs draw items on a timer (cpu_use_item_strategy), not from boxes
 const exhaust = new Exhaust(scene);
 const lakitu = new Lakitu(scene, track);
+// his cloud's hum while he fishes a kart out or shows the reverse sign: 0x0100FA28 = SOUND_ARG_LOAD(0x01, 0x00, 0xFA, 0x28), bank 0
+lakitu.onHum = on => on ? audio.playSound(0, 0x28) : audio.stopSound(0, 0x28);
 // Lakitu's start signal: two red lights, then blue starts the race (update_object_lakitu_countdown). The ROM's
 // SOUND_ACTION_COUNTDOWN_LIGHT 0x49008003 / SOUND_ACTION_GREEN_LIGHT 0x49008004 (bank 4)
 function countdownLight(light) {

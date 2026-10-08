@@ -110,13 +110,14 @@ class Referee {
 
   start(mode, kart) {
     this.mode = mode; this.kart = kart; this.state = 1; this.frame = 0; this.alpha = 1; this.wt = null; this.an = null;
+    this.hum = mode === 'fishing' || mode === 'reverse';   // init_obj_lakitu_red_flag_fishing / _reverse: 0x0100FA28
     this.sp = null; this.visible = false; this.offset = [0, 0, 0];
     const [x0, x1, h] = QUADS[mode].map(v => v * 0.15 * K), pos = this.mesh.geometry.attributes.position;
     pos.array.set([x0, -h, 0, x1, -h, 0, x1, h, 0, x0, h, 0]); pos.needsUpdate = true;
     this.material.map = this.textures[mode]; this.material.needsUpdate = true;
   }
 
-  stop() { this.mode = null; this.mesh.visible = false; }
+  stop() { this.mode = null; this.mesh.visible = false; this.hum = false; }
 
   // set_and_run_timer_object: next state after n + 1 ticks
   wait(n) { if (this.wt === null) this.wt = n; if (--this.wt < 0) { this.wt = null; this.state++; return true; } return false; }
@@ -201,7 +202,7 @@ class Referee {
         else if (this.state === 2) { this.visible = true; this.state++; }
         else this.pingpong(0, 3, 2);
         if (this.stage === 1 && (this.offset[1] = Math.max(5, this.offset[1] - 1)) === 5) { if (r) r.held = true; this.stage = 2; }
-        else if (this.stage === 2 && !held) this.stage = 3;
+        else if (this.stage === 2 && !held) { this.stage = 3; this.hum = false; }   // effects.c: the kart is let go
         else if (this.stage === 3 && (this.offset[1] = Math.min(100, this.offset[1] + 1)) === 100) { this.stop(); return; }
         this.alpha = r ? r.alpha : 1;   // func_8007993C: fades with the kart (LAKITU_FIZZLE)
         break;
@@ -212,7 +213,7 @@ class Referee {
         else if (this.state === 2) { this.visible = true; this.state++; }
         else if (this.state === 3) this.pingpong(0, 15, 2);
         else { this.stop(); return; }
-        if (this.state >= 3 && !this.leave && !this.kart.wrongWay) { this.sp = { path: REVERSE_OUT, idx: 0, timer: 0, loop: false }; this.leave = 80; }
+        if (this.state >= 3 && !this.leave && !this.kart.wrongWay) { this.sp = { path: REVERSE_OUT, idx: 0, timer: 0, loop: false }; this.leave = 80; this.hum = false; }
         else if (this.leave && --this.leave === 0) this.state++;
         break;
     }
@@ -245,6 +246,7 @@ const _dir = new THREE.Vector3();
 export class Lakitu {
   constructor(scene, track) {
     this.scene = scene; this.track = track; this.acc = 0; this.referees = []; this.onLight = null;
+    this.onHum = null; this.humming = false;   // main.js: the cloud's hum 0x0100FA28 on / off
     track.fluidY = fluidLevel(track);
     track.fluidAt = (x, z, floor) => fluidAt(track, x, z, floor);
     this.textures = {};
@@ -265,12 +267,22 @@ export class Lakitu {
       r.kart = v.kart; r.cam = v.cam;
       return r;
     });
+    this.syncHum();
+  }
+
+  // the hum (func_800C8F80 0x0100FA28 in init_obj_lakitu_red_flag_fishing / _reverse) loops while a fishing or
+  // reverse referee is on his way in or waiting; it stops (func_800C9018) when he lets go of the kart or turns to
+  // leave, or the race restarts. Assumption: one hum shared by the split-screen referees, not one per player.
+  syncHum() {
+    const on = this.referees.some(r => r.hum);
+    if (on !== this.humming) { this.humming = on; this.onHum?.(on); }
   }
 
   // the console's func_80078F64: every screen player's referee starts the countdown; P1's calls the lights
   startCountdown(onLight) {
     this.onLight = onLight; this.acc = 0;
     for (const r of this.referees) { r.start('countdown', r.kart); r.seen = { lap: 1, finished: false }; }
+    this.syncHum();
   }
 
   update(dt, karts, laps) {
@@ -299,6 +311,7 @@ export class Lakitu {
         if (r.mode) r.tick(i === 0 ? this.onLight : null);
       });
     }
+    this.syncHum();
     for (const r of this.referees) r.place(r.cam);
   }
 
