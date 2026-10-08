@@ -211,11 +211,11 @@ export class Items {
       this.sprites = models.shells;
       this.protos.explosion = models.explosion;
       for (const [k, s] of Object.entries(models.shells)) this.protos[k] = s.mesh;
-      // fake item box: the box with its "?" upside down (common_model_fake_itembox)
+      // fake item box: the box with its "?" upside down (common_model_fake_itembox), no shadow
+      // (render_actor_fake_item_box draws only common_model_fake_itembox and D_0D003090)
       const fake = new THREE.Group(), b = box.box.clone(), c = box.card.clone();
       b.position.y = c.position.y = BOX_HOVER; c.rotation.z = Math.PI; b.renderOrder = 2;
-      fake.add(box.shadow.clone(), c, b);
-      fake.children[0].position.y = 2 * BOX_SCALE;
+      fake.add(c, b);
       this.protos.fake_item_box = fake;
     });
     this.hazards = []; this.shots = []; this.trails = new Set(); this.debris = []; this.booms = [];
@@ -251,14 +251,16 @@ export class Items {
   // render_actor_shell: rotVelocity grows 10 degrees an update; frame rotVelocity / 24 degrees (0..15) shows
   // sprites 0..7, then 7..1 mirrored (index 15 reads past the table; shown here as sprite 0 mirrored).
   // A fake item box (update_actor_fake_item_box states 0 / 1) turns its box -1 / +2 / -1 degrees an update; its
-  // upside-down "?" (common_model_fake_itembox) only follows the yaw (render_actor_fake_item_box).
+  // upside-down "?" (common_model_fake_itembox) only follows the yaw (render_actor_fake_item_box). Both are
+  // drawn at sizeScaling (g.userData.size) around actor->pos, g.userData.y MK64 units above the ground.
   spinShells(dt) {
     this.spinning = this.spinning.filter(p => p.g.parent);
     for (const p of this.spinning) {
       if (p.fake) {
         for (p.acc += dt; p.acc >= 1 / ACTOR_HZ; p.acc -= 1 / ACTOR_HZ) { p.fake.x -= DEG; p.fake.y += 2 * DEG; p.fake.z -= DEG; }
-        const [, card, box] = p.m.children;
+        const [card, box] = p.m.children, { size = 1, y = 8.66 } = p.g.userData;
         box.rotation.copy(p.fake); card.rotation.y = p.fake.y;
+        for (const o of [card, box]) { o.scale.setScalar(size); o.position.y = y * BOX_SCALE; }
         continue;
       }
       p.rot = (p.rot + 10 * ACTOR_HZ * dt) % 360;
@@ -375,6 +377,7 @@ export class Items {
     // player_use_item: a banana, fake item box or single shell comes out behind the kart and is dragged until Z is let go
     if (kart.isPlayer && HOLD.has(item)) {
       kart.trail = { kind: item, meshes: [this.makeMesh(item)], t: 0, held: true, acc: 0 };
+      if (item === 'fake_item_box') Object.assign(kart.trail.meshes[0].userData, this.fakeHeld(kart));
       this.trails.add(kart);
       return null;
     }
@@ -447,11 +450,30 @@ export class Items {
   }
 
   // toss: a released banana's flight (DROPPED_BANANA): vs along the track a frame, vh up, 0.15 less a frame down to -1
+  // A fake item box is let go (func_802A1064 -> FAKE_ITEM_BOX_ON_GROUND) where it was held, still small; its
+  // owner can't hit it for someTimer 100 updates (flag 0x1000).
   drop(kart, kind, p, toss = null) {
-    const mesh = this.makeMesh(kind);
+    const mesh = this.makeMesh(kind), fake = kind === 'fake_item_box';
+    if (fake) Object.assign(mesh.userData, this.fakeHeld(kart));
     this.put(mesh, p);
-    this.hazards.push({ kind, ...p, mesh, owner: kart, safe: 0.5, ...(toss && { toss, acc: 0 }) });
+    this.hazards.push({ kind, ...p, mesh, owner: kart, safe: fake ? 100 / ACTOR_HZ : 0.5, ...(toss && { toss, acc: 0 }), ...(fake && { grow: true, acc: 0 }) });
     this.snd(kart, SND_DROP);
+  }
+  // HELD_FAKE_ITEM_BOX: sizeScaling 0.35 (spawn_actor unk_08), 1 unit below player->pos (boundingBoxSize 5.5 / 6
+  // above the ground; update_actor_fake_item_box state 0)
+  fakeHeld(kart) {
+    const id = CHAR_ID[kart.mesh.userData.character];
+    return { size: 0.35, y: (id === 5 || id === 7 ? 6 : 5.5) - 1 };
+  }
+  // FAKE_ITEM_BOX_ON_GROUND (state 1), one 60 Hz update at a time: sizeScaling +0.05 up to 1, rising 0.2 to
+  // targetY, 8.66 above the ground (func_802ABEAC + 8.66)
+  growFake(h, dt) {
+    const u = h.mesh.userData;
+    for (h.acc += dt; h.grow && h.acc >= 1 / ACTOR_HZ; h.acc -= 1 / ACTOR_HZ) {
+      u.size = Math.min(1, u.size + 0.05);
+      u.y = Math.min(8.66, u.y + 0.2);
+      if (u.size === 1 && u.y === 8.66) h.grow = false;
+    }
   }
   // one 60 Hz update at a time until it lands (BANANA_ON_GROUND); true when it fell off the arena
   flight(h, dt) {
@@ -652,6 +674,7 @@ export class Items {
           this.clearTrail(kart);
           st.drop = st.branch === 'fake' ? 'fake_item_box' : 'banana';
           kart.trail = { kind: st.drop, meshes: [this.makeMesh(st.drop)], t: 0 }; this.trails.add(kart);
+          if (st.drop === 'fake_item_box') Object.assign(kart.trail.meshes[0].userData, this.fakeHeld(kart));
           st.uses++; st.timer = 0; st.hold = Math.floor(Math.random() * 3) * 20 + 10; st.branch = 'hold';
           break;
         case 'hold':
@@ -760,8 +783,11 @@ export class Items {
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const h = this.hazards[i]; h.safe -= dt;
       if (h.toss && this.flight(h, dt)) { this.group.remove(h.mesh); this.hazards.splice(i, 1); continue; }
+      if (h.grow) this.growFake(h, dt);
       this.put(h.mesh, h, 0.05 + (h.toss ? h.toss.alt : 0));
-      const k = karts.find(k => (k !== h.owner || h.safe <= 0) && this.touch(k, h, 2.2));
+      // a growing fake box's boundingBoxSize is sizeScaling x 5.5
+      const r = 2.2 - (1 - (h.mesh.userData.size ?? 1)) * 5.5 * BOX_SCALE;
+      const k = karts.find(k => (k !== h.owner || h.safe <= 0) && this.touch(k, h, r));
       if (k && (this.hit(k, h.kind, h.owner) || k.star > 0 || k.remote)) { this.wreck(h.mesh, h.kind); this.hazards.splice(i, 1); }
     }
     for (let i = this.shots.length - 1; i >= 0; i--) {
