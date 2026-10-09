@@ -1,7 +1,7 @@
 MarioKart64JS for Raspberry Pi (Linux webview app)
 
 A small GTK window around the system WebKitGTK, 1280x960 like the Windows, Linux and macOS apps.
-Made for Raspberry Pi OS (64-bit, Bookworm) on a Pi 4 or Pi 5; any Linux with WebKitGTK runs it.
+Made for Raspberry Pi OS (64-bit, Bookworm) on a Pi 3, Pi 4 or Pi 5; any Linux with WebKitGTK runs it.
 
 1. Install the webview (once):
      sudo apt install python3-gi gir1.2-webkit2-4.1
