@@ -8,10 +8,7 @@
   if (!g) { cv.remove(); return; }
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   var bosses = ['#ff3b3b', '#ff7ad9', '#2ee6c5', '#ffa43a'];
-  var W = 0, H = 0, dpr = 1, k = 1, t = 0, boost = 0, bb = 0, last = performance.now();
-  var a = cv.closest('a') || cv.parentNode;
-  a.addEventListener('mouseenter', function () { boost = 1; });
-  a.addEventListener('mouseleave', function () { boost = 0; });
+  var W = 0, H = 0, dpr = 1, k = 1, t = 0, last = performance.now();
   function size() {
     dpr = Math.min(devicePixelRatio || 1, 2);
     var w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
@@ -62,8 +59,7 @@
   }
   function frame(now) {
     var dt = Math.min((now - last) / 1000, .1); last = now;
-    bb += (boost - bb) * Math.min(dt * 4, 1);
-    t += dt * (1 + bb * 1.8);
+    t += dt;
     size();
     g.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
     if (big) g.clearRect(0, 0, W, H);
