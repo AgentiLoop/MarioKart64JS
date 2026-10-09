@@ -13,17 +13,16 @@ A browser clone of **Mario Kart 64** (built for testing purposes — to see how 
 
 ## Screenshots
 
-Native resolution with the 4× HD textures (full 3200×2400 PNGs are attached to the [v0.0.1 pre-release](https://github.com/AgentiLoop/MarioKart64JS/releases/tag/v0.0.1)).
+Native resolution with the 4× HD textures (1600×1200).
 
 | | |
 |---|---|
-| ![Title](docs/screenshots/hires/title.jpg) | ![Course select](docs/screenshots/hires/course-select.jpg) |
-| ![Character select](docs/screenshots/hires/character-select.jpg) | ![Mario Raceway](docs/screenshots/hires/race-mario.jpg) |
-| ![Royal Raceway](docs/screenshots/hires/race-royal.jpg) | ![Koopa Troopa Beach](docs/screenshots/hires/race-koopa.jpg) |
-| ![Sherbet Land](docs/screenshots/hires/race-sherbet.jpg) | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race-dk.jpg) |
-| ![Yoshi Valley](docs/screenshots/hires/race-yoshi.jpg) | ![Bowser's Castle](docs/screenshots/hires/race-bowser.jpg) |
-| ![Banshee Boardwalk](docs/screenshots/hires/race-banshee.jpg) | ![Toad's Turnpike](docs/screenshots/hires/race-toad.jpg) |
-| ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) | |
+| ![Title](docs/screenshots/hires/title.jpg) | ![Game select](docs/screenshots/hires/game-select.jpg) |
+| ![Course select](docs/screenshots/hires/course-select.jpg) | ![Character select](docs/screenshots/hires/character-select.jpg) |
+| ![Mario Raceway](docs/screenshots/hires/race-mario.jpg) | ![Royal Raceway](docs/screenshots/hires/race-royal.jpg) |
+| ![Koopa Troopa Beach](docs/screenshots/hires/race-koopa.jpg) | ![Sherbet Land](docs/screenshots/hires/race-sherbet.jpg) |
+| ![D.K.'s Jungle Parkway](docs/screenshots/hires/race-dk.jpg) | ![Bowser's Castle](docs/screenshots/hires/race-bowser.jpg) |
+| ![Banshee Boardwalk](docs/screenshots/hires/race-banshee.jpg) | ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) |
 
 ## What's implemented
 
