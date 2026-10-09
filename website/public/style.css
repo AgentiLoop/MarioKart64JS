@@ -43,6 +43,8 @@ h3{margin:0 0 6px;font-size:21px}
 .lead{font-size:clamp(18px,2.4vw,23px);color:#e6e8f6;margin:0 auto 32px;max-width:700px}
 .cta{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}
 .plat-line{margin-top:26px;color:var(--mut);font-size:15px;letter-spacing:.04em}
+.plat-line .half{display:block;text-wrap:balance}
+.plat-line .half span{white-space:nowrap}
 .stats{display:flex;flex-wrap:wrap;justify-content:center;background:var(--bg2);border-block:1px solid var(--line)}
 .stats div{flex:1 1 200px;text-align:center;padding:26px 10px}
 .stats b{display:block;font-size:42px;line-height:1.1;color:var(--gold);font-weight:900}
