@@ -458,7 +458,7 @@ export class Kart {
     this.top = MAX_SPEED * scale;
     let max = (this.boost > 0 ? BOOST_SPEED : MAX_SPEED) * scale;
     if (this.offroad && this.boost <= 0) max *= 0.45;
-    if (this.finished) input = { throttle: 0.3, brake: 0, steer: 0, drift: false };
+    // a finished kart keeps racing laps under the CPU driver (race_logic.c: player->type |= PLAYER_CPU), main.js
     if (this.spin > 0) {
       this.spin -= dt; this.spinAngle += dt * 11;
       input = { throttle: 0, brake: 0, steer: 0, drift: false };
@@ -539,6 +539,10 @@ export class Kart {
       if (sgn * this.phi > 0) this.phi = off(this.phi);
       this.drift = 0;
     }
+    // the route's wall limit is probed straight out from the route every 0.5 and keeps only the kart's centre 1.2
+    // from it: faces at an angle, between samples or beside the route still took up to half the drawn kart
+    // (tools/test-walls.mjs). The steep faces themselves push the kart's sprite-wide body out, as in the arenas.
+    if (t.wallPush) this.routeWallPush(t, denom);
     this.hitWall = Math.max(0, this.hitWall - dt);
 
     // wrap & lap counting
@@ -555,6 +559,36 @@ export class Kart {
       if (Math.abs(dd) < p.hl && Math.abs(this.d - p.d) < p.hw + 1) this.boost = Math.max(this.boost, 1.3);
     }
     this.syncMesh(dt);
+  }
+
+  // Race courses: Track.wallPush on the kart's world spot (body = sprite half-width), the correction mapped back to
+  // (s, d) along the route; of the velocity, the part into the face is lost and a fresh hit slows the kart by 18.
+  routeWallPush(t, denom) {
+    const f = t.frameAt(this.s, this.frame), x = f.pos.x + f.R.x * this.d, z = f.pos.z + f.R.z * this.d;
+    // body height over the ground at the new spot: last frame's ground lags up a steep bank (Choco Mountain's
+    // cliff foot at (-37, -59) rises 0.8 a frame), so the face above it was tested too low
+    const y0 = this.air ? this.y : this.groundY ?? f.pos.y, g = this.air ? null : t.groundAt(x, z, y0);
+    const w = t.wallPush(this.prevX ?? x, this.prevZ ?? z, x, z, g ? g.y : y0, this.visualHalfWidth);
+    if (!w) return;
+    // (dx, dz) = T * denom * ds + R * dd, a few Newton steps: far off a tight bend the frame turns under the kart
+    for (let i = 0; i < 3; i++) {
+      const g = i ? t.frameAt(this.s, this.frame) : f, dn = i ? Math.max(0.3, 1 - g.k * this.d) : denom;
+      const dx = w.x - (g.pos.x + g.R.x * this.d), dz = w.z - (g.pos.z + g.R.z * this.d);
+      if (i && dx * dx + dz * dz < 1e-6) break;
+      const a = g.T.x * dn, b = g.R.x, c = g.T.z * dn, e = g.R.z, det = a * e - b * c;
+      if (Math.abs(det) < 1e-6) break;
+      this.s += (dx * e - b * dz) / det; this.d += (a * dz - c * dx) / det;
+    }
+    const cp = Math.cos(this.phi), sp = Math.sin(this.phi);
+    const fx = f.T.x * cp + f.R.x * sp, fz = f.T.z * cp + f.R.z * sp, vn = (fx * w.nx + fz * w.nz) * this.v;
+    if (vn >= 0) return;
+    const mx = fx * this.v - vn * w.nx, mz = fz * this.v - vn * w.nz;
+    const mt = mx * f.T.x + mz * f.T.z, mr = mx * f.R.x + mz * f.R.z, dir = this.v < 0 ? -1 : 1;
+    const turn = Math.atan2(dir * mr, dir * mt) - this.phi;
+    this.phi += Math.atan2(Math.sin(turn), Math.cos(turn));
+    this.v = dir * Math.hypot(mx, mz);
+    if (this.hitWall <= 0) this.v = dir * Math.max(0, Math.abs(this.v) - WALL_SLOW);
+    this.hitWall = 0.25; this.drift = 0;
   }
 
   // Arena driving: the same speed / drift model, heading h integrated directly; the course collision mesh

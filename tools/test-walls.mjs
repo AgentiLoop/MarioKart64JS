@@ -2,7 +2,7 @@
 // straight at and along the course's steep faces (Track.wallTris) from many start spots and headings, and measures
 // how much of the kart's visible sprite width ends up on the far side of a face: the horizontal distance from the
 // kart to the nearest face at body height against the sprite's visible half-width (Kart.visualHalfWidth).
-// Battle arenas use updateFree (wallPush); race courses update() along the route (wallAt clamp).
+// Battle arenas use updateFree (wallPush); race courses update() along the route (wallAt clamp, then wallPush).
 // usage: node tools/test-walls.mjs [course ids...]   (PLAYWRIGHT=path/to/playwright-core, LIMIT=% to fail above, default 10)
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -57,7 +57,9 @@ for (const id of courses) {
           if (x < x0 - half || x > x1 + half || z < z0 - half || z > z1 + half) return;
           for (const lift of [0.6, 1.2, 2]) {
             const q = closest([x, y + lift, z], a, b, c);
-            if (q[1] < y + 0.55 || q[1] > y + 2.5) continue;   // lips under 0.6 are climbed (Track groundAt CLIMB)
+            // lips under 0.6 are climbed (Track groundAt CLIMB); edges over 2 hang over the road and the kart drives
+            // under them (Track.wallPush body 0.55..2)
+            if (q[1] < y + 0.55 || q[1] > y + 2) continue;
             best = Math.min(best, Math.hypot(q[0] - x, q[2] - z));
           }
         });

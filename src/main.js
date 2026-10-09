@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn } from './track.js';
+import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn, HALF_WIDTH } from './track.js';
 import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS, speedKmh, togglePhysics } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
@@ -1253,10 +1253,52 @@ function layoutViews() {
   if (n === 3) { document.body.appendChild(miniEl); Object.assign(miniEl.style, { position: 'fixed', left: `calc(75vw - 85px)`, top: `calc(75vh - 85px)`, zIndex: 3 }); }
   else if (miniEl.parentElement !== hudEl) { hudEl.prepend(miniEl); Object.assign(miniEl.style, { position: '', left: '', top: '', zIndex: '' }); }
 }
+// After the finish (camera.c: PLAYER_CINEMATIC_MODE -> func_8001A588): the camera swings round to the front of the
+// kart and watches it cross the line (func_80015390 eases camera->unk_2C to the kart's heading), then trackside shots
+// a few path points ahead of it, alternating sides (camera_start_cinematic_shot / func_80015544: nearest path point
+// + 10, offset -1 / +1 across the road), each held until the kart has gone past. Assumption: shot lengths and
+// distances are tuned by eye, not the ROM's per-shot tables.
+const _cf = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+function cinematicCamera(dt, v, k) {
+  const camera = v.cam;
+  if (!v.cine) v.cine = { t: 0, kind: 'front', side: 1, shots: 0, s: 0, pos: new THREE.Vector3() };
+  const c = v.cine;
+  c.t += dt;
+  let target;
+  if (c.kind === 'front') {   // orbit from behind the kart round to its nose over ~2.5 s, then ride in front of it
+    const a = Math.PI * THREE.MathUtils.smoothstep(c.t, 0.3, 2.8);
+    const back = k.fwd.clone().multiplyScalar(-(9 - 2 * a / Math.PI)).applyAxisAngle(k.up, a * c.side);
+    target = k.world.clone().add(back).addScaledVector(k.up, 4.2 - 1.6 * a / Math.PI);
+    if (c.t > 7) { c.kind = 'side'; c.t = 0; c.s = k.s + 55; c.side = -c.side; c.placed = false; }
+  } else {   // a fixed spot beside the road ahead; the next shot once the kart is past it (or after 12 s)
+    track.frameAt(c.s, _cf);
+    if (!c.placed) {
+      const w = Math.min(HALF_WIDTH, track.wallAt(c.s, c.side)) - 1.5;
+      c.pos.copy(_cf.pos).addScaledVector(_cf.R, c.side * w).addScaledVector(_cf.U, 3.5);
+      const g = track.groundAt?.(c.pos.x, c.pos.z, _cf.pos.y + 2);
+      if (g) c.pos.y = g.y + 3.5;
+      c.placed = true; v.init = false;
+    }
+    target = c.pos;
+    let ds = k.s - c.s; if (ds > track.length / 2) ds -= track.length; if (ds < -track.length / 2) ds += track.length;
+    if (ds > 20 || c.t > 12) { c.shots++; c.t = 0; c.side = -c.side; if (c.shots % 3 === 0) c.kind = 'front'; else c.s = k.s + 55; c.placed = false; }
+  }
+  if (!v.init) v.pos.copy(target); else v.pos.lerp(target, c.kind === 'front' ? 1 - Math.exp(-dt * 8) : 1);
+  v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
+  const look = k.world.clone().addScaledVector(k.up, 1.4);
+  if (!v.init) v.look.copy(look); else v.look.lerp(look, 1 - Math.exp(-dt * 10));
+  camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.fov += (60 - camera.fov) * Math.min(1, dt * 3);
+  camera.updateProjectionMatrix();
+  v.init = true;
+  if (k === player) { sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world); }
+}
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
   if (k.rescue?.watch) { camera.lookAt(k.world); return; }   // camera.c: holds still while Lakitu fishes the kart out
   if (k.rescue?.snap) { k.rescue.snap = false; v.init = false; }   // and cuts back behind it over the road
+  if (k.finished && !battle) { cinematicCamera(dt, v, k); return; }
+  v.cine = null;
   const behind = k.fwd.clone().multiplyScalar(-(9 + Math.min(k.v, 60) * 0.06)).addScaledVector(k.up, 4.2);
   const target = k.world.clone().add(behind);
   const a = v.init ? 1 - Math.exp(-dt * 7) : 1;
@@ -1404,8 +1446,9 @@ function frame(now) {
         if (k.remote) continue;
         if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
         else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
-        const inp = k.isPlayer && !autopilot ? playerInput() : k.think(h, karts);
-        if (k.isPlayer && state === 'finished') { inp.throttle = 0.4; inp.brake = 0; }
+        // a finished player becomes a CPU driver and keeps racing laps (race_logic.c: player->type |= PLAYER_CPU)
+        const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts);
+        if (k.isPlayer && state === 'finished' && !k.finished) { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
         if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }
         if (!battle && !k.finished && k.crossings >= LAPS) {

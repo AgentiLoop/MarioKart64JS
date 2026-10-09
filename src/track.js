@@ -429,13 +429,22 @@ export class Track {
       const l = Math.hypot(...n) || 1;
       return [n[0] / l, n[1] / l, n[2] / l, e1, e2];
     });
-    const rim = (px, py, pz, tri) => {   // nearest point of the triangle's three edges to (px, py, pz)
+    // horizontally nearest point to (px, pz) of the triangle's outline where it stands within the kart's body,
+    // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road)
+    const rim = (px, pz, y0, y1, tri) => {
       let best = null, bd = Infinity;
       for (let i = 0; i < 3; i++) {
         const A = tri[i], B = tri[(i + 1) % 3], ex = B[0] - A[0], ey = B[1] - A[1], ez = B[2] - A[2];
-        const s = Math.max(0, Math.min(1, ((px - A[0]) * ex + (py - A[1]) * ey + (pz - A[2]) * ez) / (ex * ex + ey * ey + ez * ez || 1)));
-        const q = [A[0] + ex * s, A[1] + ey * s, A[2] + ez * s], dd = (q[0] - px) ** 2 + (q[1] - py) ** 2 + (q[2] - pz) ** 2;
-        if (dd < bd) { bd = dd; best = q; }
+        let lo = 0, hi = 1;   // the part of the edge inside the body's height
+        if (Math.abs(ey) < 1e-6) { if (A[1] < y0 || A[1] > y1) continue; }
+        else {
+          const ta = (y0 - A[1]) / ey, tb = (y1 - A[1]) / ey;
+          lo = Math.max(0, Math.min(ta, tb)); hi = Math.min(1, Math.max(ta, tb));
+          if (lo > hi) continue;
+        }
+        const hh = ex * ex + ez * ez, s = Math.max(lo, Math.min(hi, hh > 1e-9 ? ((px - A[0]) * ex + (pz - A[2]) * ez) / hh : lo));
+        const qx = A[0] + ex * s, qz = A[2] + ez * s, dd = (qx - px) ** 2 + (qz - pz) ** 2;
+        if (dd < bd) { bd = dd; best = [qx, qz]; }
       }
       return best;
     };
@@ -451,7 +460,7 @@ export class Track {
               seen.add(t);
               const a = walls[t][0], [nx, ny, nz, e1, e2] = wallN[t], h = Math.hypot(nx, nz);
               if (h < 1e-6) continue;
-              for (const lift of [0.6, 2]) {
+              for (const lift of [0.6, 1.2, 2]) {
                 const p = [x - a[0], y + lift - a[1], z - a[2]];
                 const d = p[0] * nx + p[1] * ny + p[2] * nz, d0 = (x0 - a[0]) * nx + (y + lift - a[1]) * ny + (z0 - a[2]) * nz;
                 const side = d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
@@ -465,10 +474,12 @@ export class Track {
                 if (Math.abs(den) < 1e-9) continue;
                 const u = (d22 * q1 - d12 * q2) / den, v = (d11 * q2 - d12 * q1) / den;
                 let c = null;
-                if (u < 0 || v < 0 || u + v > 1) {   // beside the face: its outline, where it stands at this height
-                  const e = rim(x, y + lift, z, walls[t]);
-                  if (Math.abs(e[1] - (y + lift)) > 0.2) continue;
-                  const dx = x - e[0], dz = z - e[2], dh = Math.hypot(dx, dz);
+                // beside the face: its outline within the body, 0.55 (lower lips are climbed) to 2 (higher edges hang
+                // over the road: the kart drives under them, e.g. the face 2.2 over Mario Raceway's road at (59, 52))
+                if (u < 0 || v < 0 || u + v > 1) {
+                  const e = rim(x, z, y + 0.55, y + 2, walls[t]);
+                  if (!e) continue;
+                  const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
                   c = { depth: r - dh, nx: dx / dh, nz: dz / dh };
                 } else c = { depth: depth / h, nx: side * nx / h, nz: side * nz / h };
@@ -476,6 +487,12 @@ export class Track {
               }
             }
         if (!deepest) break;
+        // squeezed between opposite faces (a gap narrower than the body: Yoshi Valley's bridge at (-194, 89) for
+        // Bowser): sit halfway between, overlapping both equally, instead of bouncing from one into the other
+        if (hit && deepest.nx * hit.nx + deepest.nz * hit.nz < -0.5) {
+          hit = { x: x + deepest.nx * deepest.depth / 2, z: z + deepest.nz * deepest.depth / 2, nx: hit.nx, nz: hit.nz };
+          break;
+        }
         x += deepest.nx * deepest.depth; z += deepest.nz * deepest.depth;
         hit = { x, z, nx: deepest.nx, nz: deepest.nz };
       }

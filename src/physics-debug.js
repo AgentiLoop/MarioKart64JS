@@ -1,8 +1,8 @@
 // Physics overlay (P in a race, or ?physics): the collision the karts use, drawn over the course.
-// Red fill + outline: the steep faces that block karts (Track.wallTris, Track.wallPush in battle arenas).
+// Red fill + outline: the steep faces that block karts (Track.wallTris, Track.wallPush, arenas and race courses).
 // Race courses: yellow = the route's lateral wall limit (Track.wallAt), orange = where a kart's centre stops
-// (wallAt - 1.2, Kart.update). Per kart: cyan rings = the wall body at the two body heights wallPush tests
-// (0.6 and 2 above the ground, radius Kart.visualHalfWidth), magenta = the kart-to-kart bump radius (boxSize).
+// (wallAt - 1.2, Kart.update). Per kart: cyan rings = the wall body at 0.6 and 2 above the ground (wallPush
+// tests 0.6, 1.2 and 2; radius Kart.visualHalfWidth), magenta = the kart-to-kart bump radius (boxSize).
 import * as THREE from 'three';
 
 const RACE_MARGIN = 1.2;   // Kart.update: wall = wallAt - 1.2
@@ -62,7 +62,7 @@ export class PhysicsDebug {
     for (const [k, set] of this.rings) if (!karts.includes(k)) { set.forEach(m => { this.group.remove(m); m.geometry.dispose(); }); this.rings.delete(k); }
     for (const k of karts) {
       if (!this.rings.has(k)) {
-        const body = this.track.arena ? k.visualHalfWidth : RACE_MARGIN;
+        const body = k.visualHalfWidth;
         const set = [this.ring(body, 0x00e0ff), this.ring(body, 0x00e0ff), this.ring(k.boxSize * 0.1, 0xff40ff)];
         set.forEach(m => this.group.add(m));
         this.rings.set(k, set);
