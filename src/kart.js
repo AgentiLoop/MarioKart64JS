@@ -202,8 +202,8 @@ function blobShadowMap() {
 }
 
 // transparent rows under the wheels in each atlas frame (3-11 of 64 px, varying with the view and the character):
-// the sprite is dropped by that much so the wheels, not the frame's bottom edge, sit on the kart's origin and its
-// shadow. Measured once per character from the first tier that loads (same fractions at every HD scale).
+// the sprite's anchor (center.y) is raised by that much so the wheels, not the frame's bottom edge, sit on the kart's
+// origin and its shadow. Measured once per character from the first tier that loads (same fractions at every HD scale).
 const ATLAS_W = 1344, ATLAS_H = 1024, FRAME_COLS = 21, FRAME_ROWS = 16;
 const wheelGaps = new Map();   // character -> per frame, fraction of the frame height
 function measureWheelGaps(character, image) {
@@ -310,7 +310,10 @@ export function buildKartMesh(character = 'mario') {
     map.offset.set((column + (back ? 1 : 0)) / 21, 1 - (row + 1) / 16);
     material.rotation = g.userData.lean || 0;
     sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
-    sprite.position.y = gaps ? -gaps[view.frame] * sprite.scale.y : 0;   // wheels on the origin
+    // the frame's wheel row on the origin: an anchor in the sprite's own plane, not a drop of the sprite along the
+    // group's up (the ground normal), which on a slope pushed the sprite sideways into the hill and under a steep
+    // camera left the wheels below the ground
+    sprite.center.y = gaps ? gaps[view.frame] : 0;
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
