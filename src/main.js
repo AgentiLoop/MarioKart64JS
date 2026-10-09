@@ -21,6 +21,7 @@ import { Snowmen } from './snowmen.js';
 import { NeonSigns } from './neon.js';
 import { Chomps } from './chomps.js';
 import { Crabs } from './crabs.js';
+import { Hedgehogs } from './hedgehogs.js';
 import { YoshiEgg } from './yoshi-egg.js';
 
 const LAPS = 3;
@@ -281,6 +282,7 @@ const snowmen = trackDef?.id === 'frappe' ? new Snowmen(scene, trackDef, { mirro
 const neon = trackDef?.id === 'rainbow' ? new NeonSigns(scene, trackDef, { mirror }) : null;   // Rainbow Road neon signs
 const chomps = trackDef?.id === 'rainbow' ? new Chomps(scene, track, trackDef, { mirror, items, audio }) : null;   // Rainbow Road Chain Chomps
 const crabs = trackDef?.id === 'koopa' ? new Crabs(scene, track, trackDef, { mirror, items }) : null;   // Koopa Troopa Beach crabs
+const hedgehogs = trackDef?.id === 'yoshi' ? new Hedgehogs(scene, track, trackDef, { mirror, items }) : null;   // Yoshi Valley hedgehogs
 // his cloud's hum while he fishes a kart out or shows the reverse sign: 0x0100FA28 = SOUND_ARG_LOAD(0x01, 0x00, 0xFA, 0x28), bank 0
 lakitu.onHum = on => on ? audio.playSound(0, 0x28) : audio.stopSound(0, 0x28);
 // Sherbet Land's ice block: 0x1900A055 as it closes round the kart, 0x1900A056 as it breaks (bank 1)
@@ -1225,6 +1227,7 @@ function setViews(list) {
   neon?.reset();
   chomps?.reset();
   crabs?.reset();
+  hedgehogs?.reset();
 }
 // Viewport rects as fractions of the frame (x, y from the top-left, w, h).
 function viewRects(n) {
@@ -1451,11 +1454,12 @@ function frame(now) {
   neon?.update(dt);
   chomps?.update(dt, views.map(v => v.cam), karts);
   crabs?.update(dt, views.map(v => v.cam), karts);
+  hedgehogs?.update(dt, karts);
   exhaust.update(dt, karts, camera);
   drawMini();
   renderViews();
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, train, traffic, ferry, balloon, thwomps, snowmen, neon, chomps, crabs, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, train, traffic, ferry, balloon, thwomps, snowmen, neon, chomps, crabs, hedgehogs, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
   get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };

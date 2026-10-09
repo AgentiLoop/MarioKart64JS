@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MarioKart64JS</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Trebuchet MS", system-ui, sans-serif; }
+  canvas#game { display: block; width: 100%; height: 100%; }
+
+  /* ---------- native 320x240 menu screen, scaled uniformly to fit (4:3 letterbox like the N64 frame) ---------- */
+  /* zoom, not transform: scale(): WebKit rasterizes the composited frame (WebGL flag canvas) at 320x240 and stretches it, hiding the HD tiers */
+  #screen { position: fixed; inset: 0; margin: auto; width: 320px; height: 240px; zoom: 3; z-index: 5; display: none; background: #000; }
+  #screen img, #screen canvas { image-rendering: pixelated; }
+  .hd #screen img, .hd #screen canvas { image-rendering: auto; }   /* HD presets: smooth 2D scaling */
+  #res { position: fixed; top: 10px; left: 0; right: 0; text-align: center; font-size: 20px; font-weight: 700; color: #fff; text-shadow: 0 1px 0 #000, 0 0 4px #000; z-index: 7; display: none; pointer-events: none; }
+  #screen .scr { position: absolute; inset: 0; display: none; overflow: hidden; }
+  #screen .scr img { position: absolute; display: block; }
+  #screen .bg { left: 0; top: 0; width: 320px; height: 240px; }
+  #hint { position: fixed; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 13px; color: #fff; opacity: .75; font-weight: 700; text-shadow: 0 1px 0 #000, 0 0 4px #000; z-index: 6; display: none; pointer-events: none; }
+
+  /* ---------- title: START_MENU items at their ROM positions (menu_items.c / textures.c dX,dY) ---------- */
+  #titleFlag { position: absolute; left: 0; top: 0; width: 320px; height: 240px; }   /* render_checkered_flag, drawn after the background, under PUSH START and the logo */
+  #titleLogo { left: 32px; top: 7px; width: 256px; height: 128px; }      /* render_game_logo centred at (160,71) */
+  #copyright { left: 98px; top: 199px; width: 124px; height: 17px; }
+  #pushStart { left: 81px; top: 179px; width: 159px; height: 16px; }
+
+  /* ---------- main menu: MAIN_MENU (game select) at ROM positions (D_800E70A0, seg2_menu_Np_column, func_800A8270) ---------- */
+  #gameSelect { left: 61px; top: 17px; width: 200px; height: 32px; }
+  .pcol { position: absolute; top: 62px; width: 64px; height: 120px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .pcol .box { position: absolute; left: 0; width: 64px; height: 54px; background: rgb(1,1,1); }          /* 0x3F x 0x35 box under the NP GAME card */
+  .pcol .mbox { position: absolute; left: 0; width: 64px; height: 18px; background: rgb(1,1,1); }         /* mode rows: row + 0x41 + 0x12 * i */
+  .pcol .card { left: 0; top: 0; width: 64px; height: 54px; }
+  .pcol .mode { left: 0; width: 64px; height: 18px; }
+  .pcol .tri { left: 27px; top: 56px; width: 12px; height: 7px; }
+  .pcol.gone { display: none; }                                                                            /* MODE_SELECT: the other columns close up */
+  /* MAIN_MENU_MODE_SUB_SELECT: 50cc/100cc/150cc/EXTRA rows slide out right of the chosen mode row (func_800A9E58, D_800E70E8) */
+  #ccrows { position: absolute; left: 0; top: 0; }
+  .ccrow { position: absolute; width: 64px; height: 18px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .ccrow .box { position: absolute; left: 0; top: 0; width: 64px; height: 18px; background: rgb(1,1,1); }
+  .ccrow img { position: absolute; left: 0; top: 0; width: 64px; height: 18px; }
+  #gameSel .lr { position: absolute; top: 200px; width: 58px; height: 19px; }                              /* OPTION (21,200), DATA (85,200) */
+  #gameSel .lr .box { position: absolute; left: 0; top: 0; width: 58px; height: 19px; background: rgb(1,1,1); }
+  #gameSel .lr img { left: 0; top: 0; width: 58px; height: 19px; }
+  #optionBtn { left: 21px; }
+  #dataBtn { left: 85px; }
+
+  /* ---------- course select: COURSE_SELECT_MENU at ROM positions (gMenuTexturesTrackSelection, D_800E7148/7168/7208) ---------- */
+  #mapSelect { left: 65px; top: 18px; width: 190px; height: 32px; }
+  #menu button { position: absolute; background: none; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .cup { width: 65px; height: 40px; top: 59px; }
+  .cup .box { position: absolute; left: 0; top: 0; width: 64px; height: 39px; background: rgb(1,1,1); }    /* func_800A890C */
+  .cup img { left: 0; top: 0; width: 65px; height: 40px; }
+  .prev { width: 64px; height: 39px; }
+  .prev img, #prevBig img { left: 0; top: 0; width: 100%; height: 100%; }
+  #prevBig { position: absolute; left: 23px; top: 112px; width: 128px; height: 78px; }
+  .cname { left: 157px; width: 140px; height: 18px; }
+  .cname .box { position: absolute; left: 0; top: 0; width: 139px; height: 17px; background: rgb(1,1,1); }  /* func_800A8A98, D_800E7208 */
+  .cname img { left: 0; top: 0; width: 140px; height: 18px; }
+  #courseOk { left: 265px; top: 208px; width: 31px; height: 19px; }
+  #courseOk .box { position: absolute; left: 0; top: 0; width: 30px; height: 18px; background: rgb(1,1,1); }
+  #courseOk img { left: 0; top: 0; width: 31px; height: 19px; }
+
+  /* ---------- character select: CHARACTER_SELECT_MENU at ROM positions (D_800E7108, D_02004B4C, D_02004B74) ---------- */
+  #charBanner { left: 51px; top: 16px; width: 220px; height: 32px; }
+  .char { position: absolute; width: 64px; height: 76px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; transition: left .25s, top .25s, transform .2s; }
+  .char.closed { transform: scaleX(0); pointer-events: none; }   /* func_8009BC9C param1 -> 0x20: portrait closes from both sides */
+  .char .holder { position: absolute; left: 0; top: 0; width: 64px; height: 64px; overflow: hidden; }
+  .char .face { left: 0; width: 64px; height: 1088px; }           /* 17 stacked 64x64 frames */
+  .char .name { left: 0; top: 64px; width: 64px; height: 12px; }
+  #screen .char .border { left: 0; top: 0; width: 64px; height: 64px; display: none; pointer-events: none; }   /* #screen: must beat "#screen .scr img { display: block }" */
+  #screen .char.cursor .border { display: block; }
+  #charOk { position: absolute; left: 264px; top: 202px; width: 31px; height: 19px; background: none; border: none; padding: 0; margin: 0; cursor: pointer; transition: transform .2s; }
+  #charOk.closed { transform: scaleX(0); pointer-events: none; }   /* collapsed (param1 = 0x20) until a driver is picked */
+  #charOk .box { position: absolute; left: 0; top: 0; width: 30px; height: 18px; background: rgb(1,1,1); }   /* func_800A8564 box */
+  #charOk img { left: 0; top: 0; width: 31px; height: 19px; }
+
+  /* ---------- OPTION (L) / DATA (R): text panels over the main menu background (no ROM layout reproduced) ---------- */
+  .lrscr .head { position: absolute; left: 0; right: 0; top: 14px; text-align: center; font: italic 900 22px "Arial Black", "Trebuchet MS", sans-serif; color: #ffd23a; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000; }
+  .lrscr .panel { position: absolute; left: 20px; right: 20px; top: 50px; bottom: 16px; background: rgba(0,0,0,.72); color: #fff; font: 700 9px "Trebuchet MS", system-ui, sans-serif; padding: 6px 8px; box-sizing: border-box; }
+  .lrscr .row { padding: 3px 4px; margin: 2px 0; }
+  .lrscr .row.on { background: #fff; color: #000; }
+  .lrscr .msg { margin-top: 8px; color: #ff8a7a; min-height: 1em; }
+  #dataGrid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-flow: column; grid-template-rows: repeat(4, auto); gap: 3px; }
+  #dataGrid .row { margin: 0; font-size: 7px; line-height: 1.3; }
+  #dataGrid .row b { display: block; color: #7dff6a; }
+  #dataGrid .row.on b { color: #070; }
+  .lrscr table { width: 100%; border-collapse: collapse; }
+  .lrscr td { padding: 2px 4px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; display: none; }
+  /* place: outline drawn on a separate layer underneath the fill so the "th" stroke never crosses the number */
+  /* padding: the italic overhang of "th" must stay inside the box, or background-clip:text cuts it off */
+  #pos, #posStroke { position: absolute; left: 24px; bottom: 20px; padding: 0 28px 0 8px; font-size: 128px; font-style: italic; line-height: 1; text-shadow: none; }
+  #posStroke { color: #1a1a6e; }
+  #pos { color: #ffe033; background: linear-gradient(#fff36b, #ff9d00); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  #pos small, #posStroke small { font-size: 44px; }
+  #lap { position: absolute; right: 24px; top: 16px; font-size: 34px; text-align: right; color: #ffe033; }
+  #time { font-size: 24px; color: #fff; font-family: "Courier New", monospace; letter-spacing: 1px; }
+  #speed { position: absolute; right: 24px; bottom: 20px; font-size: 56px; font-style: italic; color: #7dff6a; }
+  #speed small { font-size: 22px; color: #fff; }
+  #banner { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-size: 150px; font-style: italic; color: #ffd23a; }
+  #mini { position: absolute; left: 20px; top: 20px; width: 170px; height: 170px; background: rgba(0,0,40,.45); border-radius: 12px; border: 4px solid #fff; box-shadow: 0 0 0 3px #1a1a6e, 0 4px 0 3px #000; }
+  /* MK64 item window (draw_item_window): 40x32 ROM icon centred at x 160, sliding down from y -32 to 32 */
+  #item { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: none; text-align: center; font-size: 22px; white-space: nowrap; }
+  #itemWin { display: block; margin: 0 auto; image-rendering: pixelated; }
+  .hd #itemWin { image-rendering: auto; }   /* HD presets: smooth 2x/4x icons */
+  #help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 13px; opacity: .7; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
+
+  /* ---------- split screen: #hud sits in the local player's viewport (zoomed down); the others get place / lap / name ---------- */
+  .vhud { position: fixed; pointer-events: none; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; }
+  .vhud .vpos { position: absolute; left: 24px; bottom: 20px; font-size: 128px; font-style: italic; line-height: 1; color: #ffe033; padding: 0 28px 0 8px; }
+  .vhud .vpos small { font-size: 44px; }
+  .vhud .vlap { position: absolute; right: 24px; top: 16px; font-size: 34px; color: #ffe033; }
+  .vhud .vname { position: absolute; left: 24px; top: 16px; font-size: 26px; color: #7dff6a; }
+
+  /* ---------- online lobby (2P-4P GAME): waits for the other players over the attract fly-along ---------- */
+  #lobby { position: fixed; inset: 0; display: none; z-index: 8; color: #fff; font-weight: 900; font-family: "Arial Black", "Trebuchet MS", system-ui, sans-serif; text-align: center; text-shadow: 3px 0 #000, -3px 0 #000, 0 3px #000, 0 -3px #000, 2px 2px #000, -2px -2px #000, 2px -2px #000, -2px 2px #000; background: rgba(0,0,30,.35); }
+  #lobbyTitle { margin-top: 14vh; font-size: 46px; font-style: italic; color: #ffd23a; }
+  #lobbyCount { font-size: 120px; font-style: italic; line-height: 1.1; color: #ffe033; }
+  #lobbyList { font-size: 30px; line-height: 1.4; min-height: 6em; }
+  #lobbyList div { color: #7dff6a; }
+  #lobbyList div.me { color: #fff; }
+  #lobbyMsg { font-size: 22px; color: #ff8a7a; min-height: 1.4em; }
+  #lobbyHint { position: absolute; left: 0; right: 0; bottom: 40px; font-size: 16px; opacity: .8; font-weight: 700; font-family: "Trebuchet MS", system-ui, sans-serif; text-shadow: 0 1px 0 #000, 0 0 4px #000; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- 320x240 native menu frame: title / course select / character select, all at ROM pixel positions -->
+<div id="screen">
+  <!-- START_MENU: blue-sky background, waving checkered flag (START_MENU_FLAG), logo, copyright, flashing PUSH START -->
+  <div id="title" class="scr">
+    <img id="titleBg" class="bg" alt="" src="/mk64/menu/background_blue_sky.png" data-hd="menu/background_blue_sky.png" />
+    <canvas id="titleFlag" width="320" height="240"></canvas>
+    <img id="titleLogo" alt="MarioKart64JS" src="/mk64/menu/logo_mario_kart_64.png" data-hd="menu/logo_mario_kart_64.png" />
+    <img id="copyright" alt="" src="/mk64/menu/copyright_1996.png" data-hd="menu/copyright_1996.png" />
+    <img id="pushStart" alt="" src="/mk64/menu/push_start_button.png" data-hd="menu/push_start_button.png" />
+  </div>
+
+  <!-- MAIN_MENU: tinted background, GAME SELECT banner, 1P..4P GAME columns with their mode rows, OPTION / DATA -->
+  <div id="gameSel" class="scr">
+    <img id="gameBg" class="bg" alt="" src="/mk64/menu/background_main_menu.png" data-hd="menu/background_main_menu.png" />
+    <img id="gameSelect" alt="Game select" src="/mk64/mainmenu/game_select.png" data-hd="mainmenu/game_select.png" />
+    <div id="pcols"></div>
+    <div id="ccrows"></div>
+    <div id="optionBtn" class="lr" role="button" style="cursor:pointer"><div class="box"></div><img alt="Option" src="/mk64/mainmenu/l_option.png" data-hd="mainmenu/l_option.png" /></div>
+    <div id="dataBtn" class="lr" role="button" style="cursor:pointer"><div class="box"></div><img alt="Data" src="/mk64/mainmenu/r_data.png" data-hd="mainmenu/r_data.png" /></div>
+  </div>
+
+  <!-- COURSE_SELECT_MENU: tinted background, MAP SELECT banner, cup icons, course previews, title plates, OK -->
+  <div id="menu" class="scr">
+    <img id="menuBg" class="bg" alt="" src="/mk64/menu/background_course_select.png" data-hd="menu/background_course_select.png" />
+    <img id="mapSelect" alt="Map select" src="/mk64/courseselect/map_select.png" data-hd="courseselect/map_select.png" />
+    <div id="cups"></div>
+    <div id="prevs"></div>
+    <div id="prevBig"><img alt="" src="" /></div>
+    <div id="cnames"></div>
+    <button id="courseOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" data-hd="charselect/ok.png" /></button>
+  </div>
+
+  <!-- CHARACTER_SELECT_MENU: tinted background, PLAYER SELECT banner, 8 portraits + names, P1 border cursor, OK -->
+  <div id="char" class="scr">
+    <img id="charBg" class="bg" alt="" src="/mk64/menu/background_player_select.png" data-hd="menu/background_player_select.png" />
+    <img id="charBanner" alt="" src="/mk64/charselect/player_select_banner.png" data-hd="charselect/player_select_banner.png" />
+    <div id="charGrid"></div>
+    <button id="charOk" aria-label="OK"><div class="box"></div><img alt="" src="/mk64/charselect/ok.png" data-hd="charselect/ok.png" /></button>
+  </div>
+
+  <!-- OPTIONS_MENU (L on GAME SELECT) and DATA_MENU / COURSE_DATA_MENU (R) -->
+  <div id="opt" class="scr lrscr">
+    <img class="bg" alt="" src="/mk64/menu/background_main_menu.png" data-hd="menu/background_main_menu.png" />
+    <div class="head">OPTION</div>
+    <div class="panel" id="optList"></div>
+  </div>
+  <div id="data" class="scr lrscr">
+    <img class="bg" alt="" src="/mk64/menu/background_main_menu.png" data-hd="menu/background_main_menu.png" />
+    <div class="head" id="dataHead">DATA</div>
+    <div class="panel" id="dataList"></div>
+  </div>
+</div>
+<div id="hint"></div>
+<div id="res"></div>
+
+<div id="hud">
+  <canvas id="mini" width="340" height="340"></canvas>
+  <div id="lap"><div id="lapText">LAP 1/3</div><div id="time">0:00.00</div></div>
+  <div id="item"><img id="itemWin" alt="" /><div id="itemName"></div></div>
+  <div id="posStroke">1<small>st</small></div>
+  <div id="pos">1<small>st</small></div>
+  <div id="speed">0<small> km/h</small></div>
+  <div id="banner"></div>
+  <div id="help">↑/W gas · ↓/S brake · ←→/AD steer · Space drift (release for mini-turbo) · Shift/E use item (Q: same, but a banana is thrown ahead) · Delete restart · Gamepad: A gas, B brake, LB/RB drift, X item, Start restart · M course menu · N music on/off · G resolution 1×/2×/4×/Native</div>
+</div>
+<div id="lobby">
+  <div id="lobbyTitle">WAITING FOR PLAYERS</div>
+  <div id="lobbyCount"></div>
+  <div id="lobbyList"></div>
+  <div id="lobbyMsg"></div>
+  <div id="lobbyHint">Players joining within the countdown race together · Enter races the CPU instead · Esc goes back to the menu</div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
