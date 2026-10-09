@@ -1,21 +1,24 @@
-// "New: Boss-Man!" nav banner: Pete chomps dots through a neon cubicle maze
-// with the four bosses on his tail. Canvas 2D; falls back to the CSS gradient.
+// Boss-Man banners (nav bar + the big card): Pete chomps dots through a neon
+// cubicle maze with the four bosses on his tail. Canvas 2D; falls back to CSS.
 (function () {
-  var cv = document.getElementById('bmb-cv');
-  if (!cv) return;
+  var cvs = [document.getElementById('bmb-cv')].concat([].slice.call(document.querySelectorAll('.bm-cv')));
+  cvs.forEach(function (cv) { if (cv) run(cv, cv.classList.contains('bm-cv')); });
+  function run(cv, big) {
   var g = cv.getContext('2d');
   if (!g) { cv.remove(); return; }
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   var bosses = ['#ff3b3b', '#ff7ad9', '#2ee6c5', '#ffa43a'];
-  var W = 0, H = 0, dpr = 1, t = 0, boost = 0, bb = 0, last = performance.now();
-  var a = cv.parentNode;
+  var W = 0, H = 0, dpr = 1, k = 1, t = 0, boost = 0, bb = 0, last = performance.now();
+  var a = cv.closest('a') || cv.parentNode;
   a.addEventListener('mouseenter', function () { boost = 1; });
   a.addEventListener('mouseleave', function () { boost = 0; });
   function size() {
     dpr = Math.min(devicePixelRatio || 1, 2);
     var w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    W = cv.clientWidth; H = cv.clientHeight;
+    // the big card draws the same 52px-tall scene, scaled up to its strip
+    k = big ? cv.clientHeight / 52 : 1;
+    W = cv.clientWidth / k; H = cv.clientHeight / k;
   }
   function maze(off) {
     // scrolling cubicle walls: neon blue rounded bars on a grid
@@ -62,10 +65,13 @@
     bb += (boost - bb) * Math.min(dt * 4, 1);
     t += dt * (1 + bb * 1.8);
     size();
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var bg = g.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#05061f'); bg.addColorStop(1, '#0d1440');
-    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+    if (big) g.clearRect(0, 0, W, H);
+    else {
+      var bg = g.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#05061f'); bg.addColorStop(1, '#0d1440');
+      g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    }
     maze(t * 40);
     var y = H / 2, r = Math.min(10, H * .2), span = W + 260;
     var px = ((t * 110) % span) - 60;
@@ -73,10 +79,10 @@
     for (var dx = 14, i = 0; dx < W + 20; dx += 22, i++) {
       var dxx = dx - ((t * 40) % 22);
       if (dxx < px + r * .4 && dxx > px - 400) continue;
-      var big = ((i + Math.floor(t * 40 / 22)) % 6) === 0;
-      g.fillStyle = big ? '#ffffff' : '#ffd23f';
-      g.globalAlpha = big ? .6 + .4 * Math.sin(t * 8) : .9;
-      g.beginPath(); g.arc(dxx, y, big ? 3.5 : 1.8, 0, 7); g.fill();
+      var pel = ((i + Math.floor(t * 40 / 22)) % 6) === 0;
+      g.fillStyle = pel ? '#ffffff' : '#ffd23f';
+      g.globalAlpha = pel ? .6 + .4 * Math.sin(t * 8) : .9;
+      g.beginPath(); g.arc(dxx, y, pel ? 3.5 : 1.8, 0, 7); g.fill();
     }
     g.globalAlpha = 1;
     // red stapler fleeing just ahead of Pete
@@ -89,4 +95,5 @@
   }
   addEventListener('resize', function () { if (still) frame(performance.now()); });
   requestAnimationFrame(frame);
+  }
 })();

@@ -92,20 +92,11 @@ kbd{font:700 14px ui-monospace,Menlo,monospace;background:linear-gradient(180deg
 .bm-tag{max-width:560px;font-size:18px;color:#f1eaff}
 .bm-cta{position:relative;z-index:1;white-space:nowrap;font-weight:900;font-size:18px;padding:16px 26px;border-radius:999px;color:#1a0638;background:linear-gradient(90deg,#ffe600,#ff9a1f);box-shadow:0 6px 0 #a3330a,0 0 30px rgba(255,230,0,.6);animation:bmPulse 1.6s ease-in-out infinite}
 .bm:hover .bm-cta{background:linear-gradient(90deg,#19e3d0,#ffe600)}
-.bm-chase{position:absolute;left:0;right:0;bottom:24px;height:40px;z-index:1;overflow:hidden}
-.bm-chase>*{position:absolute;top:4px}
-.bm-pete{width:32px;height:32px;border-radius:50%;background:conic-gradient(from 120deg,#ffe600 0 300deg,transparent 0);animation:bmRun 7s linear infinite,bmChomp .25s steps(2) infinite;filter:drop-shadow(0 0 8px #ffe600)}
-.bm-boss{width:30px;height:32px;border-radius:15px 15px 4px 4px;background:var(--c);filter:drop-shadow(0 0 10px var(--c));animation:bmRun 7s linear infinite}
-.bm-boss::before{content:"";position:absolute;top:9px;left:5px;width:20px;height:8px;background:radial-gradient(circle at 4px 4px,#1a0638 2px,#fff 3px,transparent 4px) 0 0/10px 8px repeat-x}
-.bm-boss::after{content:"";position:absolute;top:19px;left:9px;width:12px;height:4px;background:#1a0638;border-radius:2px}
-.bm-boss:nth-of-type(1){animation-delay:-6.1s}.bm-boss:nth-of-type(2){animation-delay:-5.6s}.bm-boss:nth-of-type(3){animation-delay:-5.1s}.bm-boss:nth-of-type(4){animation-delay:-4.6s}
-.bm-dots{left:0;right:0;display:flex;justify-content:space-around;top:14px}
-.bm-dots i{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 10px #fff}
+.bm-chase{position:absolute;left:6px;right:6px;bottom:12px;height:72px;z-index:1;overflow:hidden}
+.bm-cv{display:block;width:100%;height:100%}
 @keyframes bmFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 @keyframes bmShine{0%,60%{left:-40%}100%{left:130%}}
 @keyframes bmPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-@keyframes bmRun{from{left:-60px}to{left:calc(100% + 60px)}}
-@keyframes bmChomp{0%{background:conic-gradient(from 120deg,#ffe600 0 300deg,transparent 0)}100%{background:#ffe600}}
 @media (max-width:760px){.bm{grid-template-columns:1fr;padding:28px 22px 88px}.bm-cta{justify-self:start}}
 @media (prefers-reduced-motion:reduce){.bm,.bm *,.bm::after{animation:none!important}}
 
