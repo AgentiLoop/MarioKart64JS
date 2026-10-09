@@ -90,8 +90,7 @@ export class Thwomps {
       map.colorSpace = THREE.SRGBColorSpace;
       map.flipY = false;
       map.wrapS = THREE.MirroredRepeatWrapping;   // rsp_load_texture_mask: S mirrored at 16 texels, T clamped
-      map.wrapT = THREE.ClampToEdgeWrapping;
-      map.magFilter = THREE.NearestFilter;
+      map.wrapT = THREE.ClampToEdgeWrapping;   // filtering comes from HD.loadTexture: nearest at 1x, smooth in HD tiers
       return map;
     });
     this.lights = Object.fromEntries(Object.entries(data.typeLights).map(([k, { ambient, color: c, direction }]) =>
