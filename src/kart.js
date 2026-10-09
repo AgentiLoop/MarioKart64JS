@@ -864,7 +864,7 @@ export class Kart {
     this.up.crossVectors(right, this.fwd).normalize();
     const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
     this.mesh.quaternion.setFromRotationMatrix(m);
-    this.mesh.userData.lean = this.steerVis * 0.08;   // no drift roll: the slide shows as the nose turning in (h vs slip), wheels on the ground
+    this.mesh.userData.lean = 0;   // no body-roll: steering and drift show as the nose turning (sprite view angle), wheels on the ground
     this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
@@ -1119,8 +1119,8 @@ export class Kart {
     this.up.crossVectors(right, this.fwd).normalize();
     const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
     this.mesh.quaternion.setFromRotationMatrix(m);
-    // body-roll when steering only: a drift turns the nose in (psi runs ahead of phi), the sprite stays level on the road
-    this.mesh.userData.lean = this.steerVis * 0.08;
+    // no body-roll: steering and drift both show as the nose turning (sprite view angle), the wheels stay on the road
+    this.mesh.userData.lean = 0;
     this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
