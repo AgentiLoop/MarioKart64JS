@@ -246,7 +246,8 @@ function measureWheelGaps(character, image) {
 export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
   let wheels = wheelGaps.get(character) ?? null;
-  const map = HD.loadTexture(`karts/${character}.png`, { onLoad: tex => { wheels ??= measureWheelGaps(character, tex.image); } });   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
+  // the sprite draws nothing until the atlas has loaded (alphaTest on an empty texture): the shadow waits for it too
+  const map = HD.loadTexture(`karts/${character}.png`, { onLoad: tex => { wheels ??= measureWheelGaps(character, tex.image); applyShadow(); } });   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
   map.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
   // func_8004B614's combiner (1 - ENV) * TEXEL0 + PRIM with ENV 0: the item effects' prim colour added to the
@@ -275,11 +276,12 @@ export function buildKartMesh(character = 'mario') {
   let shadowAlpha = 1, shadowHeight = 0;
   const applyShadow = () => {
     const k = Math.max(0, 1 - shadowHeight / SHADOW_FADE);
-    shadow.visible = k > 0;
+    shadow.visible = k > 0 && !!map.image;
     shadow.position.y = 0.05 - shadowHeight;
     shadow.scale.setScalar(0.5 + 0.5 * k);
     shadowMaterial.opacity = SHADOW_OPACITY * k * shadowAlpha;
   };
+  applyShadow();
   // h: height of the kart's base over the ground under it (Infinity: no ground)
   g.userData.setShadow = h => { shadowHeight = h; applyShadow(); };
   // the sprite stands upright through the kart's origin, so its wheels read as touching the ground there: a shadow
