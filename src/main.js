@@ -1266,13 +1266,21 @@ const _cf = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vec
 const CINE_SHOTS = ['front', 'side', 'high', 'side', 'low', 'side'];
 function cinematicCamera(dt, v, k) {
   const camera = v.cam;
-  if (!v.cine) v.cine = { t: 0, shot: 0, side: 1, s: 0, pos: new THREE.Vector3(), off: new THREE.Vector3(), cut: true };
+  if (!v.cine) v.cine = { t: 0, shot: 0, side: 1, s: 0, pos: new THREE.Vector3(), off: new THREE.Vector3(), cut: true, fwd: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0) };
   const c = v.cine, kind = CINE_SHOTS[c.shot % CINE_SHOTS.length];
   c.t += dt;
   const next = () => { c.shot++; c.t = 0; c.side = -c.side; c.cut = true; c.placed = false; c.s = k.s + 55; };
-  // tracking shots are an offset in the kart's frame (back, lift, yaw round it) so the camera never falls
+  // the tracking shots hang off a heavily smoothed copy of the kart's heading, not the heading itself: the AI's
+  // steering corrections wobble k.fwd a few degrees every frame, and 16-30 units out that swings the camera around
+  // the kart and makes it look like it is turning in jerks. Cuts snap the smoothed frame to the kart.
+  if (c.cut) { c.fwd.copy(k.fwd); c.up.copy(k.up); }
+  else {
+    c.fwd.lerp(k.fwd, 1 - Math.exp(-dt * 2)).normalize();
+    c.up.lerp(k.up, 1 - Math.exp(-dt * 2)).normalize();
+  }
+  // tracking shots are an offset in the kart's (smoothed) frame (back, lift, yaw round it) so the camera never falls
   // behind a moving kart and ends up on top of it; cuts snap the offset, otherwise it eases
-  const rel = (back, lift, yaw = 0) => k.fwd.clone().multiplyScalar(-back).applyAxisAngle(k.up, yaw).addScaledVector(k.up, lift);
+  const rel = (back, lift, yaw = 0) => c.fwd.clone().multiplyScalar(-back).applyAxisAngle(c.up, yaw).addScaledVector(c.up, lift);
   let target = null, fov = 55, lookAhead = 0;
   if (kind === 'front') {   // orbit from well behind the kart round to its nose over ~2.5 s, then ride far ahead of it
     const a = Math.PI * THREE.MathUtils.smoothstep(c.t, 0.3, 2.8);
@@ -1304,8 +1312,8 @@ function cinematicCamera(dt, v, k) {
     const g = track.groundAt?.(v.pos.x, v.pos.z, v.pos.y) || track.groundBelow?.(v.pos.x, v.pos.z, v.pos.y + 5);
     if (g && v.pos.y < g.y + 2.5) v.pos.y = g.y + 2.5;
   } else v.pos.copy(c.pos);
-  v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
-  const look = k.world.clone().addScaledVector(k.up, 1.4).addScaledVector(k.fwd, lookAhead);
+  v.up.lerp(c.up, 1 - Math.exp(-dt * 4)).normalize();
+  const look = k.world.clone().addScaledVector(c.up, 1.4).addScaledVector(c.fwd, lookAhead);
   if (!v.init) { v.look.copy(look); camera.fov = fov; } else v.look.lerp(look, 1 - Math.exp(-dt * 10));
   camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
@@ -1530,4 +1538,4 @@ function frame(now) {
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
 window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, train, traffic, ferry, balloon, thwomps, snowmen, neon, chomps, crabs, hedgehogs, physicsDebug, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
-  get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };
+  get state() { return state; }, get raceTime() { return raceTime; }, get views() { return views; }, keys, renderer, scene, camera };
