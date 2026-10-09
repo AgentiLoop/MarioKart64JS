@@ -184,9 +184,54 @@ export function kartSpriteFrame(angle, spinning = false) {
 const VIEW_RATE = 10, VIEW_BAND = 1 * Math.PI / 180, VIEW_SNAP = 30 * Math.PI / 180;
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
+// blob shadow under the kart (the original's ground shadow): a soft dark ellipse on the ground, smaller and fainter
+// with height and gone past SHADOW_FADE units up. One gradient texture for every kart.
+const SHADOW_FADE = 12, SHADOW_OPACITY = 0.5, SHADOW_PUSH = 1.1;
+let shadowMap = null;
+function blobShadowMap() {
+  if (shadowMap) return shadowMap;
+  const n = 64, data = new Uint8Array(n * n * 4);   // black, alpha 1 in the middle to 0.8 at half radius to 0 at the rim
+  for (let i = 0; i < n * n; i++) {
+    const r = Math.hypot((i % n) + 0.5 - n / 2, Math.floor(i / n) + 0.5 - n / 2) / (n / 2);
+    data[i * 4 + 3] = 255 * (r < 0.5 ? 1 - 0.4 * r : Math.max(0, 1.6 * (1 - r)));
+  }
+  shadowMap = new THREE.DataTexture(data, n, n);
+  shadowMap.magFilter = shadowMap.minFilter = THREE.LinearFilter;
+  shadowMap.needsUpdate = true;
+  return shadowMap;
+}
+
+// transparent rows under the wheels in each atlas frame (3-11 of 64 px, varying with the view and the character):
+// the sprite is dropped by that much so the wheels, not the frame's bottom edge, sit on the kart's origin and its
+// shadow. Measured once per character from the first tier that loads (same fractions at every HD scale).
+const ATLAS_W = 1344, ATLAS_H = 1024, FRAME_COLS = 21, FRAME_ROWS = 16;
+const wheelGaps = new Map();   // character -> per frame, fraction of the frame height
+function measureWheelGaps(character, image) {
+  if (wheelGaps.has(character)) return wheelGaps.get(character);
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = ATLAS_W; canvas.height = ATLAS_H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, ATLAS_W, ATLAS_H);
+  const px = ctx.getImageData(0, 0, ATLAS_W, ATLAS_H).data, fw = ATLAS_W / FRAME_COLS, fh = ATLAS_H / FRAME_ROWS;
+  const gaps = new Float32Array(FRAME_COLS * FRAME_ROWS);
+  for (let f = 0; f < gaps.length; f++) {
+    const x0 = (f % FRAME_COLS) * fw, y0 = Math.floor(f / FRAME_COLS) * fh;
+    let gap = 0;
+    rows: for (; gap < fh; gap++) {
+      const y = y0 + fh - 1 - gap;
+      for (let x = x0; x < x0 + fw; x++) if (px[(y * ATLAS_W + x) * 4 + 3] >= 128) break rows;   // alphaTest 0.5
+    }
+    gaps[f] = gap < fh ? gap / fh : 0;
+  }
+  wheelGaps.set(character, gaps);
+  return gaps;
+}
+
 export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
-  const map = HD.loadTexture(`karts/${character}.png`);   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
+  let gaps = wheelGaps.get(character) ?? null;
+  const map = HD.loadTexture(`karts/${character}.png`, { onLoad: tex => { gaps ??= measureWheelGaps(character, tex.image); } });   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
   map.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
   // func_8004B614's combiner (1 - ENV) * TEXEL0 + PRIM with ENV 0: the item effects' prim colour added to the
@@ -206,6 +251,36 @@ export function buildKartMesh(character = 'mario') {
   sprite.center.set(0.5, 0);
   sprite.scale.set(4.5, 4.5, 1);
   g.add(sprite);
+  const shadowMaterial = new THREE.MeshBasicMaterial({ map: blobShadowMap(), transparent: true, opacity: SHADOW_OPACITY, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4, toneMapped: false });
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 3.4), shadowMaterial);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.05;
+  g.add(shadow);
+  let shadowAlpha = 1, shadowHeight = 0;
+  const applyShadow = () => {
+    const k = Math.max(0, 1 - shadowHeight / SHADOW_FADE);
+    shadow.visible = k > 0;
+    shadow.position.y = 0.05 - shadowHeight;
+    shadow.scale.setScalar(0.5 + 0.5 * k);
+    shadowMaterial.opacity = SHADOW_OPACITY * k * shadowAlpha;
+  };
+  // h: height of the kart's base over the ground under it (Infinity: no ground)
+  g.userData.setShadow = h => { shadowHeight = h; applyShadow(); };
+  // the sprite stands upright through the kart's origin, so its wheels read as touching the ground there: a shadow
+  // centred on the origin spread toward the camera and made the kart look like it hovered. It is pushed away from
+  // the camera so its near edge sits under the wheels.
+  const shadowCam = new THREE.Vector3(), shadowInverse = new THREE.Quaternion();
+  shadow.onBeforeRender = (_renderer, _scene, camera) => {
+    camera.getWorldPosition(shadowCam);
+    g.getWorldQuaternion(shadowInverse).invert();
+    shadowCam.sub(g.position).applyQuaternion(shadowInverse);
+    const d = Math.hypot(shadowCam.x, shadowCam.z), push = d > 1e-6 ? SHADOW_PUSH * shadow.scale.x / d : 0;
+    shadow.position.x = -shadowCam.x * push;
+    shadow.position.z = -shadowCam.z * push;
+    shadow.updateMatrixWorld();
+    shadow.modelViewMatrix.multiplyMatrices(camera.matrixWorldInverse, shadow.matrixWorld);
+  };
   const cameraPosition = new THREE.Vector3(), local = new THREE.Vector3(), inverse = new THREE.Quaternion();
   const held = new WeakMap();   // per camera: the view angle the frame was last picked from
   sprite.onBeforeRender = (_renderer, _scene, camera) => {
@@ -235,6 +310,7 @@ export function buildKartMesh(character = 'mario') {
     map.offset.set((column + (back ? 1 : 0)) / 21, 1 - (row + 1) / 16);
     material.rotation = g.userData.lean || 0;
     sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
+    sprite.position.y = gaps ? -gaps[view.frame] * sprite.scale.y : 0;   // wheels on the origin
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
@@ -243,8 +319,9 @@ export function buildKartMesh(character = 'mario') {
   g.userData.setAlpha = a => {
     if (material.transparent !== a < 1) { material.transparent = a < 1; material.depthWrite = a >= 1; material.needsUpdate = true; }
     material.opacity = a;
+    shadowAlpha = a; applyShadow();
   };
-  g.userData.dispose = () => { map.dispose(); material.dispose(); };
+  g.userData.dispose = () => { map.dispose(); material.dispose(); shadow.geometry.dispose(); shadowMaterial.dispose(); };
   return g;
 }
 
@@ -730,6 +807,12 @@ export class Kart {
     this.syncFree(dt);
   }
 
+  // blob shadow on the ground under the kart (g: that ground, null on the route plane or over the void)
+  syncShadow(g) {
+    const lift = this.tumble ? this.tumble.lift * 0.1 : 0;
+    this.mesh.userData.setShadow((g ? Math.max(0, this.world.y - g.y) : this.air ? Infinity : 0) + lift);
+  }
+
   syncFree(dt = 0) {
     const t = this.track, x = this.x, z = this.z, px = this.prevX ?? x, pz = this.prevZ ?? z;
     this.prevX = x; this.prevZ = z;
@@ -760,6 +843,7 @@ export class Kart {
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
+    this.syncShadow(g);
   }
 
   // Battle balloons (code_80057C60.c). update_player_one_balloon_position: each hangs from a point
@@ -1015,5 +1099,6 @@ export class Kart {
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
+    this.syncShadow(g);
   }
 }
