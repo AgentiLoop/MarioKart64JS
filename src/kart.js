@@ -308,12 +308,17 @@ export function buildKartMesh(character = 'mario') {
     const column = view.frame % 21, row = Math.floor(view.frame / 21), back = view.mirrored !== flip;
     map.repeat.set((back ? -1 : 1) / 21, 1 / 16);
     map.offset.set((column + (back ? 1 : 0)) / 21, 1 - (row + 1) / 16);
-    material.rotation = g.userData.lean || 0;
+    const lean = g.userData.lean || 0;
+    material.rotation = lean;
     sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
     // the frame's wheel row on the origin: an anchor in the sprite's own plane, not a drop of the sprite along the
     // group's up (the ground normal), which on a slope pushed the sprite sideways into the hill and under a steep
-    // camera left the wheels below the ground
-    sprite.center.y = gaps ? gaps[view.frame] : 0;
+    // camera left the wheels below the ground. The lean rolls the sprite about that anchor, dropping the outer wheel
+    // halfWidth * sin|lean| under the origin: the anchor is moved (pre-rotation, so it comes out as a pure lift on
+    // screen) to keep the low wheel on the origin.
+    const lift = 2.25 * Math.abs(Math.sin(lean));
+    sprite.center.x = 0.5 - lift * Math.sin(lean) / 4.5;
+    sprite.center.y = (gaps ? gaps[view.frame] : 0) - lift * Math.cos(lean) / sprite.scale.y;
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
