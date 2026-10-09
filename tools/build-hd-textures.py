@@ -124,6 +124,68 @@ def right_bevel(img, rel):
 
 
 
+# mean |native - downscaled HD| over RGBA (colour weighted by alpha), 0-255. The pack repaints a lot (cows,
+# crabs, neon glow: 20-36 for the right name), so this only picks among guesses and drops unrelated images.
+MAX_DIFF = 40
+RENAMES = (('CrossingSignal', 'CrossingSign'), ('Chasis', 'Chassis'), ('TankerBumper', 'TankerTruckBumper'),
+           ('TankerFront', 'TankerTruckFront'), ('TankerHeadlights', 'TankerTruckHeadlights'),
+           ('TankerStripe', 'TankerTruckStripe'), ('TankerWindshield', 'TankerTruckWindshield'))
+EXTRA_NAMES = {   # native image -> SpaghettiKart names the guesses below miss
+    'mario-raceway/prop-gTextureMarioRacewaySignLeft.png': ['tracks/mario_raceway/mario_raceway_data/d_course_mario_sign_left'],
+    'mario-raceway/prop-gTextureMarioRacewaySignRight.png': ['tracks/mario_raceway/mario_raceway_data/d_course_mario_sign_right'],
+    'bowsers-castle/foliage-gTextureShrub.png': ['other_textures/shrub'],
+    'rainbow-road/chomp-eye.png': ['tracks/rainbow_road/rainbow_road_data/d_course_rainbow_road_chain_chomp_eye'],
+    'rainbow-road/chomp-tongue.png': ['tracks/rainbow_road/rainbow_road_data/d_course_rainbow_road_chain_chomp_tongue'],
+}
+
+
+def snake(s):
+    return re.sub(r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', '_', s).lower()
+
+
+def camel(s):
+    return ''.join(w[:1].upper() + w[1:] for w in re.split(r'[-_]', s))
+
+
+def name_candidates(rel):
+    folder, stem = rel.split('/')[0], Path(rel).stem
+    sk = folder.replace('-', '_')
+    data = f'tracks/{sk}/{sk}_data/'
+    out = list(EXTRA_NAMES.get(rel, []))
+    sym = re.sub(r'^(prop|foliage|yoshi-egg)-', '', stem)
+    out += [f'other_textures/{sym}', data + sym, f'common_data/common_texture_{stem.replace("-", "_")}',
+            data + f'd_course_{sk}_{stem.replace("-", "_")}']
+    hexname = re.fullmatch(r'g[A-Z]*Texture([0-9A-F]{6})', sym)
+    if hexname:
+        out.append(f'other_textures/texture_{hexname.group(1)}')
+    if sym.startswith('gTexture'):
+        rest = sym[len('gTexture'):]
+        for a, b in RENAMES:
+            rest = rest.replace(a, b)
+        rest = rest[len(camel(sk)):] if rest.startswith(camel(sk)) else rest
+        out += [data + f'd_course_{sk}_{snake(rest)}', data + f'd_course_{snake(rest)}']
+    # frames: crab-1 -> gTextureCrab1, piranha-1 -> gTexturePiranhaPlant1; neon-mario-0 (TLUT 1) -> ..._neon_mario1
+    frame = re.fullmatch(r'([a-z-]+?)-(\d+)', stem)
+    base, n = (frame.group(1), int(frame.group(2)) + stem.startswith('neon-')) if frame else (stem, '')
+    out += [data + f'gTexture{camel(base)}{n}', f'other_textures/gTexture{camel(base)}Plant{n}',
+            data + f'gTexture{camel(sk)}{camel(base)}{n}', data + f'd_course_{sk}_{base.replace("-", "_")}{n}']
+    return out
+
+
+def likeness(native, hd_path):
+    """Mean RGBA difference between the native image and the HD one box-downscaled to native size;
+    None when the aspect ratio differs (atlas, other crop) or the HD image isn't at least 2x."""
+    hd = Image.open(hd_path)
+    w, h = native.size
+    if hd.width * h != hd.height * w or hd.width < 2 * w:
+        return None
+    small = hd.convert('RGBA').resize((w, h), Image.BOX)
+    total = 0
+    for (r, g, b, a), (R, G, B, A) in zip(native.get_flattened_data(), small.get_flattened_data()):
+        total += abs(a - A) + (abs(r - R) + abs(g - G) + abs(b - B)) * max(a, A) / 255 / 3
+    return total / (w * h) / 2
+
+
 def tint_lut(colour, arg1=0x19):
     """Continuous form of extract-menu-backgrounds.tint (convert_img_to_greyscale + adjust_img_colour)."""
     exp = arg1 * 1.5 / 256 + 0.25
@@ -258,6 +320,26 @@ def main():
                post=(lambda img, rel=f'mainmenu/{name}.png': right_bevel(img, rel))
                if name == 'game_select' or name.endswith('p_game') else None)
     single('mainmenu/small_green_triangle.png', named('player_selection/texture_small_green_triangle'))
+
+    # everything else (props, foliage, signs, actors, neon, course textures the CRC missed): by guessed
+    # decomp name, keeping the candidate whose downscaled pixels look most like the native image
+    for path in sorted(NATIVE.rglob('*.png')):
+        rel = str(path.relative_to(NATIVE))
+        if rel in jobs:
+            continue
+        native = Image.open(path).convert('RGBA')
+        scored = []
+        for name in dict.fromkeys(name_candidates(rel)):
+            hd = named(name)
+            if hd:
+                score = likeness(native, hd)
+                if score is not None:
+                    scored.append((score, name, hd))
+        if scored:
+            score, name, hd = min(scored)
+            if score <= MAX_DIFF:
+                single(rel, hd)
+            print(f'  {"named" if score <= MAX_DIFF else "REJECTED"} {rel} <- {name} (diff {score:.1f})')
 
     # render tiers
     files, cache = {}, {}
