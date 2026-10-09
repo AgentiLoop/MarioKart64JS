@@ -96,6 +96,10 @@ The game's assets are not stored in this repo. They live in two git submodules t
 
 Fetch them with `git submodule update --init`.
 
+The [n64decomp/mk64](https://github.com/n64decomp/mk64) decompilation does **not** ship any PNG textures, models or
+sounds. It is source code only, and it needs your own ROM to rebuild its assets. The `tools/extract-*.py` scripts use the
+decomp only as a map (offsets, sizes, formats, display lists) and decode every texture to PNG straight from your ROM.
+
 `npm run build:web` builds the game, then runs `tools/build-web-assets.mjs` to copy both folders into
 `website/public/play/` (skipping submodule `.git` files). That folder is in `.gitignore`. `npm run deploy:web` runs the
 build and uploads `website/public` to Cloudflare as Workers Static Assets, so the game at `/play` has the same textures
@@ -103,7 +107,8 @@ and resolutions as the desktop apps.
 
 ## Credits
 
-- Game logic, low-res graphics and sound come from the [n64decomp/mk64](https://github.com/n64decomp/mk64) decompilation.
+- Game logic and the layout of the ROM data come from the [n64decomp/mk64](https://github.com/n64decomp/mk64)
+  decompilation. The low-res graphics and sound are decoded from your own ROM, not taken from the decomp.
 - HD textures come from [GhostlyDark/MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
 
 *This is a fan research project. Mario Kart 64 is © Nintendo. All game assets belong to Nintendo, and this project is
