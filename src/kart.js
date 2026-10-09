@@ -230,7 +230,10 @@ export function buildKartMesh(character = 'mario') {
 export class Kart {
   constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null, speedScale = 1, cc = 2 }) {
     this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.speedScale = speedScale; this.cc = cc;
-    this.s = s; this.d = d; this.psi = 0; this.phi = 0; this.v = 0;
+    this.s = s; this.psi = 0; this.phi = 0; this.v = 0;
+    // inside the walls from the first ground lookup: a grid spot past the road's edge (Frappe Snowland's bridge)
+    // would otherwise seed groundY from the ground beside the road and the kart would start on it, under the deck
+    this.d = track.arena ? d : THREE.MathUtils.clamp(d, -(track.wallAt(s, -1) - 1.2), track.wallAt(s, 1) - 1.2);
     // arena (battle) kart: roams freely as (x, z, heading h) with facing (sin h, 0, cos h); spawn = { x, y, z, h }
     this.free = !!track.arena;
     if (this.free) {
@@ -514,7 +517,15 @@ export class Kart {
     if (Math.abs(this.d) > wall) {
       this.d = sgn * wall;
       const into = sgn * Math.sin(this.phi) * this.v;
-      if (into > 0) { this.v *= 0.82; this.hitWall = 0.25; }
+      // moving into the wall: the velocity's part into it is lost, the part along it stays (func_8002C954 /
+      // Track.wallPush), and a fresh hit slows the kart by 18 currentSpeed units (player_decelerate_alternative).
+      // (Not a per-frame fraction: that scaled with the frame rate and, with no speed to steer with, pinned a kart
+      // that grazed a wall at the bridge edges of Frappe Snowland's grid, Bowser's Castle, Banshee Boardwalk.)
+      if (into > 0) {
+        this.v *= Math.abs(Math.cos(this.phi));
+        if (this.hitWall <= 0) this.v = Math.sign(this.v) * Math.max(0, Math.abs(this.v) - WALL_SLOW);
+        this.hitWall = 0.25;
+      }
       // turned away from the wall: toward the course, or toward straight back when facing the wrong way
       const off = a => Math.abs(a) > Math.PI / 2 ? Math.sign(a) * Math.PI - (Math.sign(a) * Math.PI - a) * 0.4 : a * 0.4;
       if (sgn * this.psi > 0) this.psi = off(this.psi);
