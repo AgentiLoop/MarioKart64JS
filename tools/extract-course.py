@@ -476,3 +476,6 @@ if __name__ == '__main__':
     (args.output / 'course.json').write_text(json.dumps(course, separators=(',', ':')) + '\n')
     print(f'{len(course["vertices"])} ROM-verified vertices, {len(course["path"])} ROM-verified path points, '
           f'{sum(len(b["indices"]) // 3 for b in course["batches"])} triangles, {len(images)} native textures')
+    if args.output.resolve().parent == (Path(__file__).resolve().parent.parent / 'public' / 'mk64'):
+        import importlib
+        importlib.import_module('dedupe-textures').main(dry_run=False)   # shared textures -> public/mk64/common/

@@ -617,7 +617,8 @@ export class Track {
       geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
       let map = null;
       if (batch.texture) {
-        map = HD.loadTexture(`${this.def.dir}/${course.textures[batch.texture].image}`);   // 1x nearest, HD tiers mipmapped
+        const image = course.textures[batch.texture].image;
+        map = HD.loadTexture(image.startsWith('common/') ? image : `${this.def.dir}/${image}`);   // 1x nearest, HD tiers mipmapped; common/ = shared across courses
         map.colorSpace = THREE.SRGBColorSpace;
         map.flipY = false;
         map.wrapS = wrap[batch.wrapS]; map.wrapT = wrap[batch.wrapT];

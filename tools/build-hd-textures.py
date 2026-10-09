@@ -168,7 +168,7 @@ def main():
     for course in sorted(p.parent.name for p in NATIVE.glob('*/course.json')):
         data = json.loads((NATIVE / course / 'course.json').read_text())
         for tex in data['textures'].values():
-            rel = f'{course}/{tex["image"]}'
+            rel = tex['image'] if tex['image'].startswith('common/') else f'{course}/{tex["image"]}'
             img = Image.open(NATIVE / rel).convert('RGBA')
             fmt = tex.get('format', 'rgba16')
             single(rel, pack.by_texels(texels16(img, fmt), *img.size, 3 if fmt == 'ia16' else 0, 2))
