@@ -187,6 +187,9 @@ const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 // blob shadow under the kart (the original's ground shadow): a soft dark ellipse on the ground, smaller and fainter
 // with height and gone past SHADOW_FADE units up. One gradient texture for every kart.
 const SHADOW_FADE = 12, SHADOW_OPACITY = 0.5, SHADOW_PUSH = 1.1;
+// the sprite's wheel row sits this far over the kart's ground point (in its own plane): the ground is sampled at the
+// kart's centre and on an uneven road a bump under a wheel sat over the wheel row's pixels
+const WHEEL_CLEARANCE = 0.1;
 let shadowMap = null;
 function blobShadowMap() {
   if (shadowMap) return shadowMap;
@@ -337,7 +340,7 @@ export function buildKartMesh(character = 'mario') {
     const reach = wheels ? ((lean > 0) !== back ? wheels.left : wheels.right)[view.frame] * sprite.scale.x : 0;
     const lift = reach * Math.abs(Math.sin(lean));
     sprite.center.x = 0.5 - lift * Math.sin(lean) / sprite.scale.x;
-    sprite.center.y = (wheels ? wheels.gap[view.frame] : 0) - lift * Math.cos(lean) / sprite.scale.y;
+    sprite.center.y = (wheels ? wheels.gap[view.frame] : 0) - (lift * Math.cos(lean) + WHEEL_CLEARANCE) / sprite.scale.y;
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
