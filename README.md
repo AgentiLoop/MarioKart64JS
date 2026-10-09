@@ -1,5 +1,8 @@
 # MarioKart64JS
 
+> **⚠️ Work in progress. This is not a finished game.** Expect bugs, missing features and rough edges.
+> Please report any problems you find at https://github.com/AgentiLoop/MarioKart64JS/issues
+
 Mario Kart 64, rebuilt to run in a web browser. It isn't an emulator. The courses, karts, music and sounds are pulled
 out of the original N64 ROM and redrawn with Three.js.
 
@@ -111,5 +114,5 @@ and resolutions as the desktop apps.
   decompilation. The low-res graphics and sound are decoded from your own ROM, not taken from the decomp.
 - HD textures come from [GhostlyDark/MK64-Reloaded](https://github.com/GhostlyDark/MK64-Reloaded).
 
-*This is a fan research project. Mario Kart 64 is © Nintendo. All game assets belong to Nintendo, and this project is
-not affiliated with or endorsed by Nintendo.*
+*This is a fan research project. Mario Kart 64 is © Nintendo. Game assets, not included in this repo, belong to Nintendo, and this
+project is not affiliated with or endorsed by Nintendo.*
