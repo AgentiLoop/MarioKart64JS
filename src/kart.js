@@ -754,7 +754,7 @@ export class Kart {
     if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
     // the same fluid / void / route-plane rules as the frame-step path above, for a kart that is in the air
     const fluid = wasAir && t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
-    const floor = sunk ? -Infinity : this.floorAt(g, f);
+    const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
     const n = floor === g?.y && g.normal.y > 0.2 ? g.normal : UP;
     this.ticks += dt / TICK;
     const count = Math.min(Math.floor(this.ticks), 8);
@@ -790,16 +790,6 @@ export class Kart {
     if (floor !== g?.y) g = null;   // on the route plane
     if (!g || !g.ramp) this.ramp = null;
     return g;
-  }
-
-  // Ground well below the route (a kart nudged past a ledge) is floored at the route plane, but only where the route
-  // itself has ground under it and the kart's ground is well below that: over a gap the route leaps (Wario Stadium's
-  // big jump, where the CPU path arcs through the air) there is no invisible bridge, the kart flies its arc onto the
-  // landing or into the pit (the decomp has no route plane at all)
-  floorAt(g, f) {
-    if (this.ramp || g.y >= f.pos.y - 4) return g.y;
-    const r = this.track.groundBelow(f.pos.x, f.pos.z, f.pos.y + 0.5);
-    return r && r.y >= f.pos.y - 4 && g.y < r.y - 4 ? f.pos.y : g.y;
   }
 
   // Landing bounce (player_controller.c): 4+ ticks in the air at speed (speed / 18 * 216 >= 20) squashes the sprite
@@ -865,7 +855,7 @@ export class Kart {
         // the kart sinks / drops and Lakitu fishes it out (src/lakitu.js). Outside a ramp flight, other ground well
         // below the route is floored at the route.
         const fluid = t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
-        const floor = sunk ? -Infinity : this.floorAt(g, f);
+        const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
         if (this.y <= floor) {
           this.air = false; this.y = floor; this.vy = 0; this.land();
           if (floor !== g.y) g = null;   // landed on the route plane
@@ -896,9 +886,6 @@ export class Kart {
       this.up.copy(this.groundN || f.U);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
     } else {
-      // no ground ahead for a kart far under the route: it fell short into a pit (Wario Stadium's big jump) and
-      // drove into its wall. Lakitu fishes it out (func_80079860) rather than it popping up onto the route.
-      if (dt && this.y != null && this.y < f.pos.y - 4) this.fell = { kind: 'drop', base: this.y };
       this.y = this.world.y; this.vy = 0;
       this.groundY = this.world.y; this.groundN = null;
       this.up.copy(f.U);
