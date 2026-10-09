@@ -77,3 +77,34 @@ kbd{font:700 14px ui-monospace,Menlo,monospace;background:linear-gradient(180deg
 .lightbox img{max-height:92vh;border-radius:10px}
 @media (max-width:760px){.nav nav a:not(.btn){display:none}}
 @media (prefers-reduced-motion:reduce){.logo span{animation:none}html{scroll-behavior:auto}}
+
+/* Boss-Man banner */
+.bm-wrap{max-width:1120px;margin:0 auto;padding:56px 22px 0}
+.bm{position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;gap:22px;padding:34px 36px 92px;border-radius:26px;overflow:hidden;text-decoration:none;color:#fff;isolation:isolate;background:linear-gradient(115deg,#ff2e63,#ff9a1f,#ffe600,#19e3d0,#3a7bff,#b44bff,#ff2e63);background-size:400% 400%;animation:bmFlow 10s ease infinite;box-shadow:0 0 0 3px rgba(255,255,255,.18),0 20px 60px -10px rgba(255,46,99,.55),0 0 80px -20px rgba(58,123,255,.8);transition:transform .25s,box-shadow .25s}
+.bm:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 0 0 3px #fff,0 26px 70px -8px rgba(255,46,99,.7),0 0 110px -10px rgba(25,227,208,.9)}
+.bm::before{content:"";position:absolute;inset:6px;border-radius:21px;background:radial-gradient(120% 140% at 0% 0%,rgba(20,8,50,.55),rgba(8,4,30,.88) 60%);z-index:-1}
+.bm::after{content:"";position:absolute;top:-50%;left:-30%;width:30%;height:200%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transform:rotate(20deg);animation:bmShine 4.5s ease-in-out infinite;z-index:2;pointer-events:none}
+.bm-maze{position:absolute;inset:6px;border-radius:21px;z-index:-1;opacity:.35;background-image:linear-gradient(#3a7bff 2px,transparent 2px),linear-gradient(90deg,#3a7bff 2px,transparent 2px);background-size:44px 44px;-webkit-mask:linear-gradient(90deg,#000,transparent 75%);mask:linear-gradient(90deg,#000,transparent 75%)}
+.bm-copy{display:flex;flex-direction:column;gap:6px;position:relative;z-index:1}
+.bm-kicker{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#ffe600;text-shadow:0 0 12px rgba(255,230,0,.6)}
+.bm-title{font:900 clamp(48px,9vw,96px)/.9 ui-rounded,"SF Pro Rounded",system-ui,sans-serif;letter-spacing:-.02em;background:linear-gradient(90deg,#ffe600,#ff9a1f,#ff2e63,#ff6ad5,#19e3d0,#ffe600);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:bmFlow 6s linear infinite;filter:drop-shadow(0 4px 0 #1a0638) drop-shadow(0 0 18px rgba(255,46,99,.6))}
+.bm-title b{color:#fff;-webkit-text-fill-color:#fff}
+.bm-tag{max-width:560px;font-size:18px;color:#f1eaff}
+.bm-cta{position:relative;z-index:1;white-space:nowrap;font-weight:900;font-size:18px;padding:16px 26px;border-radius:999px;color:#1a0638;background:linear-gradient(90deg,#ffe600,#ff9a1f);box-shadow:0 6px 0 #a3330a,0 0 30px rgba(255,230,0,.6);animation:bmPulse 1.6s ease-in-out infinite}
+.bm:hover .bm-cta{background:linear-gradient(90deg,#19e3d0,#ffe600)}
+.bm-chase{position:absolute;left:0;right:0;bottom:24px;height:40px;z-index:1;overflow:hidden}
+.bm-chase>*{position:absolute;top:4px}
+.bm-pete{width:32px;height:32px;border-radius:50%;background:conic-gradient(from 120deg,#ffe600 0 300deg,transparent 0);animation:bmRun 7s linear infinite,bmChomp .25s steps(2) infinite;filter:drop-shadow(0 0 8px #ffe600)}
+.bm-boss{width:30px;height:32px;border-radius:15px 15px 4px 4px;background:var(--c);filter:drop-shadow(0 0 10px var(--c));animation:bmRun 7s linear infinite}
+.bm-boss::before{content:"";position:absolute;top:9px;left:5px;width:20px;height:8px;background:radial-gradient(circle at 4px 4px,#1a0638 2px,#fff 3px,transparent 4px) 0 0/10px 8px repeat-x}
+.bm-boss::after{content:"";position:absolute;top:19px;left:9px;width:12px;height:4px;background:#1a0638;border-radius:2px}
+.bm-boss:nth-of-type(1){animation-delay:-6.1s}.bm-boss:nth-of-type(2){animation-delay:-5.6s}.bm-boss:nth-of-type(3){animation-delay:-5.1s}.bm-boss:nth-of-type(4){animation-delay:-4.6s}
+.bm-dots{left:0;right:0;display:flex;justify-content:space-around;top:14px}
+.bm-dots i{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 10px #fff}
+@keyframes bmFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes bmShine{0%,60%{left:-40%}100%{left:130%}}
+@keyframes bmPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes bmRun{from{left:-60px}to{left:calc(100% + 60px)}}
+@keyframes bmChomp{0%{background:conic-gradient(from 120deg,#ffe600 0 300deg,transparent 0)}100%{background:#ffe600}}
+@media (max-width:760px){.bm{grid-template-columns:1fr;padding:28px 22px 88px}.bm-cta{justify-self:start}}
+@media (prefers-reduced-motion:reduce){.bm,.bm *,.bm::after{animation:none!important}}
