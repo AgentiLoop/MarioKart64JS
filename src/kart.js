@@ -204,7 +204,7 @@ function blobShadowMap() {
 // transparent rows under the wheels in each atlas frame (3-11 of 64 px, varying with the view and the character):
 // the sprite's anchor (center.y) is raised by that much so the wheels, not the frame's bottom edge, sit on the kart's
 // origin and its shadow. The steering lean rolls the sprite about that anchor and drops the outer wheel under it: per
-// frame and side, the drop at LEAN_REF (the full drift lean, Kart.syncMesh) over sin LEAN_REF is the wheel's reach,
+// frame and side, the drop at LEAN_REF (over the full steering lean, Kart.syncMesh) over sin LEAN_REF is the wheel's reach,
 // taken over the pixels of the lowest fh / 8 rows (the tyre's rounded shoulder reaches further out than its contact
 // row, but higher up). Measured once per character from the first tier that loads (same fractions at every HD scale).
 const ATLAS_W = 1344, ATLAS_H = 1024, FRAME_COLS = 21, FRAME_ROWS = 16, LEAN_REF = 0.2;
@@ -864,7 +864,7 @@ export class Kart {
     this.up.crossVectors(right, this.fwd).normalize();
     const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
     this.mesh.quaternion.setFromRotationMatrix(m);
-    this.mesh.userData.lean = this.steerVis * 0.08 + (this.drift ? this.drift * 0.12 : 0);
+    this.mesh.userData.lean = this.steerVis * 0.08;   // no drift roll: the slide shows as the nose turning in (h vs slip), wheels on the ground
     this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
@@ -1119,8 +1119,8 @@ export class Kart {
     this.up.crossVectors(right, this.fwd).normalize();
     const m = new THREE.Matrix4().makeBasis(right, this.up, this.fwd.clone().negate());
     this.mesh.quaternion.setFromRotationMatrix(m);
-    // body-roll when drifting / steering
-    this.mesh.userData.lean = this.steerVis * 0.08 + (this.drift ? this.drift * 0.12 : 0);
+    // body-roll when steering only: a drift turns the nose in (psi runs ahead of phi), the sprite stays level on the road
+    this.mesh.userData.lean = this.steerVis * 0.08;
     this.mesh.userData.spinning = this.spin > 0;
     if (this.spinAngle) this.mesh.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spinAngle));
     this.mesh.position.copy(this.world);
