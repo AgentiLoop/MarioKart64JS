@@ -43,6 +43,7 @@ We built it as a test of how closely AI tools can recreate a classic game.
 | Restart race | Delete |
 | Change resolution | G |
 | Music on/off | N |
+| Show physics bodies (walls red, kart bodies cyan) | P |
 
 Gamepads work too.
 
