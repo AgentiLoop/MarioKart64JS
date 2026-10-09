@@ -29,7 +29,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | snowmen (`render_object_snowmans`, 19, with the snow puffs) | **done** |
 | | snowfall (`render_object_snowflakes_particles`, 1P) | — |
 | Koopa Troopa Beach | palm trees (`spawn_palm_trees`, 12) | **done** (src/props.js) |
-| | crabs, seagulls, hot-air-balloon item box | — |
+| | crabs (`render_object_crabs`, 10: walk to a patrol point, then back and forth 48, 7-frame animation, spin karts out) | **done** (tools/extract-crabs.py, src/crabs.js) |
+| | seagulls, hot-air-balloon item box | — |
 | Royal Raceway | trees + castle-garden trees (32) | **done** |
 | | piranha plants (`spawn_piranha_plants`, 16) | **done** (src/piranha.js) |
 | Luigi Raceway | trees (20) | **done** |
