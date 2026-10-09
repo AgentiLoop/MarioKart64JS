@@ -135,6 +135,9 @@ const BALLOON_Y = [9, 10, 9, 8, 10, 9.5, 9.5, 11];
 const BALLOON_AT = [[0, -3.2], [1.8, 2.6 - 3.2], [-1.8, 2.6 - 3.2]];
 const K_UNIT = 0.25;   // MK64 units at the kart sprites' size (items.js BOX_SCALE)
 const KART_RADIUS = [5.5, 5.5, 5.5, 5.5, 5.5, 6.0, 5.5, 6.0].map(r => r * 0.1);   // gKartBoundingBoxSizeTable, NATIVE_SCALE
+// Opaque width of each character's rear-view sprite frame (84) in the 64 px atlas cell, as scene units at the
+// sprite's 4.5 scale, halved: Mario 38 px -> 1.34, Bowser 48 px -> 1.69 (CHARACTER_ID order)
+const KART_HALF_WIDTH = [38, 38, 38, 40, 42, 38, 38, 48].map(px => px / 64 * 4.5 / 2);
 const WALL_SLOW = 18 / 320 * MAX_SPEED;   // player_decelerate_alternative(18) on currentSpeed (top ~320)
 const _bRight = new THREE.Vector3(), _bCam = new THREE.Vector3(), _bX = new THREE.Vector3(), _bZ = new THREE.Vector3();
 const _bUp = new THREE.Vector3(0, 1, 0), _bS = new THREE.Vector3(), _bM = new THREE.Matrix4(), _bR = new THREE.Matrix4();
@@ -256,6 +259,10 @@ export class Kart {
   }
 
   get progress() { return this.crossings * this.track.length + this.s; }
+
+
+  // half the width the sprite shows from behind (KART_HALF_WIDTH)
+  get visualHalfWidth() { return KART_HALF_WIDTH[CHARACTER_ID[this.mesh.userData.character] ?? 0]; }
 
   // gKartBoundingBoxSizeTable, MK64 units (has_collided_horizontally_with_player)
   get boxSize() { return KART_RADIUS[CHARACTER_ID[this.mesh.userData.character] ?? 0] * 10; }
@@ -606,10 +613,12 @@ export class Kart {
     if (this.drift) this.v -= 2 * dt;
     const a = this.h + this.slip, step = this.v * dt;
     let nx = this.x + Math.sin(a) * step, nz = this.z + Math.cos(a) * step;
-    // walls, in the air too (func_8003F734 / func_8002A5F4 / func_8002C954): the kart's bounding sphere
-    // (gKartBoundingBoxSizeTable) is pushed back out of the face; of the velocity, the part along the wall is kept
-    // and the part into it bounces back at half; the drift ends and the kart slows by 18 (player_decelerate_alternative)
-    const w = t.wallPush(this.x, this.z, nx, nz, this.y, KART_RADIUS[CHARACTER_ID[this.mesh.userData.character] ?? 0]);
+    // walls, in the air too (func_8003F734 / func_8002A5F4 / func_8002C954): the kart's body is pushed back out of
+    // the face; of the velocity, the part along the wall is kept and the part into it bounces back at half; the
+    // drift ends and the kart slows by 18 (player_decelerate_alternative). The body is the sprite's visible
+    // half-width, not gKartBoundingBoxSizeTable's 5.5 units: with that the drawn kart sank 30-50% into the
+    // walls (tools/test-walls.mjs). Kart-to-kart bumps keep boxSize.
+    const w = t.wallPush(this.x, this.z, nx, nz, this.y, this.visualHalfWidth);
     if (w) {
       nx = w.x; nz = w.z;
       const mx = Math.sin(a) * this.v, mz = Math.cos(a) * this.v, vn = mx * w.nx + mz * w.nz;

@@ -23,6 +23,7 @@ import { Chomps } from './chomps.js';
 import { Crabs } from './crabs.js';
 import { Hedgehogs } from './hedgehogs.js';
 import { YoshiEgg } from './yoshi-egg.js';
+import { PhysicsDebug } from './physics-debug.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
@@ -196,6 +197,8 @@ window.__clouds = clouds && { set: cloudSet, get yaw() { return cameraYaw; }, me
 
 const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]), { mirror });
 scene.add(track.group);
+const physicsDebug = new PhysicsDebug(scene, track);   // P / ?physics: walls and kart collision bodies
+if (params.has('physics')) physicsDebug.toggle(true);
 
 const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf4cd30, 0xe78d32];
 const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario', 'Bowser'];
@@ -1122,6 +1125,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyN') audio.toggleMusic();
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
   if (e.code === 'KeyJ' && !e.repeat) showRes(togglePhysics());   // jump mode Jumps / Glue, saved
+  if (e.code === 'KeyP' && !e.repeat && trackDef) showRes(physicsDebug.toggle() ? 'PHYSICS BODIES ON' : 'PHYSICS BODIES OFF');
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -1456,10 +1460,11 @@ function frame(now) {
   crabs?.update(dt, views.map(v => v.cam), karts);
   hedgehogs?.update(dt, karts);
   exhaust.update(dt, karts, camera);
+  physicsDebug.update(karts);
   drawMini();
   renderViews();
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
-window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, train, traffic, ferry, balloon, thwomps, snowmen, neon, chomps, crabs, hedgehogs, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
+window.__game = { track, items, lakitu, penguins, foliage, cows, props, piranha, yoshiEgg, train, traffic, ferry, balloon, thwomps, snowmen, neon, chomps, crabs, hedgehogs, physicsDebug, get karts() { return karts; }, get player() { return player; }, get autopilot() { return autopilot; }, set autopilot(v) { autopilot = !!v; },
   get state() { return state; }, get raceTime() { return raceTime; }, keys, renderer, scene, camera };

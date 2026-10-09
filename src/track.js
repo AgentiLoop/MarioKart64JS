@@ -416,9 +416,12 @@ export class Track {
     };
     // does the segment (x0,z0)->(x1,z1) at kart body height above ground y hit a steep face? (arena karts)
     this.blocked = blocked;
+    this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
     // Kart against the wall faces, as check_bounding_collision + func_8003F734 do it: a sphere of radius r at body
     // height whose centre projects inside a face and is closer than r to it (or up to 16 MK64 units = 1.6 past
     // it) is pushed back out along the face normal by the overlap, onto the side the kart came from (x0, z0).
+    // Beside a face (outer corners, wall ends: the Block Fort blocks, Big Donut's rim) the nearest point of its
+    // outline at body height pushes the kart away instead, else it slid into the corner up to its centre.
     // Returns the corrected { x, z } and the outward horizontal normal { nx, nz } of the deepest face, or null.
     const wallN = walls.map(([a, b, c]) => {
       const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -426,6 +429,16 @@ export class Track {
       const l = Math.hypot(...n) || 1;
       return [n[0] / l, n[1] / l, n[2] / l, e1, e2];
     });
+    const rim = (px, py, pz, tri) => {   // nearest point of the triangle's three edges to (px, py, pz)
+      let best = null, bd = Infinity;
+      for (let i = 0; i < 3; i++) {
+        const A = tri[i], B = tri[(i + 1) % 3], ex = B[0] - A[0], ey = B[1] - A[1], ez = B[2] - A[2];
+        const s = Math.max(0, Math.min(1, ((px - A[0]) * ex + (py - A[1]) * ey + (pz - A[2]) * ez) / (ex * ex + ey * ey + ez * ez || 1)));
+        const q = [A[0] + ex * s, A[1] + ey * s, A[2] + ez * s], dd = (q[0] - px) ** 2 + (q[1] - py) ** 2 + (q[2] - pz) ** 2;
+        if (dd < bd) { bd = dd; best = q; }
+      }
+      return best;
+    };
     this.wallPush = (x0, z0, x, z, y, r) => {
       let hit = null;
       for (let pass = 0; pass < 3; pass++) {   // a corner touches two faces: resolve them in turn
@@ -451,8 +464,15 @@ export class Track {
                 const den = d11 * d22 - d12 * d12;
                 if (Math.abs(den) < 1e-9) continue;
                 const u = (d22 * q1 - d12 * q2) / den, v = (d11 * q2 - d12 * q1) / den;
-                if (u < 0 || v < 0 || u + v > 1) continue;
-                if (!deepest || depth > deepest.depth) deepest = { depth: depth / h, nx: side * nx / h, nz: side * nz / h };
+                let c = null;
+                if (u < 0 || v < 0 || u + v > 1) {   // beside the face: its outline, where it stands at this height
+                  const e = rim(x, y + lift, z, walls[t]);
+                  if (Math.abs(e[1] - (y + lift)) > 0.2) continue;
+                  const dx = x - e[0], dz = z - e[2], dh = Math.hypot(dx, dz);
+                  if (dh >= r || dh < 1e-6) continue;
+                  c = { depth: r - dh, nx: dx / dh, nz: dz / dh };
+                } else c = { depth: depth / h, nx: side * nx / h, nz: side * nz / h };
+                if (!deepest || c.depth > deepest.depth) deepest = c;
               }
             }
         if (!deepest) break;
