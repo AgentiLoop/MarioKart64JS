@@ -84,6 +84,23 @@ npm run dev        # http://localhost:5173
 - **Website and lobby** (`website/`): a Cloudflare Worker. Publish it with `npm run deploy:web`.
 - **Desktop apps** (`desktop/`): run `npm run game` first, then `webkit/build.sh` for Mac, `npm run dist:win` or `dist:linux` for Windows and Linux, or `raspberrypi/build.sh` for the Pi.
 
+### Assets
+
+The game's assets are not stored in this repo. They live in two git submodules that both point to
+[MarioKart64JS-assets](https://github.com/AgentiLoop/MarioKart64JS-assets):
+
+| Folder | Branch | Contents |
+| --- | --- | --- |
+| `public/mk64` | default | Assets extracted from the ROM by the `tools/extract-*.py` scripts |
+| `public/mk64-hd` | `hd` | HD textures (2x and 4x tiers plus `manifest.json`) from `tools/build-hd-textures.py` |
+
+Fetch them with `git submodule update --init`.
+
+`npm run build:web` builds the game, then runs `tools/build-web-assets.mjs` to copy both folders into
+`website/public/play/` (skipping submodule `.git` files). That folder is in `.gitignore`. `npm run deploy:web` runs the
+build and uploads `website/public` to Cloudflare as Workers Static Assets, so the game at `/play` has the same textures
+and resolutions as the desktop apps.
+
 ## Credits
 
 - Game logic, low-res graphics and sound come from the [n64decomp/mk64](https://github.com/n64decomp/mk64) decompilation.
