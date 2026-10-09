@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://mk64js.gokart.games/</loc>
+    <lastmod>2026-10-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image><image:loc>https://mk64js.gokart.games/img/title.jpg</image:loc><image:title>MarioKart64JS title screen</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/race-mario.jpg</image:loc><image:title>Mario Raceway</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/race-royal.jpg</image:loc><image:title>Royal Raceway</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/race-koopa.jpg</image:loc><image:title>Koopa Troopa Beach</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/race-rainbow.jpg</image:loc><image:title>Rainbow Road</image:title></image:image>
+  </url>
+  <url>
+    <loc>https://mk64js.gokart.games/play</loc>
+    <lastmod>2026-10-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image><image:loc>https://mk64js.gokart.games/img/title.jpg</image:loc><image:title>Play MarioKart64JS in your browser</image:title></image:image>
+  </url>
+</urlset>
