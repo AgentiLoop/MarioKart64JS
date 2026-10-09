@@ -32,7 +32,7 @@ const MAX_PUFFS = 128;   // gObjectParticle2_SIZE
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _e = new THREE.Euler();
 
 // common_rectangle_display (0, 2, 1), (0, 3, 2) per 4 vertices; each further strip starts 31 rows down the texture
-function quadGeometry(verts, size) {
+export function quadGeometry(verts, size) {
   const pos = [], uv = [], index = [];
   verts.forEach(([x, y, z, s, t], i) => {
     pos.push(x, y, z);

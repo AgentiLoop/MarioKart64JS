@@ -44,7 +44,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | train (engine, tender, carriages), railroad crossings ×4 | **done** (tools/extract-train.py, src/train.js) |
 | | the locomotive's smoke | — |
 | Sherbet Land | emperor penguin, swimming / sliding penguins, see-through ice | **done** (src/penguins.js) |
-| Rainbow Road | neon signs (`render_object_neon`), Chain Chomps | — |
+| Rainbow Road | neon signs (`render_object_neon`, 10: 3 animated, 7 character signs) | **done** (tools/extract-neon.py, src/neon.js) |
+| | Chain Chomps (`render_object_chain_chomps`) | — |
 | Wario Stadium | Wario signs (`ACTOR_WARIO_SIGN` ×3) | **done** (src/props.js) |
 | D.K.'s Jungle Parkway | trees and palm trees (`render_palm_trees`, 95) | **done** (src/props.js) |
 | | paddle-boat ferry (`render_actor_paddle_boat`, 1-2 screens) | **done** (tools/extract-ferry.py, src/ferry.js) |
@@ -251,3 +252,17 @@ triangles. src/snowmen.js runs `update_snowmen` once a frame:
 EXTRA flips each quad back in its own x (roll negated). Not ported yet: the snowfall (`gObjectParticle1`, 1P) and the
 time-trial replay flag (`func_80072180`). Assumption: a kart already tumbling, out or in a Boo is not hit (EXPLOSION_CRASH
 / BOO effects); `Items.hit` also skips a kart that is spinning or invulnerable, though the snowman still breaks.
+## Rainbow Road neon signs (done)
+`tools/extract-neon.py` writes `public/mk64/rainbow-road/neon.json` and one PNG per sign and palette frame (22): the
+64x64 CI8 textures from the course data segment through each TLUT, the `common_vtx_hedgehog` quad, and the 7 static
+positions `D_800E6734` (checked in the ROM). The three animated signs' positions and every animation call are checked in
+`update_objects.c`. `src/neon.js` (`update_neon`, once a frame):
+- mushroom (`func_80085CA0`, -1431, 827, -2957): TLUTs 0-4 every 12 frames x5, blink 3/4 every 4 frames x10, wait 20,
+  count x5, wait 20, blink 3/4 every frame x20 — a 787-frame loop (TLUT 4 is all black);
+- Mario (`func_80085E38`, 799, 1193, -5891): count 0-4 every 12, blink 3/4 once, dark 12 (`func_80072B48`) — 102 frames;
+- Boo (`func_80085F74`, -2013, 555, 0): count 0-4 every 5, wait 30, flash on/off every frame x7 (`func_80072C00`), wait
+  30, count 3-0 every 5 (`func_80072F88`), dark 15 — 141 frames;
+- Peach, Luigi, DK, Yoshi, Bowser, Wario, Toad (`func_80086074`): lit, never change.
+`render_object_neon`: each turned to the camera (roll 0x8000) at 8x scale (512 units wide), alpha-tested
+(G_RM_AA_ZB_TEX_EDGE), only inside the camera's 0x2AAB view wedge, with no distance limit. EXTRA flips each quad back in its
+own x. Not in the credits sequence (the port has none).
