@@ -390,7 +390,8 @@ export class Track {
       }
       return best === null ? null : { y: best, normal: n, ramp: r };
     };
-    // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face?
+    // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face? (crossed = its index)
+    let crossed = -1;
     const blocked = (x0, z0, x1, z1, y) => {
       const dx = x1 - x0, dz = z1 - z0;
       for (const [x, z] of [[x0, z0], [x1, z1]]) {
@@ -408,7 +409,7 @@ export class Track {
             const v = (dx * q[0] + dz * q[2]) / det;
             if (v < 0 || u + v > 1) continue;
             const k = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det;
-            if (k >= 0 && k <= 1) return true;
+            if (k >= 0 && k <= 1) { crossed = t; return true; }
           }
         }
       }
@@ -416,6 +417,25 @@ export class Track {
     };
     // does the segment (x0,z0)->(x1,z1) at kart body height above ground y hit a steep face? (arena karts)
     this.blocked = blocked;
+    // Faces the route itself drives through are no walls: Mario Raceway's hill is drawn with a grass fan across
+    // both tunnel mouths (course_vertices 999,22,716 / 1000,-50,649 / 1000,-50,549), which held every kart that
+    // reached them below full speed (CPUs piled up at the exit). Dropped from the grid, kept out of wallTris.
+    if (!this.arena && this.pos && this.pos.length > 1) {
+      const dead = new Set();
+      for (let i = 0; i < this.pos.length; i++) {
+        const p = this.pos[i], q = this.pos[(i + 1) % this.pos.length];
+        for (let guard = 0; guard < 8 && blocked(p.x, p.z, q.x, q.z, p.y); guard++) {
+          const t = crossed; dead.add(t);
+          for (const list of wallGrid.values()) { const j = list.indexOf(t); if (j >= 0) list.splice(j, 1); }
+        }
+      }
+      if (dead.size) {
+        const kept = walls.filter((_, t) => !dead.has(t)), remap = new Map();
+        walls.forEach((_, t) => { if (!dead.has(t)) remap.set(t, remap.size); });
+        for (const list of wallGrid.values()) list.forEach((t, j) => { list[j] = remap.get(t); });
+        walls.splice(0, walls.length, ...kept);
+      }
+    }
     this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
     // Kart against the wall faces, as check_bounding_collision + func_8003F734 do it: a sphere of radius r at body
     // height whose centre projects inside a face and is closer than r to it (or up to 16 MK64 units = 1.6 past

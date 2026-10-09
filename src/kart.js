@@ -423,15 +423,57 @@ export class Kart {
     const t = this.track, look = 14 + this.v * 0.6;
     const f = t.frameAt(this.s + look, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
     let target = this.aiOffset;
+    // a finished kart on its cinematic laps drives a racing line: eased to the inside of the bend ahead (positive
+    // d is the inside when k > 0: along = ds * (1 - k * d)), back to the middle on the straights; the lane is
+    // kept only where the body clears the course's steep faces (Mario Raceway's pipe, ...) over the next
+    // lengths, else the nearest clear lane; a kart pushing on a face without getting on backs off for a moment
+    if (this.finished) {
+      const fr = this.lineFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+      let kk = f.k;
+      for (const extra of [12, 24]) kk += t.frameAt(this.s + look + extra, fr).k;
+      // the bend ahead is the route's curvature averaged over three samples (the route wiggles: point samples
+      // spike to twice the bend's). The steering only turns 1.9 * speedFactor rad/s (update), so the speed the
+      // bend can be held at with a margin is v (1 + v / 90) / 1.9 <= 0.9 / k: brake for the corner, power out
+      const kavg = Math.abs(kk / 3);
+      this.cornerV = kavg > 1e-4 ? 1.7 / kavg / (1 + this.v / 90) : Infinity;
+      const line = Math.sign(kk) * Math.min(7, kavg * 400);
+      this.lineD = (this.lineD ?? this.d) + (line - (this.lineD ?? this.d)) * Math.min(1, dt * 1.5);
+      target = this.lineD;
+      if (t.wallPush) {
+        this.probeT = (this.probeT ?? 0) - dt;
+        if (this.probeT <= 0) {
+          this.probeT = 0.1;
+          const reach = 10 + this.v * 0.5;
+          const clear = lane => {
+            for (let i = 1; i <= 3; i++) {
+              t.frameAt(this.s + reach * i / 3, fr);
+              const x = fr.pos.x + fr.R.x * lane, z = fr.pos.z + fr.R.z * lane, g = t.groundAt(x, z, fr.pos.y + 2);
+              if (t.wallPush(x, z, x, z, g ? g.y : fr.pos.y, this.visualHalfWidth)) return false;
+            }
+            return true;
+          };
+          this.lane = [0, -4, 4, -8, 8].map(o => target + o).find(clear) ?? target;
+        }
+        target = this.lane;
+      }
+      let adv = this.s - (this.lastS ?? this.s); if (adv < -t.length / 2) adv += t.length;
+      this.lastS = this.s;
+      this.stuckT = adv < dt * 3 && !(this.spin > 0) && !this.tumble && !this.rescue ? (this.stuckT || 0) + dt : 0;
+      if (this.stuckT > 0.8) { this.stuckT = 0; this.reverse = 0.9; }
+    }
     for (const o of karts) { // dodge slower karts ahead
       if (o === this) continue;
       let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
       if (ds > 0 && ds < 18 && Math.abs(o.d - this.d) < 3.5) target = this.d + (o.d >= this.d ? -4 : 4);
     }
     target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, t.wallAt(this.s, -1)) + 2.5, Math.min(HALF_WIDTH, t.wallAt(this.s, 1)) - 2.5);
-    const want = Math.atan2(target - this.d, 14) ;
-    const steer = THREE.MathUtils.clamp((want - this.psi) * 3.5, -1, 1);
+    const want = Math.atan2(target - this.d, this.finished ? 20 : 14);
+    const steer = THREE.MathUtils.clamp((want - this.psi) * (this.finished ? 2.5 : 3.5), -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
+    // backing off a face: reversing, the nose turns the other way for the same steer (Kart.update dir)
+    if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: -steer, drift: false }; }
+    // the finished kart brakes early for a tight bend instead of sliding wide into the wall
+    if (this.finished && this.v > this.cornerV) return { throttle: 0, brake: this.v > this.cornerV * 1.15 ? 0.6 : 0.2, steer, drift: false };
     // regulate_cpu_speed: under the class minimum always accelerate; at or above the target speed decelerate 2
     if (this.v >= CPU_MIN_SPEED[this.cc] * MK_UNIT) {
       const tbl = CPU_TARGET[t.def.id] || CPU_TARGET.default, n = t.n;

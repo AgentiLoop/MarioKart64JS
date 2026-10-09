@@ -1259,17 +1259,28 @@ function layoutViews() {
 // + 10, offset -1 / +1 across the road), each held until the kart has gone past. Assumption: shot lengths and
 // distances are tuned by eye, not the ROM's per-shot tables.
 const _cf = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+// shot sequence after the finish: nose orbit, roadside, high crane, roadside, low tail, roadside, ...
+const CINE_SHOTS = ['front', 'side', 'high', 'side', 'low', 'side'];
 function cinematicCamera(dt, v, k) {
   const camera = v.cam;
-  if (!v.cine) v.cine = { t: 0, kind: 'front', side: 1, shots: 0, s: 0, pos: new THREE.Vector3() };
-  const c = v.cine;
+  if (!v.cine) v.cine = { t: 0, shot: 0, side: 1, s: 0, pos: new THREE.Vector3(), off: new THREE.Vector3(), cut: true };
+  const c = v.cine, kind = CINE_SHOTS[c.shot % CINE_SHOTS.length];
   c.t += dt;
-  let target;
-  if (c.kind === 'front') {   // orbit from behind the kart round to its nose over ~2.5 s, then ride in front of it
+  const next = () => { c.shot++; c.t = 0; c.side = -c.side; c.cut = true; c.placed = false; c.s = k.s + 55; };
+  // tracking shots are an offset in the kart's frame (back, lift, yaw round it) so the camera never falls
+  // behind a moving kart and ends up on top of it; cuts snap the offset, otherwise it eases
+  const rel = (back, lift, yaw = 0) => k.fwd.clone().multiplyScalar(-back).applyAxisAngle(k.up, yaw).addScaledVector(k.up, lift);
+  let target = null, fov = 55, lookAhead = 0;
+  if (kind === 'front') {   // orbit from well behind the kart round to its nose over ~2.5 s, then ride far ahead of it
     const a = Math.PI * THREE.MathUtils.smoothstep(c.t, 0.3, 2.8);
-    const back = k.fwd.clone().multiplyScalar(-(9 - 2 * a / Math.PI)).applyAxisAngle(k.up, a * c.side);
-    target = k.world.clone().add(back).addScaledVector(k.up, 4.2 - 1.6 * a / Math.PI);
-    if (c.t > 7) { c.kind = 'side'; c.t = 0; c.s = k.s + 55; c.side = -c.side; c.placed = false; }
+    target = rel(30 - 2 * a / Math.PI, 10 - 5 * a / Math.PI, a * c.side); fov = 50;
+    if (c.t > 7) next();
+  } else if (kind === 'high') {   // crane: high above and behind, looking down the road
+    target = rel(26, 30); fov = 55; lookAhead = 10;
+    if (c.t > 6) next();
+  } else if (kind === 'low') {   // low tail shot off one shoulder, wheels at eye level
+    target = rel(18, 1.5, 0.45 * c.side); fov = 60; lookAhead = 4;
+    if (c.t > 6) next();
   } else {   // a fixed spot beside the road ahead; the next shot once the kart is past it (or after 12 s)
     track.frameAt(c.s, _cf);
     if (!c.placed) {
@@ -1279,16 +1290,19 @@ function cinematicCamera(dt, v, k) {
       if (g) c.pos.y = g.y + 3.5;
       c.placed = true; v.init = false;
     }
-    target = c.pos;
+    fov = 50;
     let ds = k.s - c.s; if (ds > track.length / 2) ds -= track.length; if (ds < -track.length / 2) ds += track.length;
-    if (ds > 20 || c.t > 12) { c.shots++; c.t = 0; c.side = -c.side; if (c.shots % 3 === 0) c.kind = 'front'; else c.s = k.s + 55; c.placed = false; }
+    if (ds > 20 || c.t > 12) next();
   }
-  if (!v.init) v.pos.copy(target); else v.pos.lerp(target, c.kind === 'front' ? 1 - Math.exp(-dt * 8) : 1);
+  if (target) {
+    if (c.cut) { c.off.copy(target); c.cut = false; v.init = false; } else c.off.lerp(target, 1 - Math.exp(-dt * 6));
+    v.pos.copy(k.world).add(c.off);
+  } else v.pos.copy(c.pos);
   v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
-  const look = k.world.clone().addScaledVector(k.up, 1.4);
-  if (!v.init) v.look.copy(look); else v.look.lerp(look, 1 - Math.exp(-dt * 10));
+  const look = k.world.clone().addScaledVector(k.up, 1.4).addScaledVector(k.fwd, lookAhead);
+  if (!v.init) { v.look.copy(look); camera.fov = fov; } else v.look.lerp(look, 1 - Math.exp(-dt * 10));
   camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
-  camera.fov += (60 - camera.fov) * Math.min(1, dt * 3);
+  camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
   v.init = true;
   if (k === player) { sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world); }
