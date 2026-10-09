@@ -26,7 +26,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | giant Yoshi egg (`ACTOR_YOSHI_EGG`, lit 3D egg near / flat egg far) | **done** (tools/extract-yoshi-egg.py, src/yoshi-egg.js) |
 | | flag poles (`func_80055228`), hedgehogs (`render_object_hedgehogs`) | — |
 | Frappe Snowland | trees (30) | **done** |
-| | snowmen (`render_object_snowmans`), snowfall (`render_object_snowflakes_particles`, 1P) | — |
+| | snowmen (`render_object_snowmans`, 19, with the snow puffs) | **done** |
+| | snowfall (`render_object_snowflakes_particles`, 1P) | — |
 | Koopa Troopa Beach | palm trees (`spawn_palm_trees`, 12) | **done** (src/props.js) |
 | | crabs, seagulls, hot-air-balloon item box | — |
 | Royal Raceway | trees + castle-garden trees (32) | **done** |
@@ -231,3 +232,22 @@ EXTRA: the console mirrors every spawn, angle and step, so the port runs the unm
 back in its own x (light x negated). The type-3 trigger uses the nearest course path point to the kart (assumption for
 `gNearestPathPointByPlayerId`). Not ported yet: squashing karts (`func_80080B28`, THWOMP_SQUISH_TRIGGER and the
 0x64-0x6C / 0xC8 states), the slam dust (`func_80080FEC`), camera shake (`func_8001CA10`) and the shadow (`func_8004A7AC`).
+## Frappe Snowland snowmen (done)
+tools/extract-snowmen.py reads the 19 `gSnowmanSpawns` {x, y, z, section} (verified in the ROM), the common_data quads
+`common_vtx_hedgehog` (body), `D_0D0061B0` (head, 12 nearer the camera) and `D_0D005AE0` (snow puff) and checks the render
+setup as raw F3DEX words (`D_0D007C88` / `D_0D007D78`: G_TT_RGBA16, G_CC_DECALRGBA, gSPTexture 0x8000, G_TF_BILERP,
+G_RM_AA_ZB_TEX_EDGE; `D_0D0069E0`, `common_rectangle_display`); the 64x64 CI8 head / body through `gTLUTSnowman` and the
+32x32 CI8 snow through `gTLUTSnow` come from the course data segment, plus the `d_course_frappe_snowland_addr` section
+triangles. src/snowmen.js runs `update_snowmen` once a frame:
+- head (`func_80083948`, origin y + 8): sways by primAlpha (random start, +- 0x400 every other frame between -0x1000 and
+  0x1000), drawn rolled by primAlpha + 0x8000; body (origin y + 3) rolled 0x8000;
+- a kart within 2 + its boundingBoxSize (x/z) while a screen's track section is within one of the snowman's
+  (`func_8008A8B0` / `func_80089B50`): VERTICAL_TUMBLE_TRIGGER through `Items.hit(kart, 'fake_item_box')` (a star kart
+  only hears 0x19018010), the body vanishes, `func_800836F0` bursts 40 / 24 / 16 puffs by screens (4.5-5.4 out on even
+  headings, 2.6-12.1 up, - 0.74 a frame for 100 frames, spinning, 0.05-0.149 scale), the head flies 72.5 up and falls to
+  -7; after 300 frames the head climbs back at 0.2, 10 frames later the body regrows 0.001 -> 0.1 by 0.0025 a frame;
+- `render_object_snowmans`: both turned to the camera from the body within 600 (`func_8008A364` view wedge 0x5555 /
+  0x4000 / 0x2AAB by distance), the puffs within 500.
+EXTRA flips each quad back in its own x (roll negated). Not ported yet: the snowfall (`gObjectParticle1`, 1P) and the
+time-trial replay flag (`func_80072180`). Assumption: a kart already tumbling, out or in a Boo is not hit (EXPLOSION_CRASH
+/ BOO effects); `Items.hit` also skips a kart that is spinning or invulnerable, though the snowman still breaks.

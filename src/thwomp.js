@@ -62,7 +62,7 @@ function turnTowards(a1, a2) {
 // the camera's yaw (camera->rot[1]): atan2s of its forward direction on the ground
 const camYaw = cam => { const e = cam.matrixWorld.elements; return atan2s(-e[8], -e[10]); };
 // is_object_visible_on_camera
-function inWedge(pos, cam, angle) {
+export function inWedge(pos, cam, angle) {
   const e = cam.matrixWorld.elements;
   return u16(atan2s(pos[0] - e[12] / S, pos[2] - e[14] / S) + (angle >> 1) - camYaw(cam)) <= angle;
 }
