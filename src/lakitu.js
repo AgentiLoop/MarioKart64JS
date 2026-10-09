@@ -214,10 +214,10 @@ class Referee {
           case 15: this.exit(); return;
         }
         break;
-      case 'flag':   // update_object_lakitu_red_flag
+      case 'flag':   // update_object_lakitu_red_flag; the console waves for ever, we send him off after 4 s
         if (this.state === 1) { this.sp = { path: FLAG_PATH, idx: 0, timer: 0, loop: true }; this.state++; }
         else if (this.state === 2) { this.visible = true; this.state++; }
-        else this.anim(0, 31, 2, -1);
+        else { this.anim(0, 31, 2, -1); if (this.wait(240)) { this.sp = null; this.exit(); return; } }   // off the loop, out on his last heading
         break;
       case 'secondlap': case 'finallap':   // update_object_lakitu_second_lap / _final_lap
         switch (this.state) {
