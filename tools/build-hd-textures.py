@@ -287,6 +287,30 @@ def main():
         jobs['particles/smoke.png'] = (img.size, parts, 4, lambda a: Image.merge('RGBA', [a.getchannel('A')] * 4))
     else:
         print('  incomplete HD frames: particles/smoke.png')
+    # item atlases (extract-items.py), frame by frame; each frame keeps the closest of its candidates.
+    # Shells: eight 32x32 CI8 spin frames side by side = the pack's Projectiles/<Colour> Shell/1..8 (frames 5 and 6
+    # vary by CRC in the ROM: the base folders hold every variant, the exact CRC sits under Hacks/DX).
+    # Balloon: gTextureBalloon1 over 2 (64x32 CI8); explosion: lightning_zap_0 | 1 (32x64 IA8) side by side.
+    def frames(rel, boxes):
+        native = Image.open(NATIVE / rel).convert('RGBA')
+        parts = []
+        for box, candidates in boxes:
+            x, y, bw, bh = box
+            crop = native.crop((x, y, x + bw, y + bh))
+            scored = sorted((s, str(p)) for p in candidates if p and (s := likeness(crop, p)) is not None)
+            if not scored or scored[0][0] > MAX_DIFF:
+                print(f'  incomplete HD frames: {rel}')
+                return
+            parts.append((Path(scored[0][1]), box, False))
+        jobs[rel] = (native.size, parts, 4, None)
+    for colour in ('green', 'red', 'blue'):
+        dirs = [pack.base / 'Projectiles', pack.base / 'Hacks' / 'DX' / 'Projectiles']
+        frames(f'items/{colour}-shell.png', [((n * 32, 0, 32, 32), [p for d in dirs for p in
+                                              (d / f'{colour.title()} Shell' / str(n + 1)).glob('*.png')]) for n in range(8)])
+    frames('items/balloon.png', [((0, 0, 64, 32), [named('other_textures/gTextureBalloon1')]),
+                                 ((0, 32, 64, 32), [named('other_textures/gTextureBalloon2')])])
+    frames('items/explosion.png', [((0, 0, 32, 64), [named('other_textures/lightning_zap_0')]),
+                                   ((32, 0, 32, 64), [named('other_textures/lightning_zap_1')])])
 
     # menus
     sky = named('texture_tkmk00/background_blue_sky')
