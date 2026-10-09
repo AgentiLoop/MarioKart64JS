@@ -45,7 +45,7 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | the locomotive's smoke | — |
 | Sherbet Land | emperor penguin, swimming / sliding penguins, see-through ice | **done** (src/penguins.js) |
 | Rainbow Road | neon signs (`render_object_neon`, 10: 3 animated, 7 character signs) | **done** (tools/extract-neon.py, src/neon.js) |
-| | Chain Chomps (`render_object_chain_chomps`) | — |
+| | Chain Chomps (`render_object_chain_chomps`, 3 animated armatures + far sphere) | **done** (tools/extract-chomp.py, src/chomps.js) |
 | Wario Stadium | Wario signs (`ACTOR_WARIO_SIGN` ×3) | **done** (src/props.js) |
 | D.K.'s Jungle Parkway | trees and palm trees (`render_palm_trees`, 95) | **done** (src/props.js) |
 | | paddle-boat ferry (`render_actor_paddle_boat`, 1-2 screens) | **done** (tools/extract-ferry.py, src/ferry.js) |
@@ -266,3 +266,22 @@ positions `D_800E6734` (checked in the ROM). The three animated signs' positions
 `render_object_neon`: each turned to the camera (roll 0x8000) at 8x scale (512 units wide), alpha-tested
 (G_RM_AA_ZB_TEX_EDGE), only inside the camera's 0x2AAB view wedge, with no distance limit. EXTRA flips each quad back in its
 own x. Not in the credits sequence (the port has none).
+## Rainbow Road Chain Chomps (done)
+`tools/extract-chomp.py` writes `public/mk64/rainbow-road/chomp.json` and 5 PNGs: the armature `d_rainbow_road_unk4`
+(7 limbs, 138 triangles: body halves `dl_15550` / `dl_15C68` metal and jaws `dl_151A8` / `dl_158C0` gold as
+G_TEXTURE_GEN reflection maps, the tongue G_CC_MODULATEI with vertex colours, the eyes G_CC_MODULATEIA lit by `light1`),
+its one 20-frame animation `d_rainbow_road_unk2`, and the far-away sphere picture (32x64 RGBA16 mirrored on S to 64x64,
+quad `D_0D0062B0`). Every vertex array, the angle / limb tables and the animation header are checked in the course data
+segment, the common_data display lists `D_0D0077D0` / `D_0D0079C8` / `D_0D0078F8` as raw F3DEX words, and every
+constant in `update_objects.c` / `render_objects.c`. `src/chomps.js` (`update_chain_chomps`, once a frame):
+- chomp i starts on track path point i * 300 + 500, origin (0, -15, 0), scale 0.03 (`func_80085878`);
+- the animation steps a frame a frame (0..19); every 64th frame it rattles (0x19018057, heard from where it is);
+- `func_80074344` swings its lateral factor -0.8 .. 0.8 by 0.03 a frame; `func_8000D940` moves it 4 units towards path
+  points - 3 / - 4 (against the karts) at that factor between the path's 50-unit edges; it faces the way it moved;
+- `func_80089CBC(30)`: a kart within 10 + its box (x/z) and 30 (y) tumbles (`Items.hit(kart, 'fake_item_box')`); a star
+  kart drives through.
+`render_object_chain_chomps` / `func_8008A1D0(1500, 2500)`, per screen: hidden past 2500 (x/z) or outside the view wedge;
+within 1500 the armature, beyond it the sphere picture at 0.54, 16 up, turned to the camera and rolled 0x8000.
+Assumption: G_TEXTURE_GEN uses the RSP's default lookat X (1, 0, 0) / Y (0, 1, 0) — the game never sets gSPLookAt — dotted
+with the world-space normal. EXTRA runs the unmirrored path with the factor negated and flips the model in its own x.
+Not ported: the time-trial replay flag (`func_80072180`).

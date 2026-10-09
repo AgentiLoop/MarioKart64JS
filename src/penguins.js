@@ -32,7 +32,7 @@ function n64(m, out) {
 }
 
 // mtxf_translate_rotate2
-function limbMatrix(pos, angle, out) {
+export function limbMatrix(pos, angle, out) {
   const sx = Math.sin(binary(angle[0])), cx = Math.cos(binary(angle[0]));
   const sy = Math.sin(binary(angle[1])), cy = Math.cos(binary(angle[1]));
   const sz = Math.sin(binary(angle[2])), cz = Math.cos(binary(angle[2]));
@@ -44,7 +44,7 @@ function limbMatrix(pos, angle, out) {
 }
 
 // mtxf_set_matrix_transformation, then course units -> scene units
-function objectMatrix(pos, rot, scale, out) {
+export function objectMatrix(pos, rot, scale, out) {
   const sX = Math.sin(binary(rot[0])), cX = Math.cos(binary(rot[0]));
   const sY = Math.sin(binary(rot[1])), cY = Math.cos(binary(rot[1]));
   const sZ = Math.sin(binary(rot[2])), cZ = Math.cos(binary(rot[2]));
