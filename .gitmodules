@@ -1,0 +1,7 @@
+[submodule "public/mk64"]
+	path = public/mk64
+	url = https://github.com/AgentiLoop/MarioKart64JS-assets.git
+[submodule "public/mk64-hd"]
+	path = public/mk64-hd
+	url = https://github.com/AgentiLoop/MarioKart64JS-assets.git
+	branch = hd
