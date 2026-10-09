@@ -5,6 +5,7 @@ import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
 import * as HD from './hd.js';
+import { createSharpen } from './sharpen.js';
 import { Exhaust } from './smoke.js';
 import { Net } from './net.js';
 import { Lakitu } from './lakitu.js';
@@ -32,6 +33,8 @@ renderer.setPixelRatio(1);
 HD.setRenderer(renderer);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const sharpen = createSharpen(renderer);
+const present = draw => { draw(); if (HD.presetId() === '2x') sharpen(); };   // 2x: CAS-sharpen the 480-line frame before CSS stretches it
 
 const scene = new THREE.Scene();
 const params = new URLSearchParams(location.search);
@@ -1342,7 +1345,7 @@ function renderViews() {
   renderer.setViewport(0, 0, size.x, size.y);
 }
 
-// Presentation: render HD.renderLines() lines (1x = N64 240p, upscaled with hard pixels). G cycles presets.
+// Presentation: render HD.renderLines() lines (1x = N64 textures at 480 lines, upscaled with hard pixels). G cycles presets.
 function resize() {
   const h = HD.renderLines();
   const w = Math.round(h * innerWidth / innerHeight);
@@ -1443,7 +1446,7 @@ function frame(now) {
     charStep(now);    // animate the character-select faces when that screen is open
     courseStep(now);  // cup / course / OK flash boxes on the course-select screen
     updateSky(camera);
-    renderer.render(scene, camera);
+    present(() => renderer.render(scene, camera));
     return;
   }
   if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
@@ -1519,7 +1522,7 @@ function frame(now) {
   exhaust.update(dt, karts, camera);
   physicsDebug.update(karts);
   drawMini();
-  renderViews();
+  present(renderViews);
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);

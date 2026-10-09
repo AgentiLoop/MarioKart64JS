@@ -1,5 +1,5 @@
 // Resolution presets + HD texture tiers.
-// G cycles 1x (240p, N64) / 2x (480p, Wii VC) / 4x (960p) / Native (window x devicePixelRatio).
+// G cycles 1x (N64 textures, 480 lines) / 2x (480p, Wii VC) / 4x (960p) / Native (window x devicePixelRatio).
 // Every image under public/mk64 may have 2x/4x versions in public/mk64-hd/<N>x/ (built from the
 // MK64 Reloaded pack by tools/build-hd-textures.py); the tier follows the preset (native picks
 // 2x below 720 lines, else 4x) and falls back to the highest tier that exists, or the ROM image.
@@ -9,7 +9,7 @@ import * as THREE from 'three';
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
 export const PRESETS = [
-  { id: '1x', label: '1× 240p', lines: 240 },
+  { id: '1x', label: '1× N64 480p', lines: 480 },   // N64 textures + hard pixels, at half the pixel size of true 240p
   { id: '2x', label: '2× 480p', lines: 480 },
   { id: '4x', label: '4× 960p', lines: 960 },
   { id: 'native', label: 'Native', lines: 0 },
@@ -21,6 +21,7 @@ const textures = new Set();
 const listeners = [];
 
 export const presetLabel = () => PRESETS[preset].label;
+export const presetId = () => PRESETS[preset].id;
 export const renderLines = () => PRESETS[preset].lines || Math.round(innerHeight * devicePixelRatio);
 export const tier = () => { if (preset === 0) return 1; const t = Math.round(renderLines() / 240); return t <= 1 ? 1 : t === 2 ? 2 : 4; };
 export const smooth = () => tier() > 1;
@@ -73,7 +74,7 @@ function loadImage(tex) {
 
 function applyFilter(tex) {
   const hd = tex.userData.hd, on = smooth();
-  tex.magFilter = on ? THREE.LinearFilter : hd.retroFilter;
+  tex.magFilter = on || preset === 0 ? THREE.LinearFilter : hd.retroFilter;   // 1x: bilinear magnification like the N64, so close-up texels don't turn into big blocks
   tex.minFilter = on ? (hd.mipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter) : hd.retroFilter;
   tex.generateMipmaps = on && hd.mipmaps;
   tex.anisotropy = on && hd.mipmaps ? maxAniso : 1;
