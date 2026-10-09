@@ -161,7 +161,7 @@ def convert(source, rom, course_id, course_json, config=None, extra_lists=None, 
             elif command == 'gsDPSetTextureLUT' and a[0] != 'G_TT_NONE':
                 raise ValueError(f'{name}: unsupported {command}({a[0]})')
             elif command not in ('gsDPPipeSync', 'gsDPTileSync', 'gsDPLoadSync', 'gsDPLoadBlock', 'gsDPSetTile',
-                                 'gsDPSetTextureLUT', 'gsSPEndDisplayList'):
+                                 'gsDPSetTextureLUT', 'gsSPEndDisplayList', 'gsSPNumLights'):
                 raise ValueError(f'{name}: unsupported display-list command {command}')
 
     used_lights = []

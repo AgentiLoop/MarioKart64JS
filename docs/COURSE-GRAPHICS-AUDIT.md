@@ -18,7 +18,8 @@ Status: **done** = ported from ROM data; **—** = missing.
 | | GP balloons (`render_object_grand_prix_balloons`) | — |
 | Choco Mountain | falling rocks (`spawn_falling_rocks`) | — |
 | Bowser's Castle | bushes (`ACTOR_BUSH_BOWSERS_CASTLE`, 27) | **done** |
-| | Thwomps (`render_object_thwomps`, count by cc) | — |
+| | Thwomps (`render_object_thwomps`, 8 / 11 / 12 by cc, six behaviours) | **done** (tools/extract-thwomp.py, src/thwomp.js) |
+| | Thwomps squashing karts, slam dust, camera shake, Thwomp shadows | — |
 | | statue fire breath (`render_object_bowser_flame`) | — |
 | Banshee Boardwalk | trash bin, bat, Boos (`render_object_trash_bin` / `_bat` / `_boos`) | — |
 | Yoshi Valley | trees (13) | **done** |
@@ -204,3 +205,29 @@ setup `func_80043328` runs first (G_LIGHTING | G_CULL_BACK), as raw F3DEX words.
 EXTRA flips the model back in its own x and turns it the other way, as the ferry. Not ported yet: the item box hanging
 10 below it (`ACTOR_HOT_AIR_BALLOON_ITEM_BOX`, `update_actor_item_box_hot_air_balloon`) and its ground shadow
 (`func_8004A6EC`, common `D_0D007B20` within 300, at the surface found by `func_800886F4`).
+## Bowser's Castle Thwomps (done)
+tools/extract-thwomp.py walks `d_course_bowsers_castle_dl_thwomp` (dl_8F38) with the tools/extract-props.py walker in its
+normals mode (vertex arrays and the RGBA16 `gTextureThwompSide` verified byte-for-byte; common_data `D_0D007828`, which sets
+G_LIGHTING | G_CULL_BACK, checked as raw F3DEX words). The list's first quad is the face: it takes the texture the render
+code loads, the CI8 16x64 `d_course_bowsers_castle_thwomp_faces[textureListIndex]` (6 frames, decoded through
+`gTLUTThwomp`), S mirrored at 16 texels and T clamped (`rsp_load_texture_mask`). It also reads the three object-type
+lights from the ROM (`func_800534E8`: 0 `D_800E4638`, 1 `D_800E4650` yellow, 2 `D_800E4668`), the three spawn tables
+(`gThomwpSpawns50CC` 8, `gThwompSpawns100CCExtra` 11, `gThomwpSpawns150CC` 12, verified in the ROM) and the
+`d_course_bowsers_castle_addr` section triangles. src/thwomp.js runs `func_80081210` once a frame:
+- behaviours (unk_0D5): 1 `func_8007ED6C` waits 60, slams, turns round when a screen's player is within 300 ahead of its
+  camera; 2 `func_8007F5A8` walks a square (x 200 then z -100, mirrored for variant 1) slamming at each corner;
+  3 `func_8007FFC0` chases: a human player at path point 170-180 sends every chaser alongside at 1.25 x their speed for
+  160 frames (weaving +-40 in z after a random 50-99), 215-225 sends them to the player's x; 4 `func_800801FC` slams
+  every 60 frames after a 2 / 60 / 120 / 180 first wait; 5 `func_800808CC` floats at 70, sliding to z -250 and back at
+  1 / 1.5, faces 3-5 for ever; 6 `func_80080408` (x 1.5) pulls faces 6 times when a screen comes within 100;
+- the slam `func_8007E63C` 0x32-0x36 (rise 1.5 to unk_01C[1] + 15, drop 2, faces 3 then 2, climb back at 0.5), the
+  state stack (`func_80072568` / `func_8007266C`), `func_80073E18` turns and `func_800417B4` turn-towards as in the decomp;
+- `render_object_thwomps`: drawn while the screen's track section (src/sections.js pathCounter, as the ferry) is within
+  one of the Thwomp's unk_0DF and it is in the camera's 180-degree wedge; F3DEX re-lit every frame, type 0's light
+  turned by `func_800419F8` ((0, 0, 120) by D_80165834, + 0x100 / + 0x200 a frame);
+- sounds through `placedSound`: the slam 0x1900800F when a kart is within 500 (not with 3-4 screens; once per slam,
+  assumption), the big one 0x19018045, the floaters 0x19036045 every 64 frames.
+EXTRA: the console mirrors every spawn, angle and step, so the port runs the unmirrored behaviour and flips each model
+back in its own x (light x negated). The type-3 trigger uses the nearest course path point to the kart (assumption for
+`gNearestPathPointByPlayerId`). Not ported yet: squashing karts (`func_80080B28`, THWOMP_SQUISH_TRIGGER and the
+0x64-0x6C / 0xC8 states), the slam dust (`func_80080FEC`), camera shake (`func_8001CA10`) and the shadow (`func_8004A7AC`).
