@@ -203,9 +203,12 @@ function blobShadowMap() {
 
 // transparent rows under the wheels in each atlas frame (3-11 of 64 px, varying with the view and the character):
 // the sprite's anchor (center.y) is raised by that much so the wheels, not the frame's bottom edge, sit on the kart's
-// origin and its shadow. Measured once per character from the first tier that loads (same fractions at every HD scale).
-const ATLAS_W = 1344, ATLAS_H = 1024, FRAME_COLS = 21, FRAME_ROWS = 16;
-const wheelGaps = new Map();   // character -> per frame, fraction of the frame height
+// origin and its shadow. The steering lean rolls the sprite about that anchor and drops the outer wheel under it: per
+// frame and side, the drop at LEAN_REF (the full drift lean, Kart.syncMesh) over sin LEAN_REF is the wheel's reach,
+// taken over the pixels of the lowest fh / 8 rows (the tyre's rounded shoulder reaches further out than its contact
+// row, but higher up). Measured once per character from the first tier that loads (same fractions at every HD scale).
+const ATLAS_W = 1344, ATLAS_H = 1024, FRAME_COLS = 21, FRAME_ROWS = 16, LEAN_REF = 0.2;
+const wheelGaps = new Map();   // character -> { gap, left, right } per frame, fractions of the frame height / width
 function measureWheelGaps(character, image) {
   if (wheelGaps.has(character)) return wheelGaps.get(character);
   if (typeof document === 'undefined') return null;
@@ -214,24 +217,36 @@ function measureWheelGaps(character, image) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(image, 0, 0, ATLAS_W, ATLAS_H);
   const px = ctx.getImageData(0, 0, ATLAS_W, ATLAS_H).data, fw = ATLAS_W / FRAME_COLS, fh = ATLAS_H / FRAME_ROWS;
-  const gaps = new Float32Array(FRAME_COLS * FRAME_ROWS);
-  for (let f = 0; f < gaps.length; f++) {
+  const n = FRAME_COLS * FRAME_ROWS, gap = new Float32Array(n), left = new Float32Array(n), right = new Float32Array(n);
+  const rise = 1 / Math.tan(LEAN_REF);   // px of outer reach a pixel one row up needs before it is the low point
+  for (let f = 0; f < n; f++) {
     const x0 = (f % FRAME_COLS) * fw, y0 = Math.floor(f / FRAME_COLS) * fh;
-    let gap = 0;
-    rows: for (; gap < fh; gap++) {
-      const y = y0 + fh - 1 - gap;
+    let g = 0;
+    rows: for (; g < fh; g++) {
+      const y = y0 + fh - 1 - g;
       for (let x = x0; x < x0 + fw; x++) if (px[(y * ATLAS_W + x) * 4 + 3] >= 128) break rows;   // alphaTest 0.5
     }
-    gaps[f] = gap < fh ? gap / fh : 0;
+    if (g >= fh) continue;   // empty frame
+    gap[f] = g / fh;
+    let l = 0, r = 0;
+    for (let h = 0; h < fh / 8 && h <= fh - 1 - g; h++) {
+      const y = y0 + fh - 1 - g - h;
+      for (let x = x0; x < x0 + fw; x++) {
+        if (px[(y * ATLAS_W + x) * 4 + 3] < 128) continue;
+        l = Math.max(l, fw / 2 - (x - x0) - h * rise); r = Math.max(r, x - x0 + 1 - fw / 2 - h * rise);   // the pixel's outer bottom corner
+      }
+    }
+    left[f] = l / fw; right[f] = r / fw;
   }
-  wheelGaps.set(character, gaps);
-  return gaps;
+  const wheels = { gap, left, right };
+  wheelGaps.set(character, wheels);
+  return wheels;
 }
 
 export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
-  let gaps = wheelGaps.get(character) ?? null;
-  const map = HD.loadTexture(`karts/${character}.png`, { onLoad: tex => { gaps ??= measureWheelGaps(character, tex.image); } });   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
+  let wheels = wheelGaps.get(character) ?? null;
+  const map = HD.loadTexture(`karts/${character}.png`, { onLoad: tex => { wheels ??= measureWheelGaps(character, tex.image); } });   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
   map.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false, toneMapped: false });
   // func_8004B614's combiner (1 - ENV) * TEXEL0 + PRIM with ENV 0: the item effects' prim colour added to the
@@ -313,12 +328,14 @@ export function buildKartMesh(character = 'mario') {
     sprite.scale.y = 4.5 * (1 - (g.userData.squash || 0));   // landing bounce (Kart.stepBounce)
     // the frame's wheel row on the origin: an anchor in the sprite's own plane, not a drop of the sprite along the
     // group's up (the ground normal), which on a slope pushed the sprite sideways into the hill and under a steep
-    // camera left the wheels below the ground. The lean rolls the sprite about that anchor, dropping the outer wheel
-    // halfWidth * sin|lean| under the origin: the anchor is moved (pre-rotation, so it comes out as a pure lift on
-    // screen) to keep the low wheel on the origin.
-    const lift = 2.25 * Math.abs(Math.sin(lean));
-    sprite.center.x = 0.5 - lift * Math.sin(lean) / 4.5;
-    sprite.center.y = (gaps ? gaps[view.frame] : 0) - lift * Math.cos(lean) / sprite.scale.y;
+    // camera left the wheels below the ground. The lean rolls the sprite about that anchor (positive = counter-clockwise,
+    // screen-left drops), dropping the outer wheel its reach * sin|lean| under the origin: the anchor is moved
+    // (pre-rotation, so it comes out as a pure lift on screen) to keep the low wheel on the origin. The frame's full
+    // half-width over-lifted (2-6 px over the shadow at drift lean): the wheels sit inboard of the frame's edge.
+    const reach = wheels ? ((lean > 0) !== back ? wheels.left : wheels.right)[view.frame] * sprite.scale.x : 0;
+    const lift = reach * Math.abs(Math.sin(lean));
+    sprite.center.x = 0.5 - lift * Math.sin(lean) / sprite.scale.x;
+    sprite.center.y = (wheels ? wheels.gap[view.frame] : 0) - lift * Math.cos(lean) / sprite.scale.y;
     sprite.userData.frame = view.frame;
     sprite.userData.mirrored = view.mirrored;
   };
