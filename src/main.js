@@ -1281,8 +1281,8 @@ function cinematicCamera(dt, v, k) {
   } else if (kind === 'high') {   // crane: high above and behind, looking down the road
     target = rel(26, 30); fov = 55; lookAhead = 10;
     if (c.t > 6) next();
-  } else if (kind === 'low') {   // low tail shot off one shoulder, wheels at eye level
-    target = rel(18, 1.5, 0.45 * c.side); fov = 60; lookAhead = 4;
+  } else if (kind === 'low') {   // low tail shot off one shoulder, looking slightly down so the road under the kart is in frame
+    target = rel(16, 4, 0.45 * c.side); fov = 60; lookAhead = 2;
     if (c.t > 6) next();
   } else {   // a fixed spot beside the road ahead; the next shot once the kart is past it (or after 12 s)
     track.frameAt(c.s, _cf);
@@ -1300,6 +1300,9 @@ function cinematicCamera(dt, v, k) {
   if (target) {
     if (c.cut) { c.off.copy(target); c.cut = false; v.init = false; } else c.off.lerp(target, 1 - Math.exp(-dt * 6));
     v.pos.copy(k.world).add(c.off);
+    // bumpy courses: keep the camera above the ground it is actually over, not the ground under the kart
+    const g = track.groundAt?.(v.pos.x, v.pos.z, v.pos.y) || track.groundBelow?.(v.pos.x, v.pos.z, v.pos.y + 5);
+    if (g && v.pos.y < g.y + 2.5) v.pos.y = g.y + 2.5;
   } else v.pos.copy(c.pos);
   v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
   const look = k.world.clone().addScaledVector(k.up, 1.4).addScaledVector(k.fwd, lookAhead);
