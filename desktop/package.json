@@ -1,7 +1,7 @@
 {
   "name": "mariokart64js",
   "productName": "MarioKart64JS",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "MarioKart64JS desktop (Electron for Windows and Linux; macOS uses webkit/build.sh)",
   "author": "Todd Bruss",
   "main": "main.cjs",
