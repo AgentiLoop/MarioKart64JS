@@ -364,6 +364,16 @@ def main():
             if score <= MAX_DIFF:
                 single(rel, hd)
             print(f'  {"named" if score <= MAX_DIFF else "REJECTED"} {rel} <- {name} (diff {score:.1f})')
+        if rel in jobs:
+            continue
+        # no name: the same RGBA16 / IA16 texels by CRC anywhere in the pack (boat sign, jungle trees,
+        # Koopa palms, locomotive, chomp metal/gold, Lakitu's ice), kept even where the pack repaints them
+        for fmt, code in (('rgba16', 0), ('ia16', 3)):
+            hd = pack.by_texels(texels16(native, fmt), *native.size, code, 2)
+            if hd:
+                single(rel, hd)
+                print(f'  crc {rel} <- {hd.relative_to(pack.base)}')
+                break
 
     # render tiers
     files, cache = {}, {}
