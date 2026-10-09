@@ -2,6 +2,7 @@
 // preset and checks:
 //   - no failed requests and no console errors
 //   - every course texture loaded, at the HD tier the manifest promises (or the ROM image)
+//   - no texture in the scene (course, props, karts, items) samples with nearest filtering in an HD preset
 //   - z-fighting: renders an ID buffer (one flat colour per course batch, alpha-tested cutouts kept)
 //     from cameras along the route, then again with sub-millimetre camera jitter. Pixels inside a
 //     surface whose batch changes between those renders are depth fights (flicker in motion).
@@ -66,6 +67,19 @@ try {
         if (hd.scale !== want) out.textures.push(`${hd.rel}: tier ${hd.scale}, expected ${want}`);
         else if (!t.image.naturalWidth) out.textures.push(`${hd.rel}: empty image`);
       });
+      // pixelation: in HD presets nothing in the scene may sample with nearest filtering
+      if (tier > 1) {
+        const seen = new Set();
+        scene.traverse(o => {
+          for (const m of [].concat(o.material || [])) for (const k of ['map', 'alphaMap', 'emissiveMap']) {
+            const t = m[k];
+            if (!t || seen.has(t)) continue;
+            seen.add(t);
+            if (t.magFilter === 1003 || t.minFilter === 1003)   // THREE.NearestFilter
+              out.textures.push(`${t.userData?.hd?.rel || t.name || t.constructor.name} on ${o.name || o.parent?.name || o.type}: nearest filtering in an HD preset`);
+          }
+        });
+      }
       // ID pass: course batches (translucent ones too, written like opaque) + the item boxes' opaque
       // "?" cards, flat colours, linear output so colours are exact
       const batches = [];
