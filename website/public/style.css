@@ -65,6 +65,7 @@ kbd{font:700 14px ui-monospace,Menlo,monospace;background:linear-gradient(180deg
 .dl-card:hover,.dl-card.me{border-color:var(--gold);transform:translateY(-2px)}
 .dl-card b{display:block;font-size:20px}
 .dl-card span{color:var(--mut);font-size:14px}
+.dl-card.wide{grid-column:1/-1}
 .road{color:var(--mut);padding-left:22px}
 .foot{border-top:1px solid var(--line);background:#07061a}
 .foot .wrap{padding-block:40px}
