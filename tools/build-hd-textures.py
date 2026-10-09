@@ -21,7 +21,7 @@ import re
 import struct
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parent.parent
 NATIVE = ROOT / 'public' / 'mk64'
@@ -122,6 +122,25 @@ def right_bevel(img, rel):
             img.putpixel((i, h - t + j), grey if i + j >= t - 1 else black)        # bottom-left
     return img
 
+
+# The pack's Mario/Royal Raceway asphalt (and its finish line) darkens from 116 at the centre to 61 by the
+# kerb stripe and greys the stripe itself, where the ROM texture is flat. These are mirror-wrapped across
+# the road and the courses lay patches of the same texture over it at other UVs (layer batches), so the
+# gradient shows as lighter/darker rectangles around the lane dashes. Keep the HD grain but put back the
+# native shading: add the per-texel native - box-downscaled difference, bilinear-upscaled to the tier.
+NATIVE_SHADING = {'common/gTextureRoad0.png', 'common/gTextureRoadFinish0.png'}
+
+
+def native_shading(img, rel):
+    native = Image.open(NATIVE / rel).convert('RGBA')
+    small = img.resize(native.size, Image.BOX)
+    bands = []
+    for c in range(3):
+        diff = Image.new('L', native.size)
+        diff.putdata([max(0, min(255, 128 + a - b)) for a, b in
+                      zip(native.getchannel(c).get_flattened_data(), small.getchannel(c).get_flattened_data())])
+        bands.append(ImageChops.add(img.getchannel(c), diff.resize(img.size, Image.BILINEAR), 1.0, -128))
+    return Image.merge('RGBA', bands + [img.getchannel('A')])
 
 
 # mean |native - downscaled HD| over RGBA (colour weighted by alpha), 0-255. The pack repaints a lot (cows,
@@ -233,7 +252,8 @@ def main():
             rel = tex['image'] if tex['image'].startswith('common/') else f'{course}/{tex["image"]}'
             img = Image.open(NATIVE / rel).convert('RGBA')
             fmt = tex.get('format', 'rgba16')
-            single(rel, pack.by_texels(texels16(img, fmt), *img.size, 3 if fmt == 'ia16' else 0, 2))
+            single(rel, pack.by_texels(texels16(img, fmt), *img.size, 3 if fmt == 'ia16' else 0, 2),
+                   post=(lambda img, rel=rel: native_shading(img, rel)) if rel in NATIVE_SHADING else None)
 
     # karts / faces atlases
     # wheel phase 0 like extract-karts.py; frames 289+ have no wheels and no _wheelN variants
