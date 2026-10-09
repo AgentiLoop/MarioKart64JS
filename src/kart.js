@@ -179,6 +179,11 @@ export function kartSpriteFrame(angle, spinning = false) {
   return { frame, mirrored };
 }
 
+// sprite view angle (buildKartMesh): eased at VIEW_RATE /s, the frame's angle a VIEW_BAND rope behind it (under the
+// 2.8 degree steps of the rear frames), a jump over VIEW_SNAP is a camera cut
+const VIEW_RATE = 10, VIEW_BAND = 1 * Math.PI / 180, VIEW_SNAP = 30 * Math.PI / 180;
+const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+
 export function buildKartMesh(character = 'mario') {
   const g = new THREE.Group();
   const map = HD.loadTexture(`karts/${character}.png`);   // 1x nearest, HD tiers mipmapped (atlas built up to 2x)
@@ -202,6 +207,7 @@ export function buildKartMesh(character = 'mario') {
   sprite.scale.set(4.5, 4.5, 1);
   g.add(sprite);
   const cameraPosition = new THREE.Vector3(), local = new THREE.Vector3(), inverse = new THREE.Quaternion();
+  const held = new WeakMap();   // per camera: the view angle the frame was last picked from
   sprite.onBeforeRender = (_renderer, _scene, camera) => {
     camera.getWorldPosition(cameraPosition);
     g.getWorldQuaternion(inverse).invert();
@@ -210,7 +216,19 @@ export function buildKartMesh(character = 'mario') {
     // EXTRA (camera.userData.mirror): the frame for the mirrored course's view, pre-flipped so the mirrored
     // projection draws it the way the ROM's sprite reads
     const flip = !!camera.userData.mirror;
-    const view = kartSpriteFrame(Math.atan2(flip ? local.x : -local.x, local.z), g.userData.spinning);
+    let angle = Math.atan2(flip ? local.x : -local.x, local.z);
+    // the drawn heading wobbles 1-3 degrees a frame (the route's tangent noise under psi, Kart.syncMesh), and a
+    // camera that does not sit on the heading (the finish cinematic, the other karts) saw the sprite flicker between
+    // two views whenever a frame boundary fell under that wobble. The view angle is eased at VIEW_RATE and the
+    // frame's angle only follows it past a deadband, so a bend or an orbiting camera still sweeps the frames while
+    // a wobble keeps the frame it has. A cut (a jump over VIEW_SNAP) and a spin-out snap.
+    const now = performance.now(), h = held.get(camera) ?? held.set(camera, { sm: angle, a: angle, t: now }).get(camera);
+    const dS = wrapAngle(angle - h.sm);
+    h.sm = Math.abs(dS) > VIEW_SNAP || g.userData.spinning ? angle : h.sm + dS * (1 - Math.exp(-Math.min(0.1, (now - h.t) / 1000) * VIEW_RATE));
+    h.t = now;
+    const dA = wrapAngle(h.sm - h.a);
+    h.a = Math.abs(dA) > VIEW_SNAP || g.userData.spinning ? h.sm : Math.abs(dA) > VIEW_BAND ? h.sm - Math.sign(dA) * VIEW_BAND : h.a;
+    const view = kartSpriteFrame(h.a, g.userData.spinning);
     if (g.userData.tumble != null) view.frame = 289 + g.userData.tumble;   // gKartTextureTumbles, still mirrored by view
     const column = view.frame % 21, row = Math.floor(view.frame / 21), back = view.mirrored !== flip;
     map.repeat.set((back ? -1 : 1) / 21, 1 / 16);
