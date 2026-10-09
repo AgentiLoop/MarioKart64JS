@@ -41,7 +41,10 @@ export function hdSource(rel) {
 
 // THREE.Texture that swaps its image when the tier changes. onLoad(texture, scale) runs after
 // every (re)load; scale = image size / native size. Linear filtering in retro (1x) via retroFilter.
+// '<course>/common/x.png' -> 'common/x.png': images a course JSON names as common/... are shared
+// across courses and live in public/mk64/common/ (tools/dedupe-textures.py).
 export function loadTexture(rel, { mipmaps = true, retroFilter = THREE.NearestFilter, onLoad } = {}) {
+  rel = rel.replace(/^[^/]+\/(?=common\/)/, '');
   const tex = new THREE.Texture();
   tex.userData.hd = { rel, mipmaps, retroFilter, onLoad, url: null, scale: 1 };
   textures.add(tex);
