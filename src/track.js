@@ -519,17 +519,52 @@ export class Track {
       return hit;
     };
     if (this.arena) return;
-    const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
+    const STEP = 0.5, MAX = 40, RAMP = 8, raw = { [-1]: [], [1]: [] };
+    // ground d out from route sample j (side sgn) nearest to yRef
+    const across = (j, d, sgn, yRef) => {
+      const q = this.pos[(j + this.n) % this.n], Q = this.R[(j + this.n) % this.n];
+      return height(q.x + Q.x * d * sgn, q.z + Q.z * d * sgn, yRef);
+    };
+    const routeY = this.pos.map(p => height(p.x, p.z, p.y) ?? p.y);   // the route's ground
+    const roadAt = (j, d, sgn, y) => {   // the ground d out from sample j, if it is level with the route's there
+      const g = across(j, d, sgn, y), r = routeY[(j + this.n) % this.n];
+      return g !== null && Math.abs(g - r) < 0.6 ? g : null;
+    };
+    // the road the ramps of Koopa Troopa Beach stand on ((-4, 69), (-4, 48), (-96, 124)): the ground d out from
+    // sample i, level with the route's, RAMP or 2 RAMP samples back and ahead (ramps come in close pairs); or null
+    const roadNear = (i, d, sgn, y) => {
+      const at = k => roadAt(i + k, d, sgn, y);
+      const a = at(-RAMP) ?? at(-2 * RAMP), b = at(RAMP) ?? at(2 * RAMP);
+      return a === null || b === null ? null : Math.max(a, b);
+    };
+    // a ramp's top: ground at y, d out from sample i, 0.3 to 2.5 over that road (returns the road, or null)
+    const ramp = (i, d, sgn, y) => {
+      const road = roadNear(i, d, sgn, y);
+      return road !== null && y - road > 0.3 && y - road < 2.5 ? road : null;
+    };
     for (let i = 0; i < this.n; i++) {
       const p = this.pos[i], R = this.R[i];
-      const y0 = height(p.x, p.z, p.y) ?? p.y;
+      const y0 = routeY[i];
       for (const sgn of [-1, 1]) {
         let prev = y0, d = STEP;
         for (; d <= MAX; d += STEP) {
-          const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn;
-          if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev)) break;   // the route itself may graze ramp sides
+          const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn, x1 = p.x + R.x * (d - STEP) * sgn, z1 = p.z + R.z * (d - STEP) * sgn;
+          const hit = d > 1.5 && blocked(x1, z1, x, z, prev);   // the route itself may graze ramp sides
           const y = height(x, z, prev);
-          if (y === null || Math.abs(y - prev) > 1.2) break;   // > ~67 deg per step = cliff/drop
+          // a steep face or a step of > ~67 deg (cliff/drop) ends the course; a ramp's sides and back don't: the
+          // bound pinned the karts driving past a ramp onto its side face, where they stuck and piled up (wallPush
+          // still holds their bodies off its faces)
+          if (y === null) break;
+          if (Math.abs(y - prev) > 0.3 && (hit || Math.abs(y - prev) > 1.2)) {
+            // onto or off a ramp's top, the higher side of the step, which goes on 2 more across (a barrier's top is
+            // narrower: Wario Stadium's between its lanes at (-251, -102)) with no face over it
+            const up = y > prev, top = up ? d : d - STEP, ty = up ? y : prev, road = ramp(i, top, sgn, ty);
+            const y2 = across(i, top + (up ? 2 : -2), sgn, ty), wide = y2 !== null && Math.abs(y2 - ty) < 1.2 && ramp(i, top + (up ? 2 : -2), sgn, y2) !== null;
+            // and a ramp climbed onto comes back down to the road within 8 (a bank goes on up: Frappe Snowland's at (-12, 113))
+            let back = !up;
+            for (let e = d + STEP; !back && e <= d + 8; e += STEP) { const h = across(i, e, sgn, road); back = h !== null && Math.abs(h - road) < 0.6; }
+            if (road === null || !wide || !back || Math.min(y, prev) < road - 0.6 || (hit && blocked(x1, z1, x, z, ty))) break;
+          } else if (hit) break;
           prev = y;
         }
         raw[sgn].push(Math.max(2.5, d - STEP));
