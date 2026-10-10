@@ -593,7 +593,7 @@ export class Kart {
       let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
       if (ds > 0 && ds < 18 && Math.abs(o.d - this.d) < 3.5) target = this.d + (o.d >= this.d ? -4 : 4);
     }
-    target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, t.wallAt(this.s, -1, true)) + 2.5, Math.min(HALF_WIDTH, t.wallAt(this.s, 1, true)) - 2.5);
+    target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, t.wallAt(this.s, -1)) + 2.5, Math.min(HALF_WIDTH, t.wallAt(this.s, 1)) - 2.5);
     const want = Math.atan2(target - this.d, this.finished ? 20 : 14);
     const steer = THREE.MathUtils.clamp((want - this.psi) * (this.finished ? 2.5 : 3.5), -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
@@ -751,9 +751,7 @@ export class Kart {
     // body height over the ground at the new spot: last frame's ground lags up a steep bank (Choco Mountain's
     // cliff foot at (-37, -59) rises 0.8 a frame), so the face above it was tested too low
     const y0 = this.air ? this.y : this.groundY ?? f.pos.y, g = this.air ? null : t.groundAt(x, z, y0);
-    // ... but off a lip (Koopa Troopa Beach's start ramp at (-3, 48)) the kart is still at the top, not on the
-    // ground below, so the lip's own back face is not in its body
-    const cap = this.model?.userData.capsule, gy = g ? Math.max(g.y, y0) : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
+    const cap = this.model?.userData.capsule, gy = g ? g.y : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
     let wx = x, wz = z, nx = 0, nz = 0, turn = 0;
     if (!cap) {
       const h = t.wallPush(px, pz, x, z, gy, this.visualHalfWidth);
