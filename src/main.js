@@ -380,9 +380,28 @@ function titleStep(now) {
     blinkTick = Math.floor(now / 1000 * 60 / 8);
     pushStart.style.visibility = blinkTick % 3 !== 0 ? 'visible' : 'hidden';
     titleFlag.step(now);
+    if (title3d) { const px = Math.min(innerWidth / 320, innerHeight / 240) * devicePixelRatio; title3d.step(now, Math.round(320 * px), Math.round(240 * px)); }
   }
 }
 window.__flag = titleFlag;
+// 3 on the title: the START_MENU art redone in 3D (src/title3d.js, Wii karts) behind the 2D flag / logo; again for the art.
+// Game select then shows public/title3d/background_main_menu.png, a still of that scene tinted like the MK64 menu art.
+let title3d = null, title3dLoading = false;
+function toggleTitle3D() {
+  if (title3d) {
+    title3d.dispose(); title3d = null; $('title3d').style.display = 'none'; $('titleBg').style.display = '';
+    HD.setImg($('gameBg'), 'menu/background_main_menu.png');
+    showRes('TITLE: MK64 ART'); return;
+  }
+  if (title3dLoading) return;
+  title3dLoading = true;
+  import('./title3d.js').then(m => {
+    title3d = window.__title3d = m.createTitle3D($('title3d'));
+    $('title3d').style.display = 'block'; $('titleBg').style.display = 'none';
+    delete $('gameBg').dataset.hd; $('gameBg').src = `${import.meta.env.BASE_URL}title3d/background_main_menu.png`;   // no data-hd: HD tier changes leave it alone
+    showRes('TITLE: 3D (WII KARTS)');
+  }, err => { console.error(err); showRes('3D TITLE FAILED TO LOAD'); }).finally(() => { title3dLoading = false; });
+}
 // menu sounds, bank 4 of include/sounds.h: SOUND_MENU_CURSOR_MOVE, _SELECT, _GO_BACK, _OK_CLICKED, SOUND_INTRO_ENTER_MENU
 const SND = { move: 0x00, select: 0x01, back: 0x02, okClicked: 0x16, enter: 0x1a };
 const snd = name => audio.menuSound(SND[name]);
@@ -1131,6 +1150,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP' && !e.repeat && trackDef) showRes(physicsDebug.toggle() ? 'PHYSICS BODIES ON' : 'PHYSICS BODIES OFF');
   // 3: Wii 3D kart test (src/kart3d.js) on every kart (each its own character's Standard Kart) with shadow-map
   // shadows on the course and the Wii Lakitu (src/lakitu3d.js) for the referees, back to the sprites on the next press
+  if (e.code === 'Digit3' && !e.repeat && !trackDef && atTitle()) toggleTitle3D();
   if (e.code === 'Digit3' && !e.repeat && player) {
     if (player.model) { for (const k of karts) k.set3D(null); track.setShadowCatchers(false); lakitu.set3D(null); showRes('KART: MK64 SPRITE'); }
     else {
