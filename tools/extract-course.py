@@ -21,7 +21,8 @@ spec.loader.exec_module(karts)
 # G_RM_AA_ZB_TEX_EDGE (alpha-tested), per src/racing/render_courses.c.
 COURSES = {
     'luigi_raceway': dict(name='Luigi Raceway', prefix='gLRTexture', root='C730', edge=['E0', '68']),
-    'mario_raceway': dict(name='Mario Raceway', prefix='gMRTexture', root='6928', edge=['450', '240', 'E0', '160']),
+    # collision: lists course_generate_collision_mesh (render_courses.c) adds besides the TrackSections table (1P)
+    'mario_raceway': dict(name='Mario Raceway', prefix='gMRTexture', root='6928', edge=['450', '240', 'E0', '160'], collision=['1140', '8E8']),
     'moo_moo_farm': dict(name='Moo Moo Farm', prefix='gMMFTexture', root='6730', edge=['10C0']),
     'koopa_troopa_beach': dict(name='Koopa Troopa Beach', prefix='gKTBTexture', root='B2B0', edge=['2C0']),
     'kalimari_desert': dict(name='Kalimari Desert', prefix='gKDTexture', root='A670', edge=['998', '270']),
@@ -405,15 +406,21 @@ def convert(source, rom, course_id):
         provenance['translucentLists'] = [resolve(n) for n in cfg['xlu']]
     if cfg.get('sections'):
         provenance['sectionArrays'] = [n for n, _ in cfg['sections']]
-    # Boost-ramp collision surfaces (TrackSections d_course_<course>_addr, read by
-    # parse_course_displaylists): BOOST_RAMP_ASPHALT (0xFE, Royal Raceway), BOOST_RAMP_WOOD (0xFC, DKJP).
-    ramps = {}
-    table = re.search(rf'TrackSections d_course_{course_id}_addr\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
-    for name, surface in re.findall(r'\{\s*(\w+),\s*(\w+),', table.group(1) if table else ''):
+    # Collision surfaces: MK64 collides only with the TrackSections table (d_course_<course>_addr, read by
+    # parse_course_displaylists -> generate_collision_mesh), plus the lists course_generate_collision_mesh adds by
+    # hand (Mario Raceway's dl_1140 / dl_8E8). Everything else drawn (signs, scenery rocks, palm trunks) has no
+    # collision. Each entry: surface type name, section flags (0x4000 = double-sided, 0x2000 / 0x8000 as in
+    # add_collision_triangle): collision.indices holds every triangle's vertex indices, collision.sections the
+    # surface type name, section flags and triangle count of each table entry, in order.
+    # Boost-ramp collision surfaces (BOOST_RAMP_ASPHALT (0xFE, Royal Raceway), BOOST_RAMP_WOOD (0xFC, DKJP)) are
+    # also listed on their own ("ramps").
+    ramps, collision = {}, dict(indices=[], sections=[])
+    table = re.search(rf'TrackSections d_course_{course_id}_(?:addr|track_sections)\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S)
+    entries = [(dl + n, 'SURFACE_DEFAULT', '0x0000') for n in cfg.get('collision', [])]
+    entries += [e for e in re.findall(r'\{\s*(\w+),\s*(\w+),\s*\w+,\s*(0x[0-9A-Fa-f]+)', table.group(1) if table else '') if e[0] in lists]
+    for name, surface, flags in entries:
         kind = {'BOOST_RAMP_ASPHALT': 'asphalt', '254': 'asphalt', 'BOOST_RAMP_WOOD': 'wood', '252': 'wood'}.get(surface)
-        if not kind:
-            continue
-        slots, stack = {}, [name]
+        slots, stack, indices = {}, [name], []
         while stack:
             for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[stack.pop()], re.S):
                 a = [v.strip() for v in args.split(',')]
@@ -425,7 +432,12 @@ def convert(source, rom, course_id):
                         slots[start + i] = (address & 0xffffff) // 16 + i
                 elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
                     for j in range(0, len(a), 4):
-                        ramps.setdefault(kind, []).extend(slots[int(v, 0)] for v in a[j:j + 3])
+                        indices.extend(slots[int(v, 0)] for v in a[j:j + 3])
+        if kind:
+            ramps.setdefault(kind, []).extend(indices)
+        if indices:
+            collision['indices'].extend(indices)
+            collision['sections'].append(dict(surface=surface, flags=int(flags, 16), count=len(indices) // 3))
     for name, alpha, red, green, blue in cfg.get('vtxColours', []):   # vertex [8] = alpha (default 255)
         stack = [dl + name]
         while stack:
@@ -451,7 +463,7 @@ def convert(source, rom, course_id):
         provenance.update(pathBlockRomOffset=path_block, pathBlockOffset=path_offset,
                           pathBytesSha256=hashlib.sha256(path_bytes).hexdigest())
     course = dict(name=cfg['name'], vertices=vertices, path=route[:-1], batches=list(batches.values()),
-                  **({'ramps': ramps} if ramps else {}), **extra,
+                  **({'ramps': ramps} if ramps else {}), **({'collision': collision} if collision['indices'] else {}), **extra,
                   textures=textures, provenance=dict(**provenance,
                   vertexRomOffset=vertex_offset, vertexBytesSha256=hashlib.sha256(packed).hexdigest(),
                   sources={name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}))

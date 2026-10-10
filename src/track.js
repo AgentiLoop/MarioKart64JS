@@ -334,6 +334,26 @@ export class Track {
     for (const [kind, idx] of Object.entries(course.ramps || {})) {
       for (let i = 0; i + 2 < idx.length; i += 3) rampOf.set(idx.slice(i, i + 3).sort((p, q) => p - q).join(), kind);
     }
+    // Steep faces (walls) come from the course's collision surfaces where the extractor lists them (course.collision:
+    // MK64's TrackSections table, which is all generate_collision_mesh reads): decorative geometry drawn but not
+    // listed (Koopa Troopa Beach's arrow signs at (-93, -136) / (-34, -119), the scenery rocks at (-50, -115), palm
+    // trunks) has no collision in MK64, and its faces held and turned the karts here. The ground stays what is drawn
+    // (stacked visual surfaces, below). Without the list every drawn batch supplies the walls (battle courses).
+    const steep = (a, b, c) => {
+      const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
+      const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+      const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      return Math.abs(area) < 0.26 * Math.hypot(nx, area, nz);   // only near-vertical faces (> 75 deg from up) block
+    };
+    const addWall = (a, b, c) => {
+      const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
+      bucket(wallGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), walls.push([a, b, c]) - 1);
+    };
+    const ci = course.collision ? course.collision.indices : [];
+    for (let i = 0; i + 2 < ci.length; i += 3) {
+      const [a, b, c] = [0, 1, 2].map(k => course.vertices[ci[i + k]].slice(0, 3).map(v => v * S));
+      if (steep(a, b, c)) addWall(a, b, c);
+    }
     for (const batch of course.batches) {
       for (let i = 0; i + 2 < batch.indices.length; i += 3) {
         const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
@@ -341,10 +361,8 @@ export class Track {
         const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
         const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
         const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
-        // only near-vertical faces (> 75 deg from up) block; embankments and banked turns are drivable
-        if (Math.abs(area) < 0.26 * Math.hypot(nx, area, nz)) {
-          bucket(wallGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), walls.push([a, b, c]) - 1);
-        }
+        // embankments and banked turns are drivable
+        if (!course.collision && steep(a, b, c)) addWall(a, b, c);
         if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
         const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
         const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
