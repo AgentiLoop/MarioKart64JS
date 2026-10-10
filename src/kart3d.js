@@ -14,7 +14,7 @@ const TIRE_X = 0.58, TIRE_Z = [0.82, -0.78];   // metres from the body's origin:
 const BODY_Y = 0.2;                      // metres the body's origin sits over the ground
 const DRIVER = new THREE.Vector3(0, 0.26, -0.22);   // Mario's origin (his seat, the pose sits him) in the cockpit
 const STEER_ANGLE = 0.45;                // rad the front tires turn at full lock
-const TEXTURES = { 'body_mr.png': 'body_red.png', 'tire.png': 'tire_red.png' };
+const TEXTURES = { 'body_mr.png': 'body_red.png', 'tire.png': 'tire_black.png' };
 
 let cached = null;
 function loadParts() {
@@ -46,6 +46,10 @@ function prepare(scene) {
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
       m.side = THREE.DoubleSide;
       if (m.map) { m.map.colorSpace = THREE.SRGBColorSpace; m.map.magFilter = THREE.LinearFilter; }
+      // The eye texture is one eye (32px wide). On the Wii a texture matrix doubles S and the sampler mirrors it
+      // (<wrap_s>MIRROR</wrap_s>), so u 0-0.5 is one eye and 0.5-1 its mirror; ColladaLoader drops both, which
+      // stretched a single eye across the face.
+      if (m.map && m.name === 'mario_eye_tx') { m.map.wrapS = THREE.MirroredRepeatWrapping; m.map.repeat.x = 2; }
     }
   });
   return scene;
