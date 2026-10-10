@@ -450,8 +450,9 @@ export class Track {
       return [n[0] / l, n[1] / l, n[2] / l, e1, e2];
     });
     // horizontally nearest point to (px, pz) of the triangle's outline where it stands within the kart's body,
-    // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road)
-    const rim = (px, pz, y0, y1, tri) => {
+    // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road).
+    // (mx, mz): the kart's move this step, r its body radius
+    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0) => {
       let best = null, bd = Infinity;
       for (let i = 0; i < 3; i++) {
         const A = tri[i], B = tri[(i + 1) % 3], ex = B[0] - A[0], ey = B[1] - A[1], ez = B[2] - A[2];
@@ -462,7 +463,21 @@ export class Track {
           lo = Math.max(0, Math.min(ta, tb)); hi = Math.min(1, Math.max(ta, tb));
           if (lo > hi) continue;
         }
-        const hh = ex * ex + ez * ez, s = Math.max(lo, Math.min(hi, hh > 1e-9 ? ((px - A[0]) * ex + (pz - A[2]) * ez) / hh : lo));
+        const hh = ex * ex + ez * ez, u = hh > 1e-9 ? ((px - A[0]) * ex + (pz - A[2]) * ez) / hh : lo;
+        let s = Math.max(lo, Math.min(hi, u));
+        const c0 = Math.abs(ey) < 1e-6 ? -1 : (y0 - A[1]) / ey;
+        // a gently sloped edge (a ramp's side rising with its surface, Koopa Troopa Beach's wedge at (-97, 122)) met
+        // end-on by a kart driving up beside it, short of where the body's height cuts it: the edge's line beside the
+        // kart pushes it, sideways, once the body reaches past the cut. The cut point pushed the kart on the route
+        // back off the ramp's corner, turning it ~1 rad and costing a third of its speed. Driven into from the side
+        // the cut point still holds (Bowser's Castle's ramp at (195, -268))
+        if (c0 > 0 && c0 < 1 && s === c0 && s !== u && ey * ey < hh) {
+          const m = Math.hypot(mx, mz);
+          if (m > 1e-6 && (mx * ex + mz * ez) * Math.sign(ey) > 0.7 * m * Math.sqrt(hh)) {
+            if (Math.hypot(A[0] + ex * s - px, A[2] + ez * s - pz) >= r) continue;
+            s = u;
+          }
+        }
         const qx = A[0] + ex * s, qz = A[2] + ez * s, dd = (qx - px) ** 2 + (qz - pz) ** 2;
         if (dd < bd) { bd = dd; best = [qx, qz]; }
       }
@@ -497,7 +512,7 @@ export class Track {
                 // beside the face: its outline within the body, 0.55 (lower lips are climbed) to 2 (higher edges hang
                 // over the road: the kart drives under them, e.g. the face 2.2 over Mario Raceway's road at (59, 52))
                 if (u < 0 || v < 0 || u + v > 1) {
-                  const e = rim(x, z, y + 0.55, y + 2, walls[t]);
+                  const e = rim(x, z, y + 0.55, y + 2, walls[t], x - x0, z - z0, r);
                   if (!e) continue;
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
