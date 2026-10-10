@@ -718,7 +718,9 @@ export class Kart {
     // coasting drag fades out with the throttle: at full throttle it held the kart at 88% of max, below the
     // decomp's terminal velocity (force / (0.12 * kartFriction)), e.g. 62 instead of 70.6 km/h for 150cc Mario
     this.v -= Math.sign(this.v) * 4 * dt * (1 - Math.max(0, input.throttle));
-    if (this.v > max) this.v = Math.max(max, this.v - (this.boost > 0 ? 0 : 30) * dt);
+    // a boost tops out at BOOST_SPEED (its +40/s had no ceiling: a mushroom reached 124, a star 205, 2.8-4.7x top
+    // speed, and hit Koopa Troopa Beach's rocks hard enough to fly over and into them); after it, the excess bleeds off
+    if (this.v > max) this.v = this.boost > 0 ? max : Math.max(max, this.v - 30 * dt);
     this.v = Math.max(this.v, -12);
     if (this.boost > 0) this.boost -= dt;
 
@@ -784,8 +786,14 @@ export class Kart {
     // by 5. (0.5 a frame from far out left a kart beside DK's Jungle Parkway's bridge at (-142, -51) to reach its face.)
     const lim = this.wallEase > 0 ? this.wallEase : out > 1 ? Math.abs(this.d) : 0;
     const ease = out > 0 ? Math.max(0, Math.min(out, lim - Math.max(0.5, 0.25 * (lim - wall)) - wall)) : 0;
-    this.wallEase = ease > 0 ? wall + ease : 0;
-    if (ease > 0) this.d = sgn * (wall + ease);
+    // ... but not into the ground: where the limit closes in over a mound (Koopa Troopa Beach's rock at (31, 250),
+    // no steep faces, driven over in MK64, which has no route limit) a step of up to 6 carried the kart in under
+    // its top, on the route plane inside the rock or falling through its floorless inside to Lakitu. Such a step is
+    // held (the kart stays out, as in MK64) until the limit opens again or the way in is level.
+    const held = ease > 0 && this.intoGround(t, sgn * (wall + ease));
+    this.wallEase = held ? Math.abs(this.d) : ease > 0 ? wall + ease : 0;
+    if (held) { /* stays out past the limit */ }
+    else if (ease > 0) this.d = sgn * (wall + ease);
     else if (out > 0) {
       this.d = sgn * (wall - WALL_CLEAR);
       const into = sgn * Math.sin(this.phi) * this.v;
@@ -822,6 +830,18 @@ export class Kart {
       if (Math.abs(dd) < p.hl && Math.abs(this.d - p.d) < p.hw + 1) this.boost = Math.max(this.boost, 1.3);
     }
     this.syncMesh(dt);
+  }
+
+  // Would the kart at lateral offset d be under the ground there? The ground it would ride (Track.groundAt from its
+  // height) is more than a step above it, or there is none at its height but a surface over it.
+  intoGround(t, d) {
+    if (!t.groundAt) return false;
+    const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const x = f.pos.x + f.R.x * d, z = f.pos.z + f.R.z * d, y = this.air ? this.y : this.groundY ?? f.pos.y;
+    const g = t.groundAt(x, z, y);
+    if (g) return g.y > y + 1;
+    const top = t.groundBelow(x, z, y + 40);
+    return !!top && top.y > y + 1;
   }
 
   // Race courses: Track.wallPush on the kart's world spot, the correction mapped back to (s, d) along the route; of
@@ -962,7 +982,9 @@ export class Kart {
     }
     if (input.brake > 0) this.v -= (this.v > 0 ? 55 : 14) * input.brake * dt;
     this.v -= Math.sign(this.v) * 4 * dt * (1 - Math.max(0, input.throttle));   // as in update()
-    if (this.v > max) this.v = Math.max(max, this.v - (this.boost > 0 ? 0 : 30) * dt);
+    // a boost tops out at BOOST_SPEED (its +40/s had no ceiling: a mushroom reached 124, a star 205, 2.8-4.7x top
+    // speed, and hit Koopa Troopa Beach's rocks hard enough to fly over and into them); after it, the excess bleeds off
+    if (this.v > max) this.v = this.boost > 0 ? max : Math.max(max, this.v - 30 * dt);
     this.v = Math.max(this.v, -12);
     if (this.boost > 0) this.boost -= dt;
     if (input.drift && !this.drift && this.v > 18 && Math.abs(input.steer) > 0.25) { this.drift = Math.sign(input.steer); this.driftTime = 0; }
@@ -1240,11 +1262,28 @@ export class Kart {
     // native courses: sit on the real surface (embankments, banked turns) instead of the route plane
     let g = null;
     if (t.groundAt) {
-      if (this.air) g = t.groundBelow(x, z, this.y + 0.5);
-      else {
+      if (this.air) {
+        g = t.groundBelow(x, z, this.y + 0.5);
+        // in flight under a sloped surface (within 3): inside a solid mound or hill. Koopa Troopa Beach's rock at
+        // (31, 250), flown off its far side, then the route limit closing in from 40 to 6.5 at s930 carried the kart
+        // back in under its top, and a boosted flight at its hill at (24, 216) went in under the rising slope; both
+        // fell through the floorless inside (or past the inner faces) and Lakitu fished them out. MK64 pushes a kart
+        // out of a surface it is in (check_collision_zx), so it is put on top, as a landing - where there is no floor
+        // under it, or it has just come in from the open (not under the surface a frame ago: not under a bridge deck)
+        const top = t.groundBelow(x, z, this.y + 3);
+        if (top && top.y > this.y + 0.5 && top.normal.y > 0.5) {
+          const was = t.groundBelow(px, pz, this.y + 3);
+          if (!g || !(was && was.y > this.y)) { g = top; this.y = top.y; this.vy = Math.max(0, this.vy); }
+        }
+      } else {
         g = t.groundAt(x, z, this.groundY ?? this.world.y);
-        // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the route-plane fallback
-        if (!g && this.groundY != null && this.vy > 0.5) g = t.groundBelow(x, z, this.groundY + 0.5);
+        // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the route-plane fallback, unless
+        // that would put the kart under the ground there: knocked off the top of Koopa Troopa Beach's rock at (31, 213)
+        // (13 up, the next ground 8.7) it sat on the route plane at 0.1 inside the rock; it drops onto that ground
+        if (!g && this.groundY != null) {
+          const gb = t.groundBelow(x, z, this.groundY + 0.5);
+          if (gb && (this.vy > 0.5 || gb.y > f.pos.y + 0.5)) g = gb;
+        }
       }
     }
     // ballistic height: leave the ground when it falls away faster than gravity (ramp lips, crests)
