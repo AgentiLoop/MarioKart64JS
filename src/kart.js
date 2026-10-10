@@ -593,7 +593,12 @@ export class Kart {
       let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
       if (ds > 0 && ds < 18 && Math.abs(o.d - this.d) < 3.5) target = this.d + (o.d >= this.d ? -4 : 4);
     }
-    target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, t.wallAt(this.s, -1)) + 2.5, Math.min(HALF_WIDTH, t.wallAt(this.s, 1)) - 2.5);
+    // the lane is kept clear of the narrowest wall limit just ahead too: where the limit closes in (beside Koopa
+    // Troopa Beach's narrow ramp at (10, 277) it drops from 40 to 3.5) the clamp snapped the karts still out wide
+    // in by a few units at once and bounced them off it
+    let wl = t.wallAt(this.s, -1), wr = t.wallAt(this.s, 1);
+    for (let a = 2; a <= 10 + Math.max(0, this.v) * 0.3; a += 2) { wl = Math.min(wl, t.wallAt(this.s + a, -1)); wr = Math.min(wr, t.wallAt(this.s + a, 1)); }
+    target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, wl) + 2.5, Math.min(HALF_WIDTH, wr) - 2.5);
     const want = Math.atan2(target - this.d, this.finished ? 20 : 14);
     const steer = THREE.MathUtils.clamp((want - this.psi) * (this.finished ? 2.5 : 3.5), -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
