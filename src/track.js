@@ -564,7 +564,23 @@ export class Track {
             let back = !up;
             for (let e = d + STEP; !back && e <= d + 8; e += STEP) { const h = across(i, e, sgn, road); back = h !== null && Math.abs(h - road) < 0.6; }
             if (road === null || !wide || !back || Math.min(y, prev) < road - 0.6 || (hit && blocked(x1, z1, x, z, ty))) break;
-          } else if (hit) break;
+          } else if (hit) {
+            // a ramp's back face (its lip) crossed on the road beside or behind it (Koopa Troopa Beach's at (-109,
+            // 116) and (-60, 172)): the face's top under 2.5 over the road is a wide ramp top a few samples back or
+            // ahead at the same d
+            const top = Math.max(...walls[crossed].map(v => v[1]));
+            let lip = top - prev > 0.3 && top - prev < 2.5 && !blocked(x1, z1, x, z, prev + 1.9);
+            if (lip) {
+              lip = false;
+              for (const k of [-1, -2, -3, 1, 2, 3]) for (const dd of [d, d - 1.5, d + 1.5]) {
+                const h = across(i + k, dd, sgn, top);
+                if (h === null || h - prev < 0.3 || h > top + 0.4 || ramp(i + k, dd, sgn, h) === null) continue;
+                const side = e => { const h2 = across(i + k, dd + e, sgn, h); return h2 !== null && Math.abs(h2 - h) < 1.2 && ramp(i + k, dd + e, sgn, h2) !== null; };
+                if (side(2) || side(-2)) { lip = true; break; }
+              }
+            }
+            if (!lip) break;
+          }
           prev = y;
         }
         raw[sgn].push(Math.max(2.5, d - STEP));
