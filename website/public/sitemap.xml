@@ -10,6 +10,9 @@
     <image:image><image:loc>https://mk64js.gokart.games/img/race-royal.jpg</image:loc><image:title>Royal Raceway</image:title></image:image>
     <image:image><image:loc>https://mk64js.gokart.games/img/race-koopa.jpg</image:loc><image:title>Koopa Troopa Beach</image:title></image:image>
     <image:image><image:loc>https://mk64js.gokart.games/img/race-rainbow.jpg</image:loc><image:title>Rainbow Road</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/title3d.jpg</image:loc><image:title>3D title screen with Wii karts</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/race3d-koopa.jpg</image:loc><image:title>Wii 3D kart on Koopa Troopa Beach</image:title></image:image>
+    <image:image><image:loc>https://mk64js.gokart.games/img/fly3d-orbit-mario.jpg</image:loc><image:title>Finish fly-over round a 3D Wii kart</image:title></image:image>
   </url>
   <url>
     <loc>https://mk64js.gokart.games/play</loc>

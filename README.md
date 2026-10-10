@@ -19,7 +19,6 @@ We built it as a test of how closely AI tools can recreate a classic game.
 | ![Koopa Troopa Beach](docs/screenshots/hires/race-koopa.jpg) | ![Sherbet Land](docs/screenshots/hires/race-sherbet.jpg) |
 | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race-dk.jpg) | ![Bowser's Castle](docs/screenshots/hires/race-bowser.jpg) |
 | ![Banshee Boardwalk](docs/screenshots/hires/race-banshee.jpg) | ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) |
-| ![3D title screen (3 key)](docs/screenshots/hires/title3d.jpg) | ![Wii 3D karts (3 key)](docs/screenshots/hires/race3d-mario.jpg) |
 
 ## What you can do
 
@@ -30,7 +29,41 @@ We built it as a test of how closely AI tools can recreate a classic game.
 - **Use all 15 items**, from bananas and shells to stars, Boos and lightning.
 - **Hear the original music and voices**, played from the game's own sound data.
 - **Watch the courses come alive:** the Moo Moo Farm cows, the Kalimari Desert trains, Toad's Turnpike traffic, the Bowser's Castle Thwomps, the Rainbow Road Chain Chomps and more.
+- **Switch to Wii 3D karts** with the 3 key: a 3D title screen, 3D Wii-style karts and Lakitu with real shadows, and 3D finish fly-overs. [See below.](#wii-3d-karts-press-3)
 - **Choose a look:** the original blurry 240p, or sharp HD textures up to full resolution.
+
+## Wii 3D karts (press 3)
+
+Press **3** on the title screen and the N64 title becomes a 3D scene: Mario, Wario, Bowser, Peach and Toad in Wii-style
+Standard Karts driving at you down a scrolling road. In a race, **3** swaps every kart (each driver in their own kart)
+and the referee Lakitu for 3D models with real shadows. Press **3** again to go back to the original art. Your choice is
+remembered for the next race.
+
+**3D title screen and game select**
+
+| | |
+|---|---|
+| ![3D title screen](docs/screenshots/hires/title3d.jpg) | ![Game select over the 3D scene](docs/screenshots/hires/game-select3d.jpg) |
+
+**Racing in 3D**
+
+| | |
+|---|---|
+| ![Mario Raceway](docs/screenshots/hires/race3d-mario.jpg) | ![Luigi Raceway](docs/screenshots/hires/race3d-luigi.jpg) |
+| ![Koopa Troopa Beach](docs/screenshots/hires/race3d-koopa.jpg) | ![Royal Raceway](docs/screenshots/hires/race3d-royal.jpg) |
+| ![Sherbet Land](docs/screenshots/hires/race3d-sherbet.jpg) | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race3d-dk.jpg) |
+| ![Bowser's Castle](docs/screenshots/hires/race3d-bowser.jpg) | ![Rainbow Road](docs/screenshots/hires/race3d-rainbow.jpg) |
+
+**Fly-overs after the finish**
+
+Cross the line on the last lap and the camera swings round the kart to its nose, then cuts to roadside shots, a high crane and
+a low tail shot, as on the console. With the Wii karts on, they show your 3D kart.
+
+| | |
+|---|---|
+| ![Orbit round the kart, Mario Raceway](docs/screenshots/hires/fly3d-orbit-mario.jpg) | ![Head-on, Mario Raceway](docs/screenshots/hires/fly3d-nose-mario.jpg) |
+| ![High crane, Mario Raceway](docs/screenshots/hires/fly3d-crane-mario.jpg) | ![Orbit round the kart, Royal Raceway](docs/screenshots/hires/fly3d-orbit-royal.jpg) |
+| ![High crane, Royal Raceway](docs/screenshots/hires/fly3d-crane-royal.jpg) | ![Low tail shot, Royal Raceway](docs/screenshots/hires/fly3d-tail-royal.jpg) |
 
 ## Controls
 
