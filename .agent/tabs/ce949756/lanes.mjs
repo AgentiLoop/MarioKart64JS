@@ -13,7 +13,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 200, height: 150 } });
 await page.goto(`http://localhost:${port}/?track=${course}&char=${ch}&cc=150`);
 await page.waitForFunction(() => window.__game && window.__game.player && window.__game.player.track.wallTris, null, { timeout: 90000 });
-const out = await page.evaluate(([S0, S1, SS, D0, D1, DS, N, TR, FS, VV]) => {
+const out = await page.evaluate(([S0, S1, SS, D0, D1, DS, N, TR, FS, VV, LC, DR]) => {
   const g = window.__game, k = g.player, t = k.track, R = []; const THREE_V = k.frame.pos.constructor;
   // top speed: accelerate on the straight at s0
   k.s = k.prevS = 5; k.d = 0; k.psi = k.phi = 0; k.v = 0; k.wallEase = 0; k.syncMesh(0);
@@ -22,6 +22,8 @@ const out = await page.evaluate(([S0, S1, SS, D0, D1, DS, N, TR, FS, VV]) => {
   let flights = 0, n = 0;
   for (let s = S0; s < end; s += SS) for (let d = D0; d <= D1; d += DS) {
     if (d < -t.wallAt(s, -1) + 1 || d > t.wallAt(s, 1) - 1) continue;
+    // LC: lane change - steer toward lane d + LC (clamped inside the limits) instead of holding d
+    const lane = LC ? Math.max(-t.wallAt(s, -1) + 2, Math.min(t.wallAt(s, 1) - 2, d + LC)) : d;
     k.s = k.prevS = s; k.d = d; k.psi = k.phi = 0; k.v = V; k.wallEase = 0; k.air = false; k.vy = 0; k.arc = null;
     k.rescue = 0; k.spin = 0; k.wallT = 0; k.syncMesh(0);
     const w0 = `${k.world.x.toFixed(0)},${k.world.z.toFixed(0)}`;
@@ -30,21 +32,22 @@ const out = await page.evaluate(([S0, S1, SS, D0, D1, DS, N, TR, FS, VV]) => {
       const fr = t.frameAt(k.s + 5, { pos: new THREE_V(), T: new THREE_V(), U: new THREE_V(), R: new THREE_V(), k: 0 });
       const sf = Math.min(1, Math.abs(k.v) / 10) / (1 + Math.abs(k.v) / 90);
       const ff = k.v > 0 && sf > 0.05 ? fr.k * k.v / Math.max(0.3, 1 - fr.k * k.d) / (1.9 * sf) : 0;
-      const steer = FS !== null ? FS : Math.max(-1, Math.min(1, ff + 3.5 * (Math.atan2(d - k.d, 14) - k.psi)));
+      const steer = FS !== null ? FS : Math.max(-1, Math.min(1, ff + 3.5 * (Math.atan2(lane - k.d, 14) - k.psi)));
       const wt = k.wallT; let kk = 0; for (const a of [8, 20, 32]) kk += t.frameAt(k.s + a, fr).k; kk = Math.abs(kk / 3);
       const cv = kk > 1e-4 ? 1.7 / kk / (1 + k.v / 90) : Infinity;
-      k.update(1 / 60, k.v > cv ? { throttle: 0, brake: k.v > cv * 1.15 ? 0.6 : 0.2, steer, drift: false } : { throttle: 1, brake: 0, steer, drift: false });
+      const drift = DR && i >= 10 && i < N - 10 && Math.abs(steer) > 0.3;
+      k.update(1 / 60, k.v > cv ? { throttle: 0, brake: k.v > cv * 1.15 ? 0.6 : 0.2, steer, drift } : { throttle: 1, brake: 0, steer, drift });
       if (TR) R.push(`${i} s${k.s.toFixed(1)} d${k.d.toFixed(2)} psi${k.psi.toFixed(2)} v${k.v.toFixed(1)} st${steer.toFixed(2)} air${+k.air} wT${k.wallT.toFixed(2)} wN${k.wallN ? k.wallN.t.toFixed(2)+','+k.wallN.r.toFixed(2) : ''} w${k.world.x.toFixed(1)},${k.world.z.toFixed(1)} y${k.world.y.toFixed(2)} wl${t.wallAt(k.s,-1).toFixed(1)} wr${t.wallAt(k.s,1).toFixed(1)} ease${(k.wallEase||0).toFixed(2)}`);
       if (k.wallT > wt + 0.01) hits++;
       if (k.air) air++;
-      maxPsi = Math.max(maxPsi, Math.abs(k.psi)); minV = Math.min(minV, k.v); maxOff = Math.max(maxOff, Math.abs(k.d - d));
-      if (!bad && (Math.abs(k.psi) > 0.6 || k.v < 0.5 * V)) bad = `@${i} w${k.world.x.toFixed(0)},${k.world.z.toFixed(0)} y${k.world.y.toFixed(1)}`;
+      maxPsi = Math.max(maxPsi, Math.abs(k.psi)); minV = Math.min(minV, k.v); maxOff = Math.max(maxOff, Math.abs(k.d - lane));
+      if (!bad && (Math.abs(k.psi) > (LC ? 0.9 : 0.6) || k.v < 0.5 * V)) bad = `@${i} w${k.world.x.toFixed(0)},${k.world.z.toFixed(0)} y${k.world.y.toFixed(1)}`;
     }
     n++; if (air > 15) flights++;
-    if (bad || hits || maxOff > 4) R.push(`s${s} d${d} w${w0} psi${maxPsi.toFixed(2)} vmin${minV.toFixed(0)} hits${hits} off${maxOff.toFixed(1)} air${air} ${bad}`);
+    if (bad || hits || maxOff > (LC ? Math.abs(LC) + 4 : 4)) R.push(`s${s} d${d}${LC ? '>' + lane.toFixed(0) : ''} w${w0} psi${maxPsi.toFixed(2)} vmin${minV.toFixed(0)} hits${hits} off${maxOff.toFixed(1)} air${air} ${bad}`);
   }
   return { V, n, flights, R };
-}, [+S0, +S1, +SS, +D0, +D1, +DS, +N, !!process.env.TRACE, process.env.STEER ? +process.env.STEER : null, +(process.env.V || 0)]);
+}, [+S0, +S1, +SS, +D0, +D1, +DS, +N, !!process.env.TRACE, process.env.STEER ? +process.env.STEER : null, +(process.env.V || 0), +(process.env.LC || 0), !!process.env.DRIFT]);
 console.log(`V=${out.V.toFixed(1)} starts=${out.n} flights=${out.flights} flagged=${out.R.length}`);
 console.log(out.R.join('\n'));
 await browser.close(); vite.kill(); process.exit(0);
