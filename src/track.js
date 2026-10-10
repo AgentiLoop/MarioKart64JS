@@ -527,11 +527,7 @@ export class Track {
         let prev = y0, d = STEP;
         for (; d <= MAX; d += STEP) {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn;
-          // the route itself may graze ramp sides; a ramp's side (one corner raised off the ground, Koopa Troopa
-          // Beach's narrow ramp at (10, 277)) is no limit either: the ramp is driven onto from its foot and the
-          // side still pushes the kart's body (wallPush)
-          if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev) &&
-            walls[crossed].filter(v => v[1] > prev + 0.6).length !== 1) break;
+          if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev)) break;   // the route itself may graze ramp sides
           const y = height(x, z, prev);
           if (y === null || Math.abs(y - prev) > 1.2) break;   // > ~67 deg per step = cliff/drop
           prev = y;
