@@ -479,6 +479,14 @@ export class Track {
           }
         }
         const qx = A[0] + ex * s, qz = A[2] + ez * s, dd = (qx - px) ** 2 + (qz - pz) ** 2;
+        // the edge rims the ground the kart rides, within a climb of its height: Koopa Troopa Beach's ramp at (-86,
+        // 128) landed on from the one before it, its lip corner 2.1 high pushed the kart riding up at 1.55 back off
+        // sideways (turned ~1.6 rad, 42 -> 19). The ground just in from the edge toward the kart is level with it
+        const qy = A[1] + ey * s;
+        if (ey * ey < 0.09 * hh && qy < y0 - 0.55 + CLIMB && dd > 1e-12) {
+          const dh = Math.sqrt(dd), g = height(qx + (px - qx) * 0.3 / dh, qz + (pz - qz) * 0.3 / dh, qy);
+          if (g !== null && Math.abs(g - qy) < 0.15) continue;
+        }
         if (dd < bd) { bd = dd; best = [qx, qz]; }
       }
       return best;
@@ -547,10 +555,15 @@ export class Track {
     };
     // the road the ramps of Koopa Troopa Beach stand on ((-4, 69), (-4, 48), (-96, 124)): the ground d out from
     // sample i, level with the route's, RAMP or 2 RAMP samples back and ahead (ramps come in close pairs); or null
+    // The pair back and ahead most level with each other: where the route itself climbs the next ramp of a pair
+    // (Koopa Troopa Beach's at (-88, 128), RAMP ahead of the one at (-96, 121)) that ramp's top is "level with the
+    // route" there and passed for the road, so the first ramp read as no ramp and its side face ended the bound at 3
     const roadNear = (i, d, sgn, y) => {
       const at = k => roadAt(i + k, d, sgn, y);
-      const a = at(-RAMP) ?? at(-2 * RAMP), b = at(RAMP) ?? at(2 * RAMP);
-      return a === null || b === null ? null : Math.max(a, b);
+      const A = [at(-RAMP), at(-2 * RAMP)].filter(v => v !== null), B = [at(RAMP), at(2 * RAMP)].filter(v => v !== null);
+      let a = null, b = null;
+      for (const p of A) for (const q of B) if (a === null || Math.abs(p - q) < Math.abs(a - b) - 1e-6) { a = p; b = q; }
+      return a === null ? null : Math.max(a, b);
     };
     // a ramp's top: ground at y, d out from sample i, 0.3 to 2.5 over that road (returns the road, or null)
     const ramp = (i, d, sgn, y) => {
