@@ -751,7 +751,9 @@ export class Kart {
     // body height over the ground at the new spot: last frame's ground lags up a steep bank (Choco Mountain's
     // cliff foot at (-37, -59) rises 0.8 a frame), so the face above it was tested too low
     const y0 = this.air ? this.y : this.groundY ?? f.pos.y, g = this.air ? null : t.groundAt(x, z, y0);
-    const cap = this.model?.userData.capsule, gy = g ? g.y : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
+    // ... but off a lip (Koopa Troopa Beach's start ramp at (-3, 48)) the kart is still at the top, not on the
+    // ground below, so the lip's own back face is not in its body
+    const cap = this.model?.userData.capsule, gy = g ? Math.max(g.y, y0) : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
     let wx = x, wz = z, nx = 0, nz = 0, turn = 0;
     if (!cap) {
       const h = t.wallPush(px, pz, x, z, gy, this.visualHalfWidth);
