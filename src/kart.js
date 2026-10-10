@@ -662,6 +662,15 @@ export class Kart {
     if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: -steer, drift: false }; }
     // the finished kart brakes early for a tight bend instead of sliding wide into the wall
     if (this.finished && this.v > this.cornerV) return { throttle: 0, brake: this.v > this.cornerV * 1.15 ? 0.6 : 0.2, steer, drift: false };
+    // a racing CPU brakes where the bend just ahead turns the route faster than full steer turns the nose (k v over
+    // 1.9 * speedFactor rad/s): held at full speed it slid wide across its lane. Koopa Troopa Beach's bend into the
+    // ramp pair at (-4, 69) / (-4, 48) (k ~0.045 at v 43, steer pinned at 1) carried the karts 5 units over, off the
+    // first ramp's left half and onto the second one's left side face (5-13 hits a race)
+    if (!this.finished && !this.air && this.v > 0 && sf > 0.05) {
+      const kn = (t.frameAt(this.s + 6, this.ffFrame).k + t.frameAt(this.s + 10, this.ffFrame).k + t.frameAt(this.s + 14, this.ffFrame).k) / 3;
+      const need = Math.abs(kn) * this.v / (1.9 * sf);
+      if (need > 1) return { throttle: 0, brake: Math.min(1, (need - 1) * 2), steer, drift: false };
+    }
     // regulate_cpu_speed: under the class minimum always accelerate; at or above the target speed decelerate 2
     if (this.v >= CPU_MIN_SPEED[this.cc] * MK_UNIT) {
       const tbl = CPU_TARGET[t.def.id] || CPU_TARGET.default, n = t.n;
