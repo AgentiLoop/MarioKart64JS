@@ -66,10 +66,14 @@ function prepare(scene, eyeRepeat) {
   }
   scene.traverse(o => {
     if (!o.isMesh) return;
+    o.castShadow = true;   // a real shadow on the course (main.js sun, Track.setShadowCatchers) instead of the sprite's blob
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
       m.side = THREE.DoubleSide;
       if (m.map) { m.map.colorSpace = THREE.SRGBColorSpace; m.map.magFilter = THREE.LinearFilter; }
       if (m.map && m.name.endsWith('_eye_tx')) { m.map.wrapS = THREE.MirroredRepeatWrapping; m.map.repeat.x = eyeRepeat; }
+      // the body's front bumper runs v below 0 and relies on the Wii's mirrored T wrap to stay red with the white
+      // stripe (ColladaLoader repeats it, which pulled the texture's top rows of other parts onto the bumper)
+      if (m.map && m.name === 'mat_body') m.map.wrapT = THREE.MirroredRepeatWrapping;
     }
   });
   return scene;
