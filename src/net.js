@@ -12,7 +12,11 @@ const DEFAULT_LOBBY = 'wss://mk64js.gokart.games/api/mp';
 const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: ['stun:stun.cloudflare.com:3478'] },
+  // Public relay for players behind strict/symmetric NAT, where STUN alone can't connect them.
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+    username: 'openrelayproject', credential: 'openrelayproject' },
 ];
+const DISCONNECT_GRACE = 8000;   // a 'disconnected' ICE state often recovers by itself
 const MESH_TIMEOUT = 25000;
 export const VERSION = '0.1';
 
@@ -28,6 +32,7 @@ export class Net extends EventTarget {
     this.players = [];     // [{id, name, char}] sorted by id, including me
     this.peers = new Map(); // id -> {pc, r, u, open}
     this.ws = null; this.meshTimer = 0;
+    this.earlySigs = [];   // signals that arrived before our own 'go' built the mesh
   }
 
   get isOnline() { return this.state === 'racing' || this.state === 'signaling'; }
@@ -45,6 +50,7 @@ export class Net extends EventTarget {
     for (const p of this.peers.values()) { try { p.pc.close(); } catch {} }
     this.peers.clear();
     clearTimeout(this.meshTimer);
+    this.earlySigs = [];
     this.state = 'idle'; this.myId = 0; this.hostId = 0; this.roomCode = ''; this.players = [];
   }
 
@@ -95,8 +101,13 @@ export class Net extends EventTarget {
       }
       pc.onicecandidate = ev => { if (ev.candidate) this._send({ t: 'sig', to: p.id, data: { cand: ev.candidate.toJSON() } }); };
       pc.onconnectionstatechange = () => {
-        if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && this.peers.has(p.id)) this._dropPeer(p.id);
+        clearTimeout(peer.dropTimer);
+        const st = pc.connectionState;
+        if (!this.peers.has(p.id) || this.peers.get(p.id) !== peer) return;
+        if (st === 'failed' || st === 'closed') this._dropPeer(p.id);
+        else if (st === 'disconnected') peer.dropTimer = setTimeout(() => { if (pc.connectionState === 'disconnected' && this.peers.get(p.id) === peer) this._dropPeer(p.id); }, DISCONNECT_GRACE);
       };
+      peer.q = Promise.resolve();
       this.peers.set(p.id, peer);
       if (this.myId < p.id) {
         pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => this._send({ t: 'sig', to: p.id, data: { sdp: pc.localDescription.toJSON() } }));
@@ -104,12 +115,23 @@ export class Net extends EventTarget {
     }
     clearTimeout(this.meshTimer);
     this.meshTimer = setTimeout(() => { if (this.state === 'signaling') this._fail("Couldn't connect to the other players (firewall or strict NAT)."); }, MESH_TIMEOUT);
+    const early = this.earlySigs; this.earlySigs = [];
+    for (const e of early) this._onSignal(e.from, e.data);
     this._checkMesh();
   }
 
-  async _onSignal(from, data) {
+  // Signals for one peer are handled strictly in order (a candidate must wait for the offer/answer before it).
+  _onSignal(from, data) {
+    if (!data) return;
     const peer = this.peers.get(from);
-    if (!peer || !data) return;
+    if (!peer) {   // the other side's offer can beat our own 'go' over the internet: keep it for _buildMesh
+      if (this.state === 'lobby') this.earlySigs.push({ from, data });
+      return;
+    }
+    peer.q = peer.q.then(() => this._handleSignal(peer, from, data));
+  }
+
+  async _handleSignal(peer, from, data) {
     const pc = peer.pc;
     try {
       if (data.sdp) {
@@ -140,10 +162,11 @@ export class Net extends EventTarget {
     const p = this.peers.get(id);
     if (!p) return;
     this.peers.delete(id);
+    clearTimeout(p.dropTimer);
     try { p.pc.close(); } catch {}
+    if (this.state === 'signaling') { this._fail("Couldn't connect to the other players (firewall or strict NAT)."); return; }
     this.players = this.players.filter(q => q.id !== id);
     if (this.players.length) this.hostId = this.players[0].id;
-    if (this.state === 'signaling') this._checkMesh();
     this._emit('left', { id });
   }
 
