@@ -11,7 +11,8 @@
 // Server -> client
 //   {t:"room", code, you, host, players:[{id,name,char}], countdown, max}  lobby state (secs or -1)
 //   {t:"start", code, you, players, course, seed}      room locked: load `course` (reload if needed)
-//   {t:"go", players}                                  everyone is on the course page: build the mesh
+//   {t:"go", players, ice?}                            everyone is on the course page: build the mesh (ice = TURN
+//                                                      servers from the worker's secrets, so every client build gets them)
 //   {t:"sig", from, data}                              relayed signaling data
 //   {t:"error", message}
 
@@ -26,6 +27,7 @@ const clean = (s, n) => String(s ?? "").replace(/[\u0000-\u001f\u007f]/g, "").tr
 export class Lobby {
   constructor(state, env) {
     this.state = state;
+    this.env = env || {};
     this.members = new Map(); // ws -> {ws, id, name, char, room, ready}
     this.rooms = new Map(); // code -> {code, max, version, course, seed, members: [member], started, go, deadline, timer}
   }
@@ -167,7 +169,28 @@ export class Lobby {
   }
 
   // Everyone is on the course page (or the ready timeout passed): drop the stragglers, build the mesh.
-  go(room) {
+  // TURN relay for players whose NATs can't connect directly. Configure with worker secrets, either
+  //   TURN_URLS ("turn:host:3478,turns:host:443?transport=tcp"), TURN_USER, TURN_CRED   (any TURN server, e.g. coturn / Metered)
+  // or CF_TURN_KEY_ID + CF_TURN_API_TOKEN (Cloudflare Realtime TURN, short-lived credentials). Unset -> clients use STUN only.
+  async iceServers() {
+    const e = this.env;
+    try {
+      if (e.CF_TURN_KEY_ID && e.CF_TURN_API_TOKEN) {
+        const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${e.CF_TURN_KEY_ID}/credentials/generate-ice-servers`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${e.CF_TURN_API_TOKEN}`, "content-type": "application/json" },
+          body: JSON.stringify({ ttl: 7200 }),
+        });
+        if (r.ok) { const j = await r.json(); if (Array.isArray(j.iceServers)) return j.iceServers; }
+      }
+      if (e.TURN_URLS && e.TURN_USER && e.TURN_CRED) {
+        return [{ urls: String(e.TURN_URLS).split(",").map((u) => u.trim()).filter(Boolean), username: e.TURN_USER, credential: e.TURN_CRED }];
+      }
+    } catch {}
+    return [];
+  }
+
+  async go(room) {
     clearTimeout(room.timer);
     if (room.go) return;
     for (const p of room.members.filter((p) => !p.ready)) {
@@ -178,7 +201,8 @@ export class Lobby {
     if (room.members.length === 0) { this.rooms.delete(room.code); return; }
     room.go = true;
     const players = this.players(room);
-    for (const p of room.members) this.send(p, { t: "go", players });
+    const ice = await this.iceServers();
+    for (const p of room.members) this.send(p, { t: "go", players, ice });
     room.timer = setTimeout(() => {
       for (const p of [...room.members]) { if (p.ws) { try { p.ws.close(1000, "signaling done"); } catch {} } this.drop(p.ws); }
     }, SIGNAL_GRACE_MS);

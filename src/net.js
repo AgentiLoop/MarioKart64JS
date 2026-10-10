@@ -12,9 +12,8 @@ const DEFAULT_LOBBY = 'wss://mk64js.gokart.games/api/mp';
 const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: ['stun:stun.cloudflare.com:3478'] },
-  // Public relay for players behind strict/symmetric NAT, where STUN alone can't connect them.
-  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
-    username: 'openrelayproject', credential: 'openrelayproject' },
+  // TURN relay servers for strict/symmetric NATs arrive from the lobby server in its 'go' message (see
+  // website/src/lobby.js iceServers), so every build (vite, deployed site, WebKit app) gets them without bundling secrets.
 ];
 const DISCONNECT_GRACE = 8000;   // a 'disconnected' ICE state often recovers by itself
 const MESH_TIMEOUT = 25000;
@@ -32,6 +31,7 @@ export class Net extends EventTarget {
     this.players = [];     // [{id, name, char}] sorted by id, including me
     this.peers = new Map(); // id -> {pc, r, u, open}
     this.ws = null; this.meshTimer = 0;
+    this.ice = ICE_SERVERS;
     this.earlySigs = [];   // signals that arrived before our own 'go' built the mesh
   }
 
@@ -80,6 +80,7 @@ export class Net extends EventTarget {
         this._emit('start', m); break;
       case 'go':
         this.players = m.players; this.hostId = m.players[0].id;
+        this.ice = Array.isArray(m.ice) ? [...ICE_SERVERS, ...m.ice] : ICE_SERVERS;
         this._buildMesh(); break;
       case 'sig': this._onSignal(m.from, m.data); break;
       case 'error': this._fail(m.message); break;
@@ -92,7 +93,7 @@ export class Net extends EventTarget {
     this.state = 'signaling';
     for (const p of this.players) {
       if (p.id === this.myId) continue;
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: this.ice });
       const peer = { pc, r: pc.createDataChannel('r', { negotiated: true, id: 1 }),
         u: pc.createDataChannel('u', { negotiated: true, id: 2, ordered: false, maxRetransmits: 0 }), open: false };
       for (const ch of [peer.r, peer.u]) {
