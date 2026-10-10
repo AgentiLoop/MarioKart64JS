@@ -600,6 +600,7 @@ export class Kart {
     for (let a = 2; a <= 10 + Math.max(0, this.v) * 0.3; a += 2) { wl = Math.min(wl, t.wallAt(this.s + a, -1)); wr = Math.min(wr, t.wallAt(this.s + a, 1)); }
     const lo = -Math.min(HALF_WIDTH, wl) + 2.5, hi = Math.min(HALF_WIDTH, wr) - 2.5;
     target = THREE.MathUtils.clamp(target, lo, hi);
+    this.dbgT = target;
     // a racing CPU's lane is kept where its body clears the steep faces over the next lengths too (as the finished
     // kart's above), probed every 1.5 units so a ramp is not stepped over: Koopa Troopa Beach's ramps at (-4, 69),
     // (-4, 48) and (-177, 18) stand on the road, and a lane along their side (d 4-6) brushed their side faces
@@ -621,11 +622,12 @@ export class Kart {
         this.laneT = 0.1;
         const fr = this.lineFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
         const reach = 10 + Math.max(0, this.v) * 0.5, hw = this.visualHalfWidth;
-        const clear = lane => {
+        const clear = (lane, path) => {
           let gy = null, drop = -Infinity;
           for (let a = 1.5; a <= reach; a += 1.5) {
             t.frameAt(this.s + a, fr);
-            const x = fr.pos.x + fr.R.x * lane, z = fr.pos.z + fr.R.z * lane, g = t.groundAt(x, z, fr.pos.y + 2);
+            const dl = path ? lane + (this.d - lane) * Math.exp(-a / 12) : lane;
+            const x = fr.pos.x + fr.R.x * dl, z = fr.pos.z + fr.R.z * dl, g = t.groundAt(x, z, fr.pos.y + 2);
             const y = g ? g.y : fr.pos.y;
             if (gy !== null && y < gy - 0.5) drop = a;
             gy = y;
@@ -634,9 +636,10 @@ export class Kart {
           return true;
         };
         const side = target > 0 ? -1 : 1;   // toward the route first: the ramps stand on it
-        const prev = this.laneOff ?? 0, ok = o => target + o >= lo && target + o <= hi && clear(target + o);
+        const prev = this.laneOff ?? 0, ok = (o, path) => target + o >= lo && target + o <= hi && clear(target + o, path);
         if (!(prev && this.laneHold > 0 && Math.abs(this.d - target - prev) > 1 && ok(prev))) {
-          this.laneOff = [0, 4 * side, -4 * side, 2 * side, -2 * side, 6 * side, -6 * side, 8 * side, -8 * side].find(ok) ?? 0;
+          const offs = [0, 4 * side, -4 * side, 2 * side, -2 * side, 6 * side, -6 * side, 8 * side, -8 * side];
+          this.laneOff = offs.find(o => ok(o, true)) ?? offs.find(o => ok(o)) ?? 0;
           if (this.laneOff !== prev) this.laneHold = 1;
         }
       }
