@@ -601,10 +601,13 @@ export class Kart {
     const lo = -Math.min(HALF_WIDTH, wl) + 2.5, hi = Math.min(HALF_WIDTH, wr) - 2.5;
     target = THREE.MathUtils.clamp(target, lo, hi);
     // a racing CPU's lane is kept where its body clears the steep faces over the next lengths too (as the finished
-    // kart's above), probed every 3 units so a ramp is not stepped over: Koopa Troopa Beach's ramps at (-4, 69),
+    // kart's above), probed every 1.5 units so a ramp is not stepped over: Koopa Troopa Beach's ramps at (-4, 69),
     // (-4, 48) and (-177, 18) stand on the road, and a lane along their side (d 4-6) brushed their side faces
     // ~10 times a lap; the nearest clear lane, toward the route first, takes the ramp or keeps off it. The offset is
-    // kept for 0.1 s.
+    // kept for 0.1 s. (Every 3 units missed the 2.5-long side faces of the ramp at (-113, 114) on some probes, and the
+    // lane flicked back onto them.) The 4-unit steps come first, so the karts still take the ramps; the 2-unit ones
+    // keep a lane in the gap beside the small ramp at (-60, 170) (d -7..-5, slope rock past it) instead of crossing
+    // its side to the far one.
     if (t.wallPush && !this.finished) {
       this.laneT = (this.laneT ?? 0) - dt;
       if (this.laneT <= 0) {
@@ -612,7 +615,7 @@ export class Kart {
         const fr = this.lineFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
         const reach = 10 + Math.max(0, this.v) * 0.5, hw = this.visualHalfWidth;
         const clear = lane => {
-          for (let a = 3; a <= reach; a += 3) {
+          for (let a = 1.5; a <= reach; a += 1.5) {
             t.frameAt(this.s + a, fr);
             const x = fr.pos.x + fr.R.x * lane, z = fr.pos.z + fr.R.z * lane, g = t.groundAt(x, z, fr.pos.y + 2);
             if (t.wallPush(x, z, x, z, g ? g.y : fr.pos.y, hw)) return false;
@@ -620,7 +623,7 @@ export class Kart {
           return true;
         };
         const side = target > 0 ? -1 : 1;   // toward the route first: the ramps stand on it
-        this.laneOff = [0, 4 * side, -4 * side, 8 * side, -8 * side].find(o => target + o >= lo && target + o <= hi && clear(target + o)) ?? 0;
+        this.laneOff = [0, 4 * side, -4 * side, 2 * side, -2 * side, 6 * side, -6 * side, 8 * side, -8 * side].find(o => target + o >= lo && target + o <= hi && clear(target + o)) ?? 0;
       }
       target += this.laneOff;
     }
@@ -633,7 +636,12 @@ export class Kart {
       + t.frameAt(this.s + 5, this.ffFrame).k + t.frameAt(this.s + 8, this.ffFrame).k) / 3;
     const sf = THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90);
     const ff = this.v > 0 && sf > 0.05 ? kv * this.v / Math.max(0.3, 1 - kv * this.d) / (1.9 * sf) : 0;
-    const steer = THREE.MathUtils.clamp(ff + (want - this.psi) * (this.finished ? 2.5 : 3.5), -1, 1);
+    // the error is taken on the travel direction phi, which trails the nose in a bend by about k v / grip (update):
+    // on the nose alone the karts held ~0.1 rad less than wanted through Koopa Troopa Beach's wiggly bends and came
+    // to the ramp faces 1-2 units short of their lane. Only the trail is counted (at most 0.3): after a wall
+    // flipped phi round (DK's Jungle Parkway's bridge at (-137, -58)) the nose still steers by itself.
+    const slip = THREE.MathUtils.clamp(this.phi - this.psi, -0.3, 0.3);
+    const steer = THREE.MathUtils.clamp(ff + (want - this.psi - slip) * (this.finished ? 2.5 : 3.5), -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
     // backing off a face: reversing, the nose turns the other way for the same steer (Kart.update dir)
     if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: -steer, drift: false }; }
