@@ -709,10 +709,14 @@ export class Kart {
     // walls
     const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2, out = Math.abs(this.d) - wall;
     // the limit closing in under the kart (more than a frame's sideways move past it at once: beside Koopa Troopa
-    // Beach's narrow ramp at (10, 277) it drops from 40 to 3.5, at (41, 225) from 36 to 9) is taken in 0.5 a frame
-    // instead of snapping the kart in by up to 7 units; the steep faces still push its body (routeWallPush)
-    const ease = out > 0 ? Math.max(0, Math.min(out, (this.wallEase > 0 ? this.wallEase : out > 1 ? out : 0) - 0.5)) : 0;
-    this.wallEase = ease;
+    // Beach's narrow ramp at (10, 277) it drops from 40 to 3.5, at (41, 225) from 36 to 9) is taken in a quarter of
+    // the way a frame (at least 0.5) instead of snapping the kart in by up to 7 units; the steep faces still push its
+    // body (routeWallPush). wallEase is the eased edge's |d|, not its distance past the limit: where the limit keeps
+    // closing in over a few samples (at (41, 225), s972) that distance shrank with it and still snapped the kart in
+    // by 5. (0.5 a frame from far out left a kart beside DK's Jungle Parkway's bridge at (-142, -51) to reach its face.)
+    const lim = this.wallEase > 0 ? this.wallEase : out > 1 ? Math.abs(this.d) : 0;
+    const ease = out > 0 ? Math.max(0, Math.min(out, lim - Math.max(0.5, 0.25 * (lim - wall)) - wall)) : 0;
+    this.wallEase = ease > 0 ? wall + ease : 0;
     if (ease > 0) this.d = sgn * (wall + ease);
     else if (out > 0) {
       this.d = sgn * (wall - WALL_CLEAR);
