@@ -598,9 +598,42 @@ export class Kart {
     // in by a few units at once and bounced them off it
     let wl = t.wallAt(this.s, -1), wr = t.wallAt(this.s, 1);
     for (let a = 2; a <= 10 + Math.max(0, this.v) * 0.3; a += 2) { wl = Math.min(wl, t.wallAt(this.s + a, -1)); wr = Math.min(wr, t.wallAt(this.s + a, 1)); }
-    target = THREE.MathUtils.clamp(target, -Math.min(HALF_WIDTH, wl) + 2.5, Math.min(HALF_WIDTH, wr) - 2.5);
+    const lo = -Math.min(HALF_WIDTH, wl) + 2.5, hi = Math.min(HALF_WIDTH, wr) - 2.5;
+    target = THREE.MathUtils.clamp(target, lo, hi);
+    // a racing CPU's lane is kept where its body clears the steep faces over the next lengths too (as the finished
+    // kart's above), probed every 3 units so a ramp is not stepped over: Koopa Troopa Beach's ramps at (-4, 69),
+    // (-4, 48) and (-177, 18) stand on the road, and a lane along their side (d 4-6) brushed their side faces
+    // ~10 times a lap; the nearest clear lane, toward the route first, takes the ramp or keeps off it. The offset is
+    // kept for 0.1 s.
+    if (t.wallPush && !this.finished) {
+      this.laneT = (this.laneT ?? 0) - dt;
+      if (this.laneT <= 0) {
+        this.laneT = 0.1;
+        const fr = this.lineFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+        const reach = 10 + Math.max(0, this.v) * 0.5, hw = this.visualHalfWidth;
+        const clear = lane => {
+          for (let a = 3; a <= reach; a += 3) {
+            t.frameAt(this.s + a, fr);
+            const x = fr.pos.x + fr.R.x * lane, z = fr.pos.z + fr.R.z * lane, g = t.groundAt(x, z, fr.pos.y + 2);
+            if (t.wallPush(x, z, x, z, g ? g.y : fr.pos.y, hw)) return false;
+          }
+          return true;
+        };
+        const side = target > 0 ? -1 : 1;   // toward the route first: the ramps stand on it
+        this.laneOff = [0, 4 * side, -4 * side, 8 * side, -8 * side].find(o => target + o >= lo && target + o <= hi && clear(target + o)) ?? 0;
+      }
+      target += this.laneOff;
+    }
     const want = Math.atan2(target - this.d, this.finished ? 20 : 14);
-    const steer = THREE.MathUtils.clamp((want - this.psi) * (this.finished ? 2.5 : 3.5), -1, 1);
+    // plus the steer that turns the nose with the route under the kart (update: psi -= k * ds, steering turns
+    // 1.9 * speedFactor rad/s), the bend's curvature averaged over the next few lengths: with only the heading
+    // error, Koopa Troopa Beach's bend at (10, 275) (k ~0.03, ~1.3 rad/s at full speed) carried the karts 2-3
+    // units wide into the narrow ramp's limit and the rock face at (20, 250)
+    const kv = (t.frameAt(this.s + 2, this.ffFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 }).k
+      + t.frameAt(this.s + 5, this.ffFrame).k + t.frameAt(this.s + 8, this.ffFrame).k) / 3;
+    const sf = THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90);
+    const ff = this.v > 0 && sf > 0.05 ? kv * this.v / Math.max(0.3, 1 - kv * this.d) / (1.9 * sf) : 0;
+    const steer = THREE.MathUtils.clamp(ff + (want - this.psi) * (this.finished ? 2.5 : 3.5), -1, 1);
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
     // backing off a face: reversing, the nose turns the other way for the same steer (Kart.update dir)
     if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: -steer, drift: false }; }
