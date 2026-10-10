@@ -1129,10 +1129,14 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
   if (e.code === 'KeyJ' && !e.repeat) showRes(togglePhysics());   // jump mode Jumps / Glue, saved
   if (e.code === 'KeyP' && !e.repeat && trackDef) showRes(physicsDebug.toggle() ? 'PHYSICS BODIES ON' : 'PHYSICS BODIES OFF');
-  // 3: Wii 3D kart test (src/kart3d.js) on every kart (each its own character's Standard Kart), back to the sprites on the next press
+  // 3: Wii 3D kart test (src/kart3d.js) on every kart (each its own character's Standard Kart) with shadow-map
+  // shadows on the course and the Wii Lakitu (src/lakitu3d.js) for the referees, back to the sprites on the next press
   if (e.code === 'Digit3' && !e.repeat && player) {
-    if (player.model) { for (const k of karts) k.set3D(null); showRes('KART: MK64 SPRITE'); }
-    else import('./kart3d.js').then(m => Promise.all(karts.map(k => m.buildWiiKart(k.character)))).then(models => { karts.forEach((k, i) => k.set3D(models[i])); showRes('KART: WII 3D (STANDARD KART)'); }, err => { console.error(err); showRes('WII KART FAILED TO LOAD'); });
+    if (player.model) { for (const k of karts) k.set3D(null); track.setShadowCatchers(false); lakitu.set3D(null); showRes('KART: MK64 SPRITE'); }
+    else {
+      import('./kart3d.js').then(m => Promise.all(karts.map(k => m.buildWiiKart(k.character)))).then(models => { karts.forEach((k, i) => k.set3D(models[i])); track.setShadowCatchers(true); showRes('KART: WII 3D (STANDARD KART)'); }, err => { console.error(err); showRes('WII KART FAILED TO LOAD'); });
+      import('./lakitu3d.js').then(m => lakitu.set3D(m.buildLakitu3D)).catch(err => { console.error(err); showRes('WII LAKITU FAILED TO LOAD'); });
+    }
   }
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();

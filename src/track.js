@@ -692,8 +692,28 @@ export class Track {
       }));
       if (batch.translucent) mesh.renderOrder = 1;
       mesh.name = batch.texture || 'shade';
+      mesh.userData.catcher = !batch.translucent && !batch.layer;   // setShadowCatchers: the opaque base surfaces
       this.group.add(mesh);
     });
+  }
+
+  // The native course lists are unlit (MeshBasicMaterial takes no shadow map). For the Wii 3D karts (castShadow,
+  // src/kart3d.js) each opaque base surface gets a ShadowMaterial twin drawn over it, dark only where the sun's
+  // shadow map says so; off, nothing is drawn. The route-plane courses' Lambert ground already receives.
+  setShadowCatchers(on) {
+    if (on && !this.catchers) {
+      const mats = {};   // one ShadowMaterial per cull side
+      this.catchers = [];
+      for (const m of [...this.group.children]) {
+        if (!m.userData.catcher) continue;
+        const side = m.material.side;
+        mats[side] ??= new THREE.ShadowMaterial({ opacity: 0.45, transparent: true, depthWrite: false, side, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+        const c = new THREE.Mesh(m.geometry, mats[side]);
+        c.receiveShadow = true; c.frustumCulled = m.frustumCulled;
+        this.catchers.push(c); this.group.add(c);
+      }
+    }
+    for (const c of this.catchers ?? []) c.visible = on;
   }
 
   _buildMeshes() {

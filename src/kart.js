@@ -276,10 +276,10 @@ export function buildKartMesh(character = 'mario') {
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.05;
   g.add(shadow);
-  let shadowAlpha = 1, shadowHeight = 0;
+  let shadowAlpha = 1, shadowHeight = 0, blob = true;
   const applyShadow = () => {
     const k = Math.max(0, 1 - shadowHeight / SHADOW_FADE);
-    shadow.visible = k > 0 && !!map.image;
+    shadow.visible = blob && k > 0 && !!map.image;
     shadow.position.y = 0.05 - shadowHeight;
     shadow.scale.setScalar(0.5 + 0.5 * k);
     shadowMaterial.opacity = SHADOW_OPACITY * k * shadowAlpha;
@@ -287,6 +287,7 @@ export function buildKartMesh(character = 'mario') {
   applyShadow();
   // h: height of the kart's base over the ground under it (Infinity: no ground)
   g.userData.setShadow = h => { shadowHeight = h; applyShadow(); };
+  g.userData.setBlob = on => { blob = on; applyShadow(); };   // off under a 3D model, which casts a shadow-map shadow instead
   // the sprite stands upright through the kart's origin, so its wheels read as touching the ground there: a shadow
   // centred on the origin spread toward the camera and made the kart look like it hovered. It is pushed away from
   // the camera so its near edge sits under the wheels.
@@ -884,6 +885,7 @@ export class Kart {
     this.model = model || null;
     if (model) this.mesh.add(model);
     this.mesh.children.find(c => c.isSprite).visible = !model;
+    this.mesh.userData.setBlob(!model);
   }
 
   // Battle balloons (code_80057C60.c). update_player_one_balloon_position: each hangs from a point

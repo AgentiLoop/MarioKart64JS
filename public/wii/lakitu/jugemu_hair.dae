@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+	<asset>
+		<contributor>
+			<authoring_tool>BrawlCrate</authoring_tool>
+		</contributor>
+		<created>2022-12-10T08:05:28Z</created>
+		<modified>2022-12-10T08:05:28Z</modified>
+		<unit meter="0.01" name="centimeter" />
+		<up_axis>Y_UP</up_axis>
+	</asset>
+	<library_images>
+		<image id="jugem_all_tx-image" name="jugem_all_tx">
+			<init_from>jugem_all_tx.png</init_from>
+		</image>
+	</library_images>
+	<library_materials>
+		<material id="dou" name="dou">
+			<instance_effect url="#dou-fx" />
+		</material>
+	</library_materials>
+	<library_effects>
+		<effect id="dou-fx" name="dou">
+			<profile_COMMON>
+				<newparam sid="jugem_all_tx-surface">
+					<surface type="2D">
+						<init_from>jugem_all_tx-image</init_from>
+					</surface>
+				</newparam>
+				<newparam sid="jugem_all_tx-sampler">
+					<sampler2D>
+						<source>jugem_all_tx-surface</source>
+						<instance_image url="#jugem_all_tx-image" />
+						<wrap_s>WRAP</wrap_s>
+						<wrap_t>WRAP</wrap_t>
+						<minfilter>LINEAR</minfilter>
+						<magfilter>LINEAR</magfilter>
+					</sampler2D>
+				</newparam>
+				<technique sid="COMMON">
+					<phong>
+						<diffuse>
+							<texture texture="jugem_all_tx-sampler" texcoord="TEXCOORD0" />
+						</diffuse>
+					</phong>
+				</technique>
+			</profile_COMMON>
+		</effect>
+	</library_effects>
+	<library_geometries>
+		<geometry id="polygon0" name="polygon0">
+			<mesh>
+				<source id="polygon0_Positions">
+					<float_array id="polygon0_PosArr" count="63">0.1328125 -1.182617 0.7529297 -1.882813 5.448242 2.810547 -0.6494141 -0.8027344 -1 -3.757813 4.339844 2.985352 -2.157227 -0.8701172 -0.5947266 -2.402344 3.950195 4.146484 1.642578 -1.198242 0.7167969 3.469727 3.612305 -2.402344 0.1513672 -1.368164 -1.395508 3.521484 5.178711 -0.7783203 -0.4277344 -0.8769531 0.5527344 5.011719 3.129883 -1.333984 0.6103516 -1.09668 -0.8886719 0.00390625 -1.244141 1.03418 0.1875 7.429688 0.3681641 -1.024414 7.083008 -0.7509766 -0.9130859 16.30176 -3.813477 0.7470703 7.099609 -1.196289 -9.318359 9.352539 9.925781 12.38184 6.5625 -8.858398 -1.303711 -1.250977 0.1005859</float_array>
+					<technique_common>
+						<accessor source="#polygon0_PosArr" count="21" stride="3">
+							<param name="X" type="float" />
+							<param name="Y" type="float" />
+							<param name="Z" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Normals">
+					<float_array id="polygon0_NormArr" count="63">0.8485718 -0.08825684 0.5216064 0.6698608 0.678772 -0.3008423 0.123291 0.5454102 -0.8290405 -0.7857666 0.01391602 -0.6183472 -0.9457397 -0.1389771 -0.2937622 0.2740479 -0.4620361 0.8434448 0.8031006 -0.4473267 0.3936157 -0.3919067 -0.2136841 -0.8948364 -0.2515259 -0.1380615 -0.9579468 -0.3200073 0.838623 0.4407959 -0.5736084 0.593689 0.5643921 0.7363892 -0.5686035 0.3666992 0.6903076 -0.06561279 -0.72052 0.2758789 0.0760498 0.9581909 0.2488403 0.2590942 0.9332275 -0.9778442 -0.02069092 -0.2084351 0.01898193 0.9805908 0.1950684 0.7133789 -0.06280518 -0.697937 -0.6685181 -0.01525879 0.7435303 0.1549683 -0.2614136 -0.9526978 -0.9862061 0.02923584 -0.1630859</float_array>
+					<technique_common>
+						<accessor source="#polygon0_NormArr" count="21" stride="3">
+							<param name="X" type="float" />
+							<param name="Y" type="float" />
+							<param name="Z" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Colors0">
+					<float_array id="polygon0_ColorArr0" count="60">0.2941177 0.2941177 0.2941177 0.2941177 1 1 1 1 0.6784314 0.6784314 0.6784314 0.6784314 0.5764706 0.5764706 0.5764706 0.5764706 0.6666667 0.6666667 0.6666667 0.6666667 0.7019608 0.7019608 0.7019608 0.7019608 0.7333333 0.7333333 0.7333333 0.7333333 0.5294118 0.5294118 0.5294118 0.5294118 0.8431373 0.8431373 0.8431373 0.8431373 0.3490196 0.3490196 0.3490196 0.3490196 0.9568628 0.9568628 0.9568628 0.9568628 0.6313726 0.6313726 0.6313726 0.6313726 0.572549 0.572549 0.572549 0.572549 0.9254903 0.9254903 0.9254903 0.9254903 0.4470589 0.4470589 0.4470589 0.4470589</float_array>
+					<technique_common>
+						<accessor source="#polygon0_ColorArr0" count="15" stride="4">
+							<param name="R" type="float" />
+							<param name="G" type="float" />
+							<param name="B" type="float" />
+							<param name="A" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_UVs0">
+					<float_array id="polygon0_UVArr0" count="42">0.7370911 0.2906799 0.6036377 0.3818359 0.736969 0.3821716 0.6026917 0.2904053 0.7370911 0.2905579 0.6031494 0.2906189 0.740509 0.289093 0.5896301 0.2892456 0.7407532 0.2886353 0.5899048 0.3786926 0.7400208 0.3785706 0.5903625 0.2891846 0.7322083 0.2950439 0.7328186 0.3795471 0.6176758 0.3784485 0.6186218 0.2950745 0.5146484 0.3782654 0.6181641 0.2955322 0.506134 0.3823242 0.507843 0.3783264 0.7323303 0.2953186</float_array>
+					<technique_common>
+						<accessor source="#polygon0_UVArr0" count="21" stride="2">
+							<param name="S" type="float" />
+							<param name="T" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<vertices id="polygon0_Vertices">
+					<input semantic="POSITION" source="#polygon0_Positions" />
+				</vertices>
+				<triangles material="dou" count="27">
+					<input semantic="VERTEX" source="#polygon0_Vertices" offset="0" />
+					<input semantic="NORMAL" source="#polygon0_Normals" offset="1" />
+					<input semantic="COLOR" source="#polygon0_Colors0" set="0" offset="2" />
+					<input semantic="TEXCOORD" source="#polygon0_UVs0" set="0" offset="3" />
+					<p>2 2 2 2 1 1 1 1 0 0 0 0 3 3 3 3 1 1 1 1 2 2 2 2 4 4 4 4 3 3 3 3 2 2 2 2 5 5 1 5 3 3 3 3 4 4 4 4 0 0 0 0 5 5 1 5 4 4 4 4 1 1 1 1 5 5 1 5 0 0 0 0 8 8 7 8 7 7 6 7 6 6 5 6 9 9 8 9 7 7 6 7 8 8 7 8 10 10 9 10 9 9 8 9 8 8 7 8 11 11 10 11 9 9 8 9 10 10 9 10 6 6 5 6 11 11 10 11 10 10 9 10 7 7 6 7 11 11 10 11 6 6 5 6 14 14 1 14 13 13 12 13 12 12 11 12 15 15 1 15 13 13 12 13 14 14 1 14 16 16 1 16 15 15 1 15 14 14 1 14 17 17 13 17 15 15 1 15 16 16 1 16 14 14 1 14 17 17 13 17 16 16 1 16 12 12 11 12 17 17 13 17 14 14 1 14 18 18 1 18 3 3 3 3 5 5 1 5 1 1 1 1 3 3 3 3 18 18 1 18 5 5 1 5 1 1 1 1 18 18 1 18 19 19 1 19 9 9 8 9 11 11 10 11 7 7 6 7 9 9 8 9 19 19 1 19 11 11 10 11 7 7 6 7 19 19 1 19 15 15 1 15 20 20 14 20 13 13 12 13 17 17 13 17 20 20 14 20 15 15 1 15 12 12 11 12 20 20 14 20 17 17 13 17</p>
+				</triangles>
+			</mesh>
+		</geometry>
+	</library_geometries>
+	<library_controllers>
+		<controller id="polygon0_Controller">
+			<skin source="#polygon0">
+				<bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</bind_shape_matrix>
+				<source id="polygon0_Joints">
+					<Name_array id="polygon0_JointArr" count="1">jugem_hair</Name_array>
+					<technique_common>
+						<accessor source="#polygon0_JointArr" count="1">
+							<param name="JOINT" type="Name" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Matrices">
+					<float_array id="polygon0_MatArr" count="16">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</float_array>
+					<technique_common>
+						<accessor source="#polygon0_MatArr" count="1" stride="16">
+							<param type="float4x4" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Weights">
+					<float_array id="polygon0_WeightArr" count="1">1</float_array>
+					<technique_common>
+						<accessor source="#polygon0_WeightArr" count="1">
+							<param type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<joints>
+					<input semantic="JOINT" source="#polygon0_Joints" />
+					<input semantic="INV_BIND_MATRIX" source="#polygon0_Matrices" />
+				</joints>
+				<vertex_weights count="21">
+					<input semantic="JOINT" offset="0" source="#polygon0_Joints" />
+					<input semantic="WEIGHT" offset="1" source="#polygon0_Weights" />
+					<vcount>1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1</vcount>
+					<v>0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</v>
+				</vertex_weights>
+			</skin>
+		</controller>
+	</library_controllers>
+	<library_visual_scenes>
+		<visual_scene id="RootNode" name="RootNode">
+			<node id="jugem_hair" name="jugem_hair" sid="jugem_hair" type="JOINT" />
+			<node id="polygon0" name="polygon0" type="NODE">
+				<instance_controller url="#polygon0_Controller">
+					<skeleton>#jugem_hair</skeleton>
+					<bind_material>
+						<technique_common>
+							<instance_material symbol="dou" target="#dou">
+								<bind_vertex_input semantic="TEXCOORD0" input_semantic="TEXCOORD" input_set="0" />
+							</instance_material>
+						</technique_common>
+					</bind_material>
+				</instance_controller>
+			</node>
+		</visual_scene>
+	</library_visual_scenes>
+	<scene>
+		<instance_visual_scene url="#RootNode" />
+	</scene>
+</COLLADA>

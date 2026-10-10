@@ -107,7 +107,15 @@ class Referee {
     this.mesh.frustumCulled = false; this.mesh.visible = false;
     this.mesh.layers.set(layer);
     scene.add(this.mesh);
+    this.scene = scene; this.layer = layer;
     this.mode = null; this.offset = [0, 0, 0];
+    this.model = null;   // Wii 3D Lakitu (src/lakitu3d.js) in place of the sprite, Lakitu.set3D
+  }
+
+  setModel(model) {
+    if (this.model) this.scene.remove(this.model);
+    this.model = model;
+    if (model) { model.userData.setLayer(this.layer); model.visible = false; this.scene.add(model); }
   }
 
   start(mode, kart) {
@@ -121,7 +129,7 @@ class Referee {
     this.material.map = this.textures[mode]; this.material.needsUpdate = true;
   }
 
-  stop() { this.endIce(); this.mode = null; this.mesh.visible = false; this.hum = false; }
+  stop() { this.endIce(); this.mode = null; this.mesh.visible = false; if (this.model) this.model.visible = false; this.hum = false; }
 
   // where the console is done with him he can still be in our closer chase camera's view (the lap sign's spline
   // ends 2 units off the lens), so instead of vanishing he keeps flying his last heading until he's off the screen
@@ -275,7 +283,7 @@ class Referee {
   // func_8007A66C (rotated by the camera yaw, height from the kart's ground) / func_8007A778 (fishing: over the kart)
   place(cam) {
     const k = this.kart;
-    if (!this.mode || !this.visible || !k) { this.mesh.visible = false; return; }
+    if (!this.mode || !this.visible || !k) { this.mesh.visible = false; if (this.model) this.model.visible = false; return; }
     const ox = this.offset[0] * KXZ, oy = this.offset[1] * K, oz = this.offset[2] * KXZ, m = this.mesh.position;
     if (this.mode === 'fishing') m.set(k.world.x, k.world.y + KART_MID + oy, k.world.z);
     else {
@@ -291,7 +299,12 @@ class Referee {
     const [ul, ur] = cam.userData.mirror ? [u1, u0] : [u0, u1];   // EXTRA: flipped back so his signs read under the mirrored projection
     uv.array.set([ul, v0, ur, v0, ur, v1, ul, v1]); uv.needsUpdate = true;
     this.material.opacity = this.alpha;
-    this.mesh.visible = true;
+    this.mesh.visible = !this.model;   // the sprite quad still stands in for the frustum test under the 3D model
+    if (this.model) {
+      this.model.position.copy(m); this.model.rotation.copy(this.mesh.rotation);
+      this.model.userData.show(this.mode, this.frame, this.alpha, this.seen?.lap ?? 2);
+      this.model.visible = true;
+    }
     this.mesh.updateMatrixWorld();
     cam.updateMatrixWorld();
     _frustum.setFromProjectionMatrix(_pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
@@ -319,7 +332,7 @@ export class Lakitu {
 
   // views: [{ kart, cam }] in screen order; referee i is drawn on layer 1 + i, which only camera i renders
   setViews(views) {
-    for (const r of this.referees) { this.scene.remove(r.mesh); r.mesh.geometry.dispose(); r.material.dispose(); }
+    for (const r of this.referees) { this.scene.remove(r.mesh); r.mesh.geometry.dispose(); r.material.dispose(); r.setModel(null); }
     this.referees = views.map((v, i) => {
       for (let l = 1; l <= 4; l++) v.cam.layers.disable(l);
       v.cam.layers.enable(1 + i);
@@ -330,6 +343,19 @@ export class Lakitu {
       return r;
     });
     this.syncHum();
+    if (this.build3D) this.set3D(this.build3D);
+  }
+
+  // Wii 3D Lakitu test (src/lakitu3d.js, with the 3 key's Wii karts): build() resolves to a model for each referee;
+  // null brings the sprites back
+  set3D(build) {
+    this.build3D = build || null;
+    if (!build) { for (const r of this.referees) r.setModel(null); return Promise.resolve(); }
+    const referees = this.referees;
+    return Promise.all(referees.map(() => build())).then(models => {
+      if (this.build3D !== build) return;
+      referees.forEach((r, i) => { if (this.referees.includes(r)) r.setModel(models[i]); });
+    });
   }
 
   // the hum (func_800C8F80 0x0100FA28 in init_obj_lakitu_red_flag_fishing / _reverse) loops while a fishing or
