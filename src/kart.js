@@ -707,8 +707,14 @@ export class Kart {
     }
 
     // walls
-    const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2;
-    if (Math.abs(this.d) > wall) {
+    const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2, out = Math.abs(this.d) - wall;
+    // the limit closing in under the kart (more than a frame's sideways move past it at once: beside Koopa Troopa
+    // Beach's narrow ramp at (10, 277) it drops from 40 to 3.5, at (41, 225) from 36 to 9) is taken in 0.5 a frame
+    // instead of snapping the kart in by up to 7 units; the steep faces still push its body (routeWallPush)
+    const ease = out > 0 ? Math.max(0, Math.min(out, (this.wallEase > 0 ? this.wallEase : out > 1 ? out : 0) - 0.5)) : 0;
+    this.wallEase = ease;
+    if (ease > 0) this.d = sgn * (wall + ease);
+    else if (out > 0) {
       this.d = sgn * (wall - WALL_CLEAR);
       const into = sgn * Math.sin(this.phi) * this.v;
       // moving into the wall: the part along it stays and the part into it bounces back at half (func_8002C954, as
