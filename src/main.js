@@ -28,7 +28,7 @@ import { PhysicsDebug } from './physics-debug.js';
 
 const LAPS = 3;
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, stencil: true });   // stencil: Track.setShadowCatchers
 renderer.setPixelRatio(1);
 HD.setRenderer(renderer);
 renderer.shadowMap.enabled = true;
@@ -90,6 +90,17 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 300 });
 scene.add(sun, sun.target);
+// the sun follows the player, so its shadow map would slide a fraction of a texel every frame and the shadow edges
+// shimmer: the target snaps to the map's texel grid (in light space) so the shadows only move in whole texels
+const sunDir = new THREE.Vector3(60, 100, 40).normalize();
+const sunRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), sunDir).normalize();
+const sunUp = new THREE.Vector3().crossVectors(sunDir, sunRight);
+const sunTexel = 120 / 2048;   // shadow camera width (left..right) / map size
+function followSun(p) {
+  const r = Math.round(p.dot(sunRight) / sunTexel) * sunTexel, u = Math.round(p.dot(sunUp) / sunTexel) * sunTexel;
+  const s = p.clone().addScaledVector(sunRight, r - p.dot(sunRight)).addScaledVector(sunUp, u - p.dot(sunUp));
+  sun.position.copy(s).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(s);
+}
 
 // sky: native courses use MK64's screen-space skybox (render_skybox / func_802A487C):
 // two Gouraud quads split at the projected y=0 horizon, colours written unconverted.
@@ -1358,7 +1369,7 @@ function cinematicCamera(dt, v, k) {
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
   v.init = true;
-  if (k === player) { sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world); }
+  if (k === player) followSun(k.world);
 }
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
@@ -1376,7 +1387,7 @@ function updateCamera(dt, v) {
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
   v.init = true;
-  if (k === player) { sun.position.copy(k.world).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(k.world); }
+  if (k === player) followSun(k.world);
 }
 function renderViews() {
   if (views.length === 1) { updateSky(camera); renderer.render(scene, camera); return; }

@@ -811,7 +811,7 @@ export class Track {
       }));
       if (batch.translucent) mesh.renderOrder = 1;
       mesh.name = batch.texture || 'shade';
-      mesh.userData.catcher = !batch.translucent && !batch.layer;   // setShadowCatchers: the opaque base surfaces
+      mesh.userData.catcher = !batch.translucent;   // setShadowCatchers: the opaque surfaces (base and decal layers)
       this.group.add(mesh);
     });
   }
@@ -819,14 +819,20 @@ export class Track {
   // The native course lists are unlit (MeshBasicMaterial takes no shadow map). For the Wii 3D karts (castShadow,
   // src/kart3d.js) each opaque base surface gets a ShadowMaterial twin drawn over it, dark only where the sun's
   // shadow map says so; off, nothing is drawn. The route-plane courses' Lambert ground already receives.
+  // The decal layers (polygon-offset grass / road patches over coplanar base surfaces, up to layer 4) get twins too,
+  // all offset past the highest layer: a twin at layer 1's offset depth-fought layer 1's grass (flicker) and layers
+  // 2+ hid the shadow (tools/test-shadows.mjs). Coplanar twins of a base and its decal would darken twice: the
+  // stencil lets each pixel take the shadow once (the first twin to pass the depth test there).
   setShadowCatchers(on) {
     if (on && !this.catchers) {
       const mats = {};   // one ShadowMaterial per cull side
       this.catchers = [];
+      const top = Math.max(0, ...this.group.children.map(m => -(m.material?.polygonOffsetFactor || 0))) + 1;
       for (const m of [...this.group.children]) {
         if (!m.userData.catcher) continue;
         const side = m.material.side;
-        mats[side] ??= new THREE.ShadowMaterial({ opacity: 0.45, transparent: true, depthWrite: false, side, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+        mats[side] ??= new THREE.ShadowMaterial({ opacity: 0.45, transparent: true, depthWrite: false, side, polygonOffset: true, polygonOffsetFactor: -top, polygonOffsetUnits: -2 * top,
+          stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc, stencilZPass: THREE.ReplaceStencilOp });
         const c = new THREE.Mesh(m.geometry, mats[side]);
         c.receiveShadow = true; c.frustumCulled = m.frustumCulled;
         this.catchers.push(c); this.group.add(c);
