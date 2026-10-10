@@ -608,22 +608,37 @@ export class Kart {
     // lane flicked back onto them.) The 4-unit steps come first, so the karts still take the ramps; the 2-unit ones
     // keep a lane in the gap beside the small ramp at (-60, 170) (d -7..-5, slope rock past it) instead of crossing
     // its side to the far one.
+    // A lane change, once started, is held (up to 1 s) while that lane stays clear and the kart has not got there
+    // yet: the start ramp at (-177, 18) blocked a kart's lane (-4.8) beside its left side and it set off left (-6.8),
+    // then a probe a few lengths on found the lane onto the ramp (-0.8) clear first and turned it back right
+    // through the side face. A face just past a drop of the lane's ground is the lip the kart leaves behind (it
+    // flies off it), not one it meets: the start ramp's lip over the dip past it (0.9 down to -0.8) read as a face
+    // across every lane on the ramp, so the lanes onto it flicked blocked and clear as the lip came into reach.
     if (t.wallPush && !this.finished) {
       this.laneT = (this.laneT ?? 0) - dt;
+      this.laneHold = (this.laneHold ?? 0) - dt;
       if (this.laneT <= 0) {
         this.laneT = 0.1;
         const fr = this.lineFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
         const reach = 10 + Math.max(0, this.v) * 0.5, hw = this.visualHalfWidth;
         const clear = lane => {
+          let gy = null, drop = -Infinity;
           for (let a = 1.5; a <= reach; a += 1.5) {
             t.frameAt(this.s + a, fr);
             const x = fr.pos.x + fr.R.x * lane, z = fr.pos.z + fr.R.z * lane, g = t.groundAt(x, z, fr.pos.y + 2);
-            if (t.wallPush(x, z, x, z, g ? g.y : fr.pos.y, hw)) return false;
+            const y = g ? g.y : fr.pos.y;
+            if (gy !== null && y < gy - 0.5) drop = a;
+            gy = y;
+            if (a - drop > 3 && t.wallPush(x, z, x, z, y, hw)) return false;
           }
           return true;
         };
         const side = target > 0 ? -1 : 1;   // toward the route first: the ramps stand on it
-        this.laneOff = [0, 4 * side, -4 * side, 2 * side, -2 * side, 6 * side, -6 * side, 8 * side, -8 * side].find(o => target + o >= lo && target + o <= hi && clear(target + o)) ?? 0;
+        const prev = this.laneOff ?? 0, ok = o => target + o >= lo && target + o <= hi && clear(target + o);
+        if (!(prev && this.laneHold > 0 && Math.abs(this.d - target - prev) > 1 && ok(prev))) {
+          this.laneOff = [0, 4 * side, -4 * side, 2 * side, -2 * side, 6 * side, -6 * side, 8 * side, -8 * side].find(ok) ?? 0;
+          if (this.laneOff !== prev) this.laneHold = 1;
+        }
       }
       target += this.laneOff;
     }
