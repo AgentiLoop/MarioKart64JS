@@ -307,9 +307,9 @@ export class Track {
     else this._buildMeshes();
   }
 
-  // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).
-  wallAt(s, sgn) {
-    const b = sgn > 0 ? this.wallR : this.wallL;
+  // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left); cpu: the CPU lanes' limit (no ramp sides).
+  wallAt(s, sgn, cpu = false) {
+    const b = cpu ? (sgn > 0 ? this.cpuR : this.cpuL) : sgn > 0 ? this.wallR : this.wallL;
     if (!b) return WALL_D;
     const n = this.n, f = (((s % this.length) + this.length) % this.length) / this.ds;
     const i = Math.floor(f) % n, t = f - Math.floor(f);
@@ -519,29 +519,34 @@ export class Track {
       return hit;
     };
     if (this.arena) return;
-    const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] };
+    const STEP = 0.5, MAX = 40, raw = { [-1]: [], [1]: [] }, rawCpu = { [-1]: [], [1]: [] };
     for (let i = 0; i < this.n; i++) {
       const p = this.pos[i], R = this.R[i];
       const y0 = height(p.x, p.z, p.y) ?? p.y;
       for (const sgn of [-1, 1]) {
-        let prev = y0, d = STEP;
+        let prev = y0, d = STEP, side = null;
         for (; d <= MAX; d += STEP) {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn;
           // the route itself may graze ramp sides; a ramp's side (one corner raised off the ground, Koopa Troopa
           // Beach's narrow ramp at (10, 277)) is no limit either: the ramp is driven onto from its foot and the
-          // side still pushes the kart's body (wallPush)
-          if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev) &&
-            walls[crossed].filter(v => v[1] > prev + 0.6).length !== 1) break;
+          // side still pushes the kart's body (wallPush). The CPU lanes (cpuL / cpuR) still stop at it: a CPU
+          // steered past it drove into the side's plank and stayed there.
+          if (d > 1.5 && blocked(p.x + R.x * (d - STEP) * sgn, p.z + R.z * (d - STEP) * sgn, x, z, prev)) {
+            if (walls[crossed].filter(v => v[1] > prev + 0.6).length !== 1) break;
+            side ??= d;
+          }
           const y = height(x, z, prev);
           if (y === null || Math.abs(y - prev) > 1.2) break;   // > ~67 deg per step = cliff/drop
           prev = y;
         }
         raw[sgn].push(Math.max(2.5, d - STEP));
+        rawCpu[sgn].push(Math.max(2.5, Math.min(side ?? d, d) - STEP));
       }
     }
     // a wall is only as open as its narrowest neighbour (no slipping through single-sample gaps)
     const tighten = b => b.map((_, i) => Math.min(...[-2, -1, 0, 1, 2].map(k => b[(i + k + this.n) % this.n])));
     this.wallL = tighten(raw[-1]); this.wallR = tighten(raw[1]);
+    this.cpuL = tighten(rawCpu[-1]); this.cpuR = tighten(rawCpu[1]);
   }
 
   // analyze_track_sections / analyze_curved_path (cpu_vehicles_camera_path/path_calc.inc.c): a path point is a curve
