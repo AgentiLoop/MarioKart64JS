@@ -34,6 +34,14 @@ export function cyclePreset() {
   refresh();
 }
 
+export function setPreset(id) {
+  const i = PRESETS.findIndex(p => p.id === id);
+  if (i < 0 || i === preset) return;
+  preset = i;
+  localStorage.setItem('mk64res', id);
+  refresh();
+}
+
 // URL + scale for a public/mk64-relative image at the current tier.
 export function hdSource(rel) {
   const t = Math.min(tier(), files[rel] || 1);

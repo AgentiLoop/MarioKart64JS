@@ -126,5 +126,9 @@ export async function buildWiiKart(character = 'mario') {
     for (const t of tires) t.spin.rotation.x += v * dt / (t.r * SCALE);
     for (const f of fronts) f.rotation.y = -steer * STEER_ANGLE;
   };
+  // wall body (Kart.routeWallPush): a capsule, one circle over each axle's 70% (the circles' ends then reach about the
+  // nose and tail), as wide as the rear track plus the tire's half-width; scene units along the heading
+  const [fa, ra] = cls.tires;
+  g.userData.capsule = { front: fa.z * SCALE * 0.7, rear: ra.z * SCALE * 0.7, r: ra.x * SCALE + 0.15 };
   return g;
 }

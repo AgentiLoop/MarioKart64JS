@@ -248,6 +248,14 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
   // func_8005995C: a time trial hands player 1 a mushroom twice more once it is used, i.e. three mushrooms
   if (timeTrial) items.give(player, 'triple_mushroom');
   startCountdown();
+  if (localStorage.getItem('mk64wii3d')) setWii3D(true);
+}
+// Wii 3D karts + Lakitu (key 3) on / off; the choice is saved so later races start the same way
+function setWii3D(on) {
+  if (on) localStorage.setItem('mk64wii3d', '1'); else localStorage.removeItem('mk64wii3d');
+  if (!on) { for (const k of karts) k.set3D(null); track.setShadowCatchers(false); lakitu.set3D(null); showRes('KART: MK64 SPRITE'); return; }
+  import('./kart3d.js').then(m => Promise.all(karts.map(k => m.buildWiiKart(k.character)))).then(models => { karts.forEach((k, i) => k.set3D(models[i])); track.setShadowCatchers(true); showRes('KART: WII 3D (STANDARD KART)'); }, err => { console.error(err); showRes('WII KART FAILED TO LOAD'); });
+  import('./lakitu3d.js').then(m => lakitu.set3D(m.buildLakitu3D)).catch(err => { console.error(err); showRes('WII LAKITU FAILED TO LOAD'); });
 }
 
 // track menu (shown until a track is picked; picking reloads with ?track=id)
@@ -384,13 +392,15 @@ function titleStep(now) {
   }
 }
 window.__flag = titleFlag;
-// 3 on the title: the START_MENU art redone in 3D (src/title3d.js, Wii karts) behind the 2D flag / logo; again for the art.
-// Game select then shows public/title3d/background_main_menu.png, a still of that scene tinted like the MK64 menu art.
+// 3 on the title, game select, map select or player select: the START_MENU art redone in 3D (src/title3d.js, Wii karts)
+// behind the 2D flag / logo; again for the art. The menus then show public/title3d/background_*.png, a still of that
+// scene tinted like the MK64 menu art (gBackgroundColor: red game select, blue map select, green player select).
+const MENU_BGS = [['gameBg', 'background_main_menu'], ['menuBg', 'background_course_select'], ['charBg', 'background_player_select']];
 let title3d = null, title3dLoading = false;
 function toggleTitle3D() {
   if (title3d) {
     title3d.dispose(); title3d = null; $('title3d').style.display = 'none'; $('titleBg').style.display = '';
-    HD.setImg($('gameBg'), 'menu/background_main_menu.png');
+    for (const [id, png] of MENU_BGS) HD.setImg($(id), `menu/${png}.png`);
     showRes('TITLE: MK64 ART'); return;
   }
   if (title3dLoading) return;
@@ -398,7 +408,7 @@ function toggleTitle3D() {
   import('./title3d.js').then(m => {
     title3d = window.__title3d = m.createTitle3D($('title3d'));
     $('title3d').style.display = 'block'; $('titleBg').style.display = 'none';
-    delete $('gameBg').dataset.hd; $('gameBg').src = `${import.meta.env.BASE_URL}title3d/background_main_menu.png`;   // no data-hd: HD tier changes leave it alone
+    for (const [id, png] of MENU_BGS) { delete $(id).dataset.hd; $(id).src = `${import.meta.env.BASE_URL}title3d/${png}.png`; }   // no data-hd: HD tier changes leave it alone
     showRes('TITLE: 3D (WII KARTS)');
   }, err => { console.error(err); showRes('3D TITLE FAILED TO LOAD'); }).finally(() => { title3dLoading = false; });
 }
@@ -414,7 +424,7 @@ function enterMenus() {
   audio.playMusic(2);   // SEQ_MENU_MAIN_MENU (menus.c:1861)
 }
 function backToTitle() {
-  showScreen(titleEl, 'Press Enter / Start / click anywhere to continue');
+  showScreen(titleEl, 'Press Enter / Start / click anywhere to continue · 3 Wii 3D karts');
   audio.playMusic(1);   // SEQ_MENU_TITLE_SCREEN (menus.c:1844)
 }
 
@@ -995,6 +1005,7 @@ function setupOnline() {
   banner.textContent = '';
   items.reset();
   startCountdown();
+  if (localStorage.getItem('mk64wii3d')) setWii3D(true);
 }
 function sendPose() {
   sendKartPose(player);
@@ -1149,15 +1160,14 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyJ' && !e.repeat) showRes(togglePhysics());   // jump mode Jumps / Glue, saved
   if (e.code === 'KeyP' && !e.repeat && trackDef) showRes(physicsDebug.toggle() ? 'PHYSICS BODIES ON' : 'PHYSICS BODIES OFF');
   // 3: Wii 3D kart test (src/kart3d.js) on every kart (each its own character's Standard Kart) with shadow-map
-  // shadows on the course and the Wii Lakitu (src/lakitu3d.js) for the referees, back to the sprites on the next press
-  if (e.code === 'Digit3' && !e.repeat && !trackDef && atTitle()) toggleTitle3D();
-  if (e.code === 'Digit3' && !e.repeat && player) {
-    if (player.model) { for (const k of karts) k.set3D(null); track.setShadowCatchers(false); lakitu.set3D(null); showRes('KART: MK64 SPRITE'); }
-    else {
-      import('./kart3d.js').then(m => Promise.all(karts.map(k => m.buildWiiKart(k.character)))).then(models => { karts.forEach((k, i) => k.set3D(models[i])); track.setShadowCatchers(true); showRes('KART: WII 3D (STANDARD KART)'); }, err => { console.error(err); showRes('WII KART FAILED TO LOAD'); });
-      import('./lakitu3d.js').then(m => lakitu.set3D(m.buildLakitu3D)).catch(err => { console.error(err); showRes('WII LAKITU FAILED TO LOAD'); });
-    }
+  // shadows on the course and the Wii Lakitu (src/lakitu3d.js) for the referees, back to the sprites on the next press.
+  // On the title it also turns the 3D title on and sets 4x; races then start in 3D until 3 turns it off (mk64wii3d).
+  if (e.code === 'Digit3' && !e.repeat && !trackDef && [titleEl, gameEl, menuEl, charEl].includes(curScreen)) {
+    const on = !title3d;
+    toggleTitle3D();
+    if (on) { localStorage.setItem('mk64wii3d', '1'); HD.setPreset('4x'); } else localStorage.removeItem('mk64wii3d');
   }
+  if (e.code === 'Digit3' && !e.repeat && player) setWii3D(!player.model);
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();

@@ -19,6 +19,7 @@ We built it as a test of how closely AI tools can recreate a classic game.
 | ![Koopa Troopa Beach](docs/screenshots/hires/race-koopa.jpg) | ![Sherbet Land](docs/screenshots/hires/race-sherbet.jpg) |
 | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race-dk.jpg) | ![Bowser's Castle](docs/screenshots/hires/race-bowser.jpg) |
 | ![Banshee Boardwalk](docs/screenshots/hires/race-banshee.jpg) | ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) |
+| ![3D title screen (3 key)](docs/screenshots/hires/title3d.jpg) | ![Wii 3D karts (3 key)](docs/screenshots/hires/race3d-mario.jpg) |
 
 ## What you can do
 
@@ -42,6 +43,7 @@ We built it as a test of how closely AI tools can recreate a classic game.
 | Throw a banana forward | Q |
 | Restart race | Delete |
 | Change resolution | G |
+| Wii 3D karts on/off (title screen and races) | 3 |
 | Music on/off | N |
 | Show physics bodies (walls red, kart bodies cyan) | P |
 

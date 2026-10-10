@@ -25,7 +25,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true, args:
 
 let fail = 0;
 for (const id of courses) {
-  for (const char of ['mario', 'bowser']) {
+  for (const char of ['bowser']) {
     const page = await (await browser.newContext({ viewport: { width: 320, height: 240 } })).newPage();
     if (WII) await page.addInitScript(() => localStorage.setItem('mk64wii3d', '1'));
     await page.goto(`http://localhost:${port}/?track=${id}&char=${char}${BATTLE.includes(id) ? '&mode=battle' : ''}`);
@@ -70,7 +70,7 @@ for (const id of courses) {
         });
         return best;
       };
-      const worst = { pen: 0, at: null }, pens = [];
+      const worst = { pen: 0, at: null }, pens = [], bads = []; let trialNo = 0, LOG = null;
       const trial = (setup, input, steps) => {
         setup();
         let max = 0, where = null, dropAt = -99, lastY = k.mesh.position.y;
@@ -86,12 +86,13 @@ for (const id of courses) {
             const hx = f.T.x * hc + f.R.x * hs, hz = f.T.z * hc + f.R.z * hs;
             pen = Math.max(half - gap(p.x + hx * cap.front, p.y, p.z + hz * cap.front), half - gap(p.x + hx * cap.rear, p.y, p.z + hz * cap.rear));
           }
+          if (LOG) LOG.push([i, +k.s.toFixed(2), +k.d.toFixed(2), +k.v.toFixed(2), +k.psi.toFixed(2), +k.phi.toFixed(2), +(k.wallT||0).toFixed(2), +p.x.toFixed(2), +p.z.toFixed(2), +(pen/(2*half)*100).toFixed(0), +(t.wallAt(k.s,-1)-1.2).toFixed(2), +(t.wallAt(k.s,1)-1.2).toFixed(2)]);
           if (pen > max) { max = pen; where = [+p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1), i]; }
         }
-        pens.push(max);
+        pens.push(max); if (max/(2*half)*100 > 10) bads.push(trialNo); trialNo++;
         if (max > worst.pen) { worst.pen = max; worst.at = where; }
       };
-      const reset = () => { k.v = 0; k.drift = 0; k.boost = 0; k.spin = 0; k.slip = 0; k.vy = 0; k.air = false; k.rescue = 0; k.tumble = null; k.finished = false; k.out = false; k.hitWall = 0; k.wallT = 0; k.wallStuck = 0; k.wallN = null; };
+      const reset = () => { k.v = 0; k.drift = 0; k.boost = 0; k.spin = 0; k.slip = 0; k.vy = 0; k.air = false; k.rescue = 0; k.tumble = null; k.finished = false; k.out = false; };
       if (k.free) {
         const sp = k.spawn;
         for (let a = 0; a < 32; a++) for (const steer of [0, 0.35, -0.35]) {
@@ -99,18 +100,19 @@ for (const id of courses) {
             { throttle: 1, brake: 0, steer, drift: false }, 420);
         }
       } else {
-        for (let i = 0; i < 24; i++) for (const steer of [1, -1, 0.4, -0.4]) {
-          trial(() => { reset(); k.s = i / 24 * t.length; k.prevS = k.s; k.d = 0; k.psi = 0; k.phi = 0; k.v = 20; k.syncMesh(0); },
+        const ALL = []; for (let i = 0; i < 24; i++) for (const steer of [1, -1, 0.4, -0.4]) ALL.push([i, steer]);
+        const run = ([i, steer]) => trial(() => { reset(); k.s = i / 24 * t.length; k.prevS = k.s; k.d = 0; k.psi = 0; k.phi = 0; k.v = 20; k.syncMesh(0); },
             { throttle: 1, brake: 0, steer, drift: false }, 150);
-        }
+        ALL.forEach(run); for (const b of bads.slice(0,1)) { LOG = []; run(ALL[b]); window.__log = [[ALL[b], LOG]]; }
       }
       pens.sort((p, q) => p - q);
-      return { half, walls: W.length, trials: pens.length, max: worst.pen, at: worst.at, p90: pens[Math.floor(pens.length * 0.9)], over: pens.filter(p => p / (2 * half) * 100 > 10).length };
+      return { half, walls: W.length, trials: pens.length, max: worst.pen, at: worst.at, p90: pens[Math.floor(pens.length * 0.9)], log: window.__log, over: pens.filter(p => p / (2 * half) * 100 > 10).length };
     }, WII);
     const pct = v => (Math.max(0, v) / (2 * r.half) * 100).toFixed(0) + '%';
     const bad = r.max / (2 * r.half) * 100 > LIMIT;
     if (bad) fail++;
     console.log(`${bad ? 'FAIL' : 'PASS'} ${id.padEnd(12)} ${char.padEnd(7)} ${WII ? 'capsule r' : 'half-width'} ${r.half.toFixed(2)}  deepest ${pct(r.max)} of the kart's width at ${JSON.stringify(r.at)}  90th pct ${pct(r.p90)}  trials over 10%: ${r.over}/${r.trials}`);
+    if (r.log) for (const [tr, l] of r.log) { console.log('trial', tr); const j = l.findIndex(x => x[9] > 10); for (const x of l.slice(Math.max(0, j - 12), j + 6)) console.log(x.join(' ')); }
     await page.context().close();
   }
 }

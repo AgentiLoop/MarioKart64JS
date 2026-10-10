@@ -139,6 +139,7 @@ const KART_RADIUS = [5.5, 5.5, 5.5, 5.5, 5.5, 6.0, 5.5, 6.0].map(r => r * 0.1); 
 // sprite's 4.5 scale, halved: Mario 38 px -> 1.34, Bowser 48 px -> 1.69 (CHARACTER_ID order)
 const KART_HALF_WIDTH = [38, 38, 38, 40, 42, 38, 38, 48].map(px => px / 64 * 4.5 / 2);
 const WALL_SLOW = 18 / 320 * MAX_SPEED;   // player_decelerate_alternative(18) on currentSpeed (top ~320)
+const WALL_CLEAR = 0.1;   // a kart pushed out of a wall is left this far off it, not touching (assumption: tuned value)
 const _bRight = new THREE.Vector3(), _bCam = new THREE.Vector3(), _bX = new THREE.Vector3(), _bZ = new THREE.Vector3();
 const _bUp = new THREE.Vector3(0, 1, 0), _bS = new THREE.Vector3(), _bM = new THREE.Matrix4(), _bR = new THREE.Matrix4();
 // gBalloonVertexPlane1 (y 9..18, gTextureBalloon1) over gBalloonVertexPlane2 (y 0..9, the first 28 rows of
@@ -662,7 +663,8 @@ export class Kart {
     // steering
     let steer = input.steer;
     if (this.drift) steer = this.drift * 0.65 + steer * 0.55;
-    const speedFactor = THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90);
+    // against a wall (wallT) some steering stays at a standstill, so the nose can be turned off it
+    const speedFactor = Math.max(this.wallT > 0 ? 0.35 : 0, THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90));
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
     const dir = this.v >= 0 ? 1 : -1;
     this.psi += steer * (this.drift ? 2.3 : 1.9) * speedFactor * dt * dir;
@@ -687,20 +689,29 @@ export class Kart {
     const yaw = k * ds;                 // frame rotates under us
     this.psi -= yaw; this.phi -= yaw;
 
+    // safety net: still against a wall (last frame's, wallN) at a crawl for half a second, the kart is moved 0.5 off
+    // it and its nose turned up to 0.3 rad toward the wall's outward side; the wall checks below still apply
+    this.wallStuck = this.wallT > 0 && Math.abs(this.v) < 3 && !(this.spin > 0) && !this.tumble ? (this.wallStuck || 0) + dt : 0;
+    if (this.wallStuck > 0.5 && this.wallN) {
+      this.wallStuck = 0;
+      this.s += 0.5 * this.wallN.t / denom; this.d += 0.5 * this.wallN.r;
+      let turn = Math.atan2(this.wallN.r, this.wallN.t) - this.psi;
+      turn = THREE.MathUtils.clamp(Math.atan2(Math.sin(turn), Math.cos(turn)), -0.3, 0.3);
+      this.psi += turn; this.phi += turn;
+      if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
+    }
+
     // walls
     const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2;
     if (Math.abs(this.d) > wall) {
-      this.d = sgn * wall;
+      this.d = sgn * (wall - WALL_CLEAR);
       const into = sgn * Math.sin(this.phi) * this.v;
-      // moving into the wall: the velocity's part into it is lost, the part along it stays (func_8002C954 /
-      // Track.wallPush), and a fresh hit slows the kart by 18 currentSpeed units (player_decelerate_alternative).
-      // (Not a per-frame fraction: that scaled with the frame rate and, with no speed to steer with, pinned a kart
-      // that grazed a wall at the bridge edges of Frappe Snowland's grid, Bowser's Castle, Banshee Boardwalk.)
-      if (into > 0) {
-        this.v *= Math.abs(Math.cos(this.phi));
-        if (this.hitWall <= 0) this.v = Math.sign(this.v) * Math.max(0, Math.abs(this.v) - WALL_SLOW);
-        this.hitWall = 0.25;
-      }
+      // moving into the wall: the part along it stays and the part into it bounces back at half (func_8002C954, as
+      // in the arenas); a fresh hit slows the kart by 18 (wallBounce). (Losing the part into the wall left a steep
+      // hit with no speed to steer away with: the kart stuck, e.g. at the bridge edges of Frappe Snowland's grid,
+      // Bowser's Castle, Banshee Boardwalk.)
+      if (into > 0) this.wallBounce(this.v * Math.cos(this.phi), -0.5 * this.v * Math.sin(this.phi));
+      this.wallT = 0.6; this.wallN = { t: 0, r: -sgn };
       // turned away from the wall: toward the course, or toward straight back when facing the wrong way
       const off = a => Math.abs(a) > Math.PI / 2 ? Math.sign(a) * Math.PI - (Math.sign(a) * Math.PI - a) * 0.4 : a * 0.4;
       if (sgn * this.psi > 0) this.psi = off(this.psi);
@@ -712,6 +723,7 @@ export class Kart {
     // (tools/test-walls.mjs). The steep faces themselves push the kart's sprite-wide body out, as in the arenas.
     if (t.wallPush) this.routeWallPush(t, denom);
     this.hitWall = Math.max(0, this.hitWall - dt);
+    this.wallT = Math.max(0, (this.wallT || 0) - dt);
 
     // wrap & lap counting
     const L = t.length;
@@ -729,15 +741,43 @@ export class Kart {
     this.syncMesh(dt);
   }
 
-  // Race courses: Track.wallPush on the kart's world spot (body = sprite half-width), the correction mapped back to
-  // (s, d) along the route; of the velocity, the part into the face is lost and a fresh hit slows the kart by 18.
-  routeWallPush(t, denom) {
+  // Race courses: Track.wallPush on the kart's world spot, the correction mapped back to (s, d) along the route; of
+  // the velocity, the part along the face stays and the part into it bounces back at half (wallBounce). The body is
+  // the sprite's half-width, or with the 3D kart a capsule (kart3d.js userData.capsule): a circle over each axle, so
+  // the nose and tail stay out of the walls and a nose hit turns the kart along the face. settle: the pass after
+  // wallBounce turned the nose (the capsule swung with it), no bounce.
+  routeWallPush(t, denom, settle = false) {
     const f = t.frameAt(this.s, this.frame), x = f.pos.x + f.R.x * this.d, z = f.pos.z + f.R.z * this.d;
     // body height over the ground at the new spot: last frame's ground lags up a steep bank (Choco Mountain's
     // cliff foot at (-37, -59) rises 0.8 a frame), so the face above it was tested too low
     const y0 = this.air ? this.y : this.groundY ?? f.pos.y, g = this.air ? null : t.groundAt(x, z, y0);
-    const w = t.wallPush(this.prevX ?? x, this.prevZ ?? z, x, z, g ? g.y : y0, this.visualHalfWidth);
-    if (!w) return;
+    const cap = this.model?.userData.capsule, gy = g ? g.y : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
+    let wx = x, wz = z, nx = 0, nz = 0, turn = 0;
+    if (!cap) {
+      const h = t.wallPush(px, pz, x, z, gy, this.visualHalfWidth);
+      // pushed WALL_CLEAR past the surface, so the next frame doesn't start touching (and slowing) again
+      if (h) { wx = h.x + h.nx * WALL_CLEAR; wz = h.z + h.nz * WALL_CLEAR; nx = h.nx; nz = h.nz; }
+    } else for (let pass = 0; pass < 2; pass++) {
+      // the capsule as a rigid body: each axle circle's push (plus WALL_CLEAR) split into a move and a turn, the
+      // sideways parts solved for both ends at once (a long kart turned across a narrow bridge, Yoshi Valley's at
+      // (-203, 83), turns back along it instead of one end pushing the other into the far rail); twice over, as
+      // the move can bring the other end to a face
+      const a = this.psi + turn, c = Math.cos(a), s = Math.sin(a);
+      const hx = f.T.x * c + f.R.x * s, hz = f.T.z * c + f.R.z * s, sx = f.R.x * c - f.T.x * s, sz = f.R.z * c - f.T.z * s;
+      const P = [cap.front, cap.rear].map(o => {
+        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gy, cap.r);
+        if (!h) return [0, 0];
+        nx += h.nx; nz += h.nz;
+        const mx = h.x + h.nx * WALL_CLEAR - wx - hx * o, mz = h.z + h.nz * WALL_CLEAR - wz - hz * o;
+        return [mx * sx + mz * sz, mx * hx + mz * hz];   // sideways, along the heading
+      });
+      if (!P[0][0] && !P[0][1] && !P[1][0] && !P[1][1]) break;
+      const th = (P[0][0] - P[1][0]) / (cap.front - cap.rear), side = P[0][0] - th * cap.front, along = P[0][1] + P[1][1];
+      wx += sx * side + hx * along; wz += sz * side + hz * along; turn += th;
+    }
+    const nl = Math.hypot(nx, nz);
+    if (nl < 1e-6) return;
+    const w = { x: wx, z: wz, nx: nx / nl, nz: nz / nl };
     // (dx, dz) = T * denom * ds + R * dd, a few Newton steps: far off a tight bend the frame turns under the kart
     for (let i = 0; i < 3; i++) {
       const g = i ? t.frameAt(this.s, this.frame) : f, dn = i ? Math.max(0.3, 1 - g.k * this.d) : denom;
@@ -747,16 +787,32 @@ export class Kart {
       if (Math.abs(det) < 1e-6) break;
       this.s += (dx * e - b * dz) / det; this.d += (a * dz - c * dx) / det;
     }
+    if (turn) { this.psi += turn; if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45); }
+    this.wallT = 0.6; this.wallN = { t: w.nx * f.T.x + w.nz * f.T.z, r: w.nx * f.R.x + w.nz * f.R.z };
+    if (settle) return;
     const cp = Math.cos(this.phi), sp = Math.sin(this.phi);
     const fx = f.T.x * cp + f.R.x * sp, fz = f.T.z * cp + f.R.z * sp, vn = (fx * w.nx + fz * w.nz) * this.v;
     if (vn >= 0) return;
-    const mx = fx * this.v - vn * w.nx, mz = fz * this.v - vn * w.nz;
-    const mt = mx * f.T.x + mz * f.T.z, mr = mx * f.R.x + mz * f.R.z, dir = this.v < 0 ? -1 : 1;
+    const mx = fx * this.v - 1.5 * vn * w.nx, mz = fz * this.v - 1.5 * vn * w.nz;
+    this.wallBounce(mx * f.T.x + mz * f.T.z, mx * f.R.x + mz * f.R.z);
+    this.drift = 0;
+    if (cap) this.routeWallPush(t, Math.max(0.3, 1 - this.frame.k * this.d), true);
+  }
+
+  // A wall contact's new motion (mt, mr along the frame's T / R) as speed and travel direction phi, the kart still
+  // going the way it went (a steep hit flipped into reverse rammed the face again with the nose still in it); a
+  // fresh hit slows the kart by 18 currentSpeed units (player_decelerate_alternative). The nose turns 60% of the
+  // way to the new heading, as at the route limit, so the grip doesn't steer the motion back into the face.
+  wallBounce(mt, mr) {
+    const dir = this.v < 0 ? -1 : 1;
     const turn = Math.atan2(dir * mr, dir * mt) - this.phi;
     this.phi += Math.atan2(Math.sin(turn), Math.cos(turn));
-    this.v = dir * Math.hypot(mx, mz);
-    if (this.hitWall <= 0) this.v = dir * Math.max(0, Math.abs(this.v) - WALL_SLOW);
-    this.hitWall = 0.25; this.drift = 0;
+    let sp = Math.hypot(mt, mr);
+    if (this.hitWall <= 0) sp = Math.max(0, sp - WALL_SLOW);
+    this.v = dir * sp; this.hitWall = 0.25;
+    const nose = this.phi - this.psi;
+    this.psi += 0.6 * Math.atan2(Math.sin(nose), Math.cos(nose));
+    if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
   }
 
   // Arena driving: the same speed / drift model, heading h integrated directly; the course collision mesh
@@ -805,7 +861,7 @@ export class Kart {
     }
     let steer = input.steer;
     if (this.drift) steer = this.drift * 0.65 + steer * 0.55;
-    const speedFactor = THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90);
+    const speedFactor = Math.max(this.wallT > 0 ? 0.35 : 0, THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90));   // as in update()
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
     const dir = this.v >= 0 ? 1 : -1;
     // right = fwd x up = (-cos h, 0, sin h): steering right turns h negative
@@ -822,7 +878,7 @@ export class Kart {
     // walls (tools/test-walls.mjs). Kart-to-kart bumps keep boxSize.
     const w = t.wallPush(this.x, this.z, nx, nz, this.y, this.visualHalfWidth);
     if (w) {
-      nx = w.x; nz = w.z;
+      nx = w.x; nz = w.z; this.wallT = 0.6;
       const mx = Math.sin(a) * this.v, mz = Math.cos(a) * this.v, vn = mx * w.nx + mz * w.nz;
       if (vn < 0) {
         const bx = mx - 1.5 * vn * w.nx, bz = mz - 1.5 * vn * w.nz;
@@ -834,6 +890,7 @@ export class Kart {
       }
     }
     this.hitWall = Math.max(0, this.hitWall - dt);
+    this.wallT = Math.max(0, (this.wallT || 0) - dt);
     this.x = nx; this.z = nz;
     this.syncFree(dt);
   }
