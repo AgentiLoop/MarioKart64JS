@@ -1,7 +1,8 @@
 // Wii kart test: the Mario Kart Wii Standard Kart (Medium) in red with Mario in the seat, as a 3D model in place of
 // the MK64 sprite (3 key in a race, Kart.set3D). Collada exports in public/wii/: the body is Blender Z-up metres, the
-// tires and Mario are Y-up centimetres facing +z; ColladaLoader puts all three in Y-up metres. The rear tires reuse
-// the front tire meshes. Positions are tuned by eye (the export carries no wheel bones).
+// tires and Mario are Y-up centimetres facing +z; ColladaLoader puts all three in Y-up metres. The rear tires are the
+// front tire meshes at 1.29x; tire placement is measured from the rip's assembled kart (menu.dae: body + 4 tires).
+// Mario's seat is tuned by eye.
 import * as THREE from 'three';
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 
@@ -10,7 +11,8 @@ const DIR = `${BASE}wii/`;
 // Wii metres -> scene units: the kart about as wide as the MK64 sprite reads from behind (kart.js KART_HALF_WIDTH)
 const SCALE = 1.9;
 const TIRE_RADIUS = 0.21;                // metres, the tire mesh's own radius
-const TIRE_X = 0.58, TIRE_Z = [0.82, -0.78];   // metres from the body's origin: axle half-track, front / rear axle
+// metres from the body's origin, per axle: half-track, axle position, tire radius (the axle's height)
+const TIRES = [{ x: 0.48, z: 0.55, r: TIRE_RADIUS }, { x: 0.58, z: -0.43, r: 0.27 }];
 const BODY_Y = 0.2;                      // metres the body's origin sits over the ground
 const DRIVER = new THREE.Vector3(0, 0.26, -0.22);   // Mario's origin (his seat, the pose sits him) in the cockpit
 const STEER_ANGLE = 0.45;                // rad the front tires turn at full lock
@@ -67,23 +69,24 @@ export async function buildWiiKart() {
   body.position.y = BODY_Y;
   wii.add(body);
   const tires = [], fronts = [];
-  for (const [i, z] of TIRE_Z.entries()) {
-    for (const [side, src] of [[-1, tireL], [1, tireR]]) {
+  for (const [i, axle] of TIRES.entries()) {
+    // tire_fl's hub faces +x, the kart's left (facing +z)
+    for (const [side, src] of [[1, tireL], [-1, tireR]]) {
       const steer = new THREE.Group();   // yaws about the king pin
-      steer.position.set(side * TIRE_X, TIRE_RADIUS, z);
+      steer.position.set(side * axle.x, axle.r, axle.z);
       const spin = new THREE.Group();    // rolls about the axle
+      spin.scale.setScalar(axle.r / TIRE_RADIUS);
       spin.add(i === 0 ? src : src.clone(true));
       steer.add(spin);
       wii.add(steer);
-      tires.push(spin);
+      tires.push({ spin, r: axle.r });
       if (i === 0) fronts.push(steer);
     }
   }
   mario.position.copy(DRIVER);
   wii.add(mario);
   g.userData.update = (steer, v, dt) => {
-    const roll = v * dt / (TIRE_RADIUS * SCALE);
-    for (const t of tires) t.rotation.x += roll;
+    for (const t of tires) t.spin.rotation.x += v * dt / (t.r * SCALE);
     for (const f of fronts) f.rotation.y = -steer * STEER_ANGLE;
   };
   return g;
