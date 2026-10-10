@@ -53,6 +53,7 @@ remembered for the next race.
 | ![Koopa Troopa Beach](docs/screenshots/hires/race3d-koopa.jpg) | ![Royal Raceway](docs/screenshots/hires/race3d-royal.jpg) |
 | ![Sherbet Land](docs/screenshots/hires/race3d-sherbet.jpg) | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race3d-dk.jpg) |
 | ![Bowser's Castle](docs/screenshots/hires/race3d-bowser.jpg) | ![Rainbow Road](docs/screenshots/hires/race3d-rainbow.jpg) |
+| ![Wario Stadium](docs/screenshots/hires/race3d-wario.jpg) | |
 
 **Fly-overs after the finish**
 
