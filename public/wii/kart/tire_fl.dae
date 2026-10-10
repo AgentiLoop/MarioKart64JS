@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA version="1.5.0" xmlns="http://www.collada.org/2008/03/COLLADASchema">
+	<asset>
+		<contributor>
+			<authoring_tool>BrawlCrate</authoring_tool>
+		</contributor>
+		<created>2023-03-04T06:15:56Z</created>
+		<modified>2023-03-04T06:15:56Z</modified>
+		<unit meter="0.01" name="centimeter" />
+		<up_axis>Y_UP</up_axis>
+	</asset>
+	<library_images>
+		<image id="low_light_2-image" name="low_light_2">
+			<init_from>low_light_2.png</init_from>
+		</image>
+		<image id="metal_4_2-image" name="metal_4_2">
+			<init_from>metal_4_2.png</init_from>
+		</image>
+		<image id="tire-image" name="tire">
+			<init_from>tire.png</init_from>
+		</image>
+	</library_images>
+	<library_materials>
+		<material id="mat_tire">
+			<instance_effect url="#mat_tire-fx" />
+		</material>
+		<material id="mat_tire_rim">
+			<instance_effect url="#mat_tire_rim-fx" />
+		</material>
+	</library_materials>
+	<library_effects>
+		<effect id="mat_tire-fx" name="mat_tire">
+			<profile_COMMON>
+				<newparam sid="tire-surface">
+					<surface type="2D">
+						<init_from>tire-image</init_from>
+					</surface>
+				</newparam>
+				<newparam sid="tire-sampler">
+					<sampler2D>
+						<source>tire-surface</source>
+						<instance_image url="#tire-image" />
+						<wrap_s>WRAP</wrap_s>
+						<wrap_t>WRAP</wrap_t>
+						<minfilter>LINEAR</minfilter>
+						<magfilter>LINEAR</magfilter>
+					</sampler2D>
+				</newparam>
+				<newparam sid="low_light_2-surface">
+					<surface type="2D">
+						<init_from>low_light_2-image</init_from>
+					</surface>
+				</newparam>
+				<newparam sid="low_light_2-sampler">
+					<sampler2D>
+						<source>low_light_2-surface</source>
+						<instance_image url="#low_light_2-image" />
+						<wrap_s>WRAP</wrap_s>
+						<wrap_t>WRAP</wrap_t>
+						<minfilter>LINEAR</minfilter>
+						<magfilter>LINEAR</magfilter>
+					</sampler2D>
+				</newparam>
+				<technique sid="COMMON">
+					<phong>
+						<diffuse>
+							<texture texture="tire-sampler" texcoord="TEXCOORD0" />
+						</diffuse>
+					</phong>
+				</technique>
+			</profile_COMMON>
+		</effect>
+		<effect id="mat_tire_rim-fx" name="mat_tire_rim">
+			<profile_COMMON>
+				<newparam sid="tire-surface">
+					<surface type="2D">
+						<init_from>tire-image</init_from>
+					</surface>
+				</newparam>
+				<newparam sid="tire-sampler">
+					<sampler2D>
+						<source>tire-surface</source>
+						<instance_image url="#tire-image" />
+						<wrap_s>WRAP</wrap_s>
+						<wrap_t>WRAP</wrap_t>
+						<minfilter>LINEAR</minfilter>
+						<magfilter>LINEAR</magfilter>
+					</sampler2D>
+				</newparam>
+				<newparam sid="metal_4_2-surface">
+					<surface type="2D">
+						<init_from>metal_4_2-image</init_from>
+					</surface>
+				</newparam>
+				<newparam sid="metal_4_2-sampler">
+					<sampler2D>
+						<source>metal_4_2-surface</source>
+						<instance_image url="#metal_4_2-image" />
+						<wrap_s>WRAP</wrap_s>
+						<wrap_t>WRAP</wrap_t>
+						<minfilter>LINEAR</minfilter>
+						<magfilter>LINEAR</magfilter>
+					</sampler2D>
+				</newparam>
+				<technique sid="COMMON">
+					<phong>
+						<diffuse>
+							<texture texture="tire-sampler" texcoord="TEXCOORD0" />
+						</diffuse>
+					</phong>
+				</technique>
+			</profile_COMMON>
+		</effect>
+	</library_effects>
+	<library_geometries>
+		<geometry id="polygon0" name="polygon0">
+			<mesh>
+				<source id="polygon0_Positions">
+					<float_array id="polygon0_PosArr" count="153">14.14941 8.552246 -8.611816 14.21191 4.427734 -11.09424 -6.904785 0.03613281 0 14.24219 -0.0859375 -11.98633 14.19043 -4.643555 -11.19629 14.15186 -8.787598 -8.668457 14.16895 -11.41553 -4.566895 13.98828 -12.76758 0.0234375 14.12842 -11.60938 4.70459 14.12842 -8.874023 8.813965 14.15674 -4.709473 11.41504 14.18506 -0.08789063 12.33984 14.20996 4.431641 11.16406 14.16846 8.550293 8.668945 14.16602 11.25244 4.632324 14.20166 12.20117 0.02978516 14.20068 11.08936 -4.505859 -12.80078 -0.1030273 -12.53564 -12.73535 -9.197754 -9.067871 -7.004883 0.03613281 0 -12.71289 -13.38867 0.0234375 -12.71826 -9.288574 9.204102 -12.75928 -0.1054688 12.88916 -12.74756 8.922852 9.052246 -12.77148 12.73877 0.0234375 10.0835 0.1455078 -12.7915 10.0835 -8.32666 -8.396484 13.85693 0.1455078 0.07568359 10.0835 -12.72168 0.07568359 10.0835 -8.32666 8.547852 13.7251 5.310547 13.31152 13.7251 10.05908 10.15088 13.7251 14.54883 0 13.7251 13.21973 -5.402344 13.7251 5.310547 -13.31152 13.7251 -0.09179688 -14.56348 13.7251 13.21973 5.402344 13.7251 -0.09179688 14.56348 13.7251 -10.24268 10.15088 13.7251 -5.493652 13.31152 13.7251 -14.73193 0 13.7251 -13.40283 5.402344 13.7251 -10.24268 -10.15088 13.7251 -13.40283 -5.402344 13.7251 -5.493652 -13.31152 13.7251 10.05908 -10.15088 -12.7334 8.994141 -9.077637 10.0835 8.617676 -8.396484 10.0835 13.0127 0.07568359 10.0835 8.617676 8.547852 10.0835 0.1455078 12.94287</float_array>
+					<technique_common>
+						<accessor source="#polygon0_PosArr" count="51" stride="3">
+							<param name="X" type="float" />
+							<param name="Y" type="float" />
+							<param name="Z" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Normals">
+					<float_array id="polygon0_NormArr" count="144">0.4986572 -0.6089478 0.6168823 0.4918823 -0.309082 0.8139648 0.9998169 -0.0166626 0.009155273 0.493042 -0.01147461 0.8699341 0.498291 0.3005371 0.8132324 0.5064087 0.6020508 0.6173706 0.5043335 0.7818604 0.3665771 0.5223999 0.852417 0.02124023 0.5123901 0.7827759 -0.3531494 0.5117798 0.5974121 -0.6173706 0.5061646 0.3153076 -0.8027344 0.5046997 -0.02789307 -0.862854 0.4939575 -0.3376465 -0.8012695 0.4994507 -0.5968628 -0.6279297 0.4990845 -0.7999268 -0.3331909 0.4992676 -0.866272 0.01812744 0.4922485 -0.803772 0.3341064 0.9985352 0.0001220703 0.05413818 0.9998779 0.01489258 0.005310059 1 0 0 0.9974976 0.07080078 -0.001159668 0.9998169 0.01568604 -0.01055908 0.9981079 0.002075195 -0.06158447 0.998291 -0.05877686 0.000793457 0.9595947 0 -0.2813721 0.9537964 -0.2124023 -0.2124023 0.9595947 -0.2813721 0 0.9537964 -0.2124023 0.2124023 0.9787598 0.08135986 0.1881714 0.9787598 0.1448364 0.1450195 0.9799805 0.1991577 0.0001220703 0.9798584 0.1825562 -0.08093262 0.9802246 0.07904053 -0.1815186 0.9804077 6.103516E-05 -0.1968994 0.9789429 0.1868896 0.08239746 0.979248 0.0001220703 0.2025757 0.9785767 -0.1455688 0.145752 0.9785767 -0.08154297 0.1889648 0.9854736 -0.1699829 0.0001831055 0.9824219 -0.1722412 0.07226563 0.9795532 -0.1422119 -0.1421509 0.9827881 -0.1707764 -0.07086182 0.9797974 -0.0793457 -0.1835938 0.9802856 0.1397705 -0.1396484 0.9537964 0.2124023 -0.2124023 0.9595947 0.2813721 0 0.9537964 0.2124023 0.2124023 0.9595947 0 0.2813721</float_array>
+					<technique_common>
+						<accessor source="#polygon0_NormArr" count="48" stride="3">
+							<param name="X" type="float" />
+							<param name="Y" type="float" />
+							<param name="Z" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Colors0">
+					<float_array id="polygon0_ColorArr0" count="20">0.6980392 0.6980392 0.6980392 1 1 1 1 1 0.4980392 0.4980392 0.4980392 1 0.2 0.2 0.2 1 0.9843138 0.9843138 0.9843138 1</float_array>
+					<technique_common>
+						<accessor source="#polygon0_ColorArr0" count="5" stride="4">
+							<param name="R" type="float" />
+							<param name="G" type="float" />
+							<param name="B" type="float" />
+							<param name="A" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_UVs0">
+					<float_array id="polygon0_UVArr0" count="78">0.9476318 0.5404053 0.9683838 0.529541 0.8895264 0.5163574 0.9787598 0.5161133 0.9748535 0.5015869 0.9521484 0.4891357 0.920166 0.4816895 0.8879395 0.4796143 0.8520508 0.482666 0.8221436 0.4910889 0.8043213 0.5026855 0.7973633 0.5175781 0.8100586 0.5310059 0.8278809 0.5410156 0.8555908 0.5472412 0.8883057 0.5494385 0.9197998 0.5472412 -0.2330322 0.7679443 -0.3024902 0.6594238 -0.5068359 0.769165 -0.5065918 0.614502 -0.7175293 0.6660156 -0.7731934 0.7744141 -0.6992188 0.8704834 -0.5080566 0.9088135 -1.505859 0.5928955 -1.710449 0.6489258 -1.504639 0.7624512 -1.829346 0.7574463 -1.719116 0.873291 0.01794434 0.552124 0.01794434 0.479126 0.09313965 0.552124 0.09313965 0.479126 -0.3155518 0.8673096 -1.286133 0.6557617 -1.174072 0.762207 -1.28833 0.8752441 -1.504883 0.9279785</float_array>
+					<technique_common>
+						<accessor source="#polygon0_UVArr0" count="39" stride="2">
+							<param name="S" type="float" />
+							<param name="T" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<vertices id="polygon0_Vertices">
+					<input semantic="POSITION" source="#polygon0_Positions" />
+				</vertices>
+				<triangles material="mat_tire_rim" count="64">
+					<input semantic="VERTEX" source="#polygon0_Vertices" offset="0" />
+					<input semantic="NORMAL" source="#polygon0_Normals" offset="1" />
+					<input semantic="COLOR" source="#polygon0_Colors0" set="0" offset="2" />
+					<input semantic="TEXCOORD" source="#polygon0_UVs0" set="0" offset="3" />
+					<p>2 2 1 2 1 1 0 1 0 0 0 0 3 3 0 3 1 1 0 1 2 2 1 2 4 4 0 4 3 3 0 3 2 2 1 2 2 2 1 2 5 5 0 5 4 4 0 4 6 6 0 6 5 5 0 5 2 2 1 2 7 7 0 7 6 6 0 6 2 2 1 2 2 2 1 2 8 8 0 8 7 7 0 7 9 9 0 9 8 8 0 8 2 2 1 2 10 10 0 10 9 9 0 9 2 2 1 2 2 2 1 2 11 11 0 11 10 10 0 10 12 12 0 12 11 11 0 11 2 2 1 2 13 13 0 13 12 12 0 12 2 2 1 2 2 2 1 2 14 14 0 14 13 13 0 13 15 15 0 15 14 14 0 14 2 2 1 2 16 16 0 16 15 15 0 15 2 2 1 2 19 19 3 19 18 18 2 18 17 17 2 17 20 20 2 20 18 18 2 18 19 19 3 19 21 21 2 21 20 20 2 20 19 19 3 19 19 19 3 19 22 22 2 22 21 21 2 21 23 19 2 23 22 22 2 22 19 19 3 19 24 23 2 24 23 19 2 23 19 19 3 19 27 19 4 27 26 25 0 26 25 24 0 25 28 26 0 28 26 25 0 26 27 19 4 27 29 27 0 29 28 26 0 28 27 19 4 27 13 29 0 32 30 28 1 31 12 28 0 30 31 29 1 33 30 28 1 31 13 29 0 32 16 31 0 32 32 30 1 31 15 30 0 30 33 31 1 33 32 30 1 31 16 31 0 32 3 33 0 32 34 32 1 31 1 32 0 30 35 33 1 33 34 32 1 31 3 33 0 32 14 34 0 32 31 29 1 31 13 29 0 30 36 34 1 33 31 29 1 31 14 34 0 32 12 28 0 32 37 35 1 31 11 35 0 30 30 28 1 33 37 35 1 31 12 28 0 32 10 37 0 32 38 36 1 31 9 36 0 30 39 37 1 33 38 36 1 31 10 37 0 32 8 39 0 32 40 38 1 31 7 38 0 30 41 39 1 33 40 38 1 31 8 39 0 32 6 41 0 32 42 40 1 31 5 40 0 30 43 41 1 33 42 40 1 31 6 41 0 32 5 40 0 32 44 42 1 31 4 42 0 30 42 40 1 33 44 42 1 31 5 40 0 32 1 32 0 32 45 43 1 31 0 43 0 30 34 32 1 33 45 43 1 31 1 32 0 32 0 43 0 32 33 31 1 31 16 31 0 30 45 43 1 33 33 31 1 31 0 43 0 32 15 30 0 32 36 34 1 31 14 34 0 30 32 30 1 33 36 34 1 31 15 30 0 32 4 42 0 32 35 33 1 31 3 33 0 30 44 42 1 33 35 33 1 31 4 42 0 32 11 35 0 32 39 37 1 31 10 37 0 30 37 35 1 33 39 37 1 31 11 35 0 32 9 36 0 32 41 39 1 31 8 39 0 30 38 36 1 33 41 39 1 31 9 36 0 32 7 38 0 32 43 41 1 31 6 41 0 30 40 38 1 33 43 41 1 31 7 38 0 32 46 19 2 34 19 19 3 19 17 17 2 17 24 23 2 24 19 19 3 19 46 19 2 34 47 44 0 35 27 19 4 27 25 24 0 25 48 45 0 36 27 19 4 27 47 44 0 35 49 46 0 37 27 19 4 27 48 45 0 36 50 47 0 38 27 19 4 27 49 46 0 37 0 0 0 0 16 16 0 16 2 2 1 2 50 47 0 38 29 27 0 29 27 19 4 27</p>
+				</triangles>
+			</mesh>
+		</geometry>
+		<geometry id="polygon1" name="polygon1">
+			<mesh>
+				<source id="polygon1_Positions">
+					<float_array id="polygon1_PosArr" count="144">13.72461 14.54883 0 10.85059 20.82617 0 13.72461 13.21973 -5.402344 10.85059 18.02344 -10.45898 13.72461 10.05957 -10.15039 10.85059 10.36719 -18.11523 13.72461 5.310547 -13.31152 10.85059 -0.09179688 -20.91797 13.72461 -0.09179688 -14.56348 13.72461 -5.494141 -13.31152 13.72461 -0.09179688 14.56348 13.72461 -5.494141 13.31152 10.85059 -10.55078 18.11523 13.72461 -10.24219 10.15039 10.85059 -18.20703 10.45898 13.72461 -13.40332 5.402344 10.85059 -21.00977 0 13.72461 -14.73242 0 13.72461 -13.40332 -5.402344 -10.10938 20.82617 0 -12.77148 12.73926 0.0234375 -10.10938 18.02344 10.45898 -12.74707 8.922852 9.052734 -10.10938 10.36719 18.11523 -12.75977 -0.1054688 12.88867 -10.10938 -0.09179688 20.91797 -10.10938 -10.55078 18.11523 -10.10938 -18.20703 -10.45898 -12.73535 -9.198242 -9.067383 -10.10938 -10.55078 -18.11523 -12.80078 -0.1035156 -12.53516 -10.10938 -0.09179688 -20.91797 -10.10938 10.36719 -18.11523 13.72461 10.05957 10.15039 13.72461 5.310547 13.31152 10.85059 10.36719 18.11523 10.85059 -0.09179688 20.91797 -12.71289 -13.38867 0.0234375 -10.10938 -21.00977 0 -10.10938 -18.20703 10.45898 -10.10938 18.02344 -10.45898 10.85059 -10.55078 -18.11523 10.85059 -18.20703 -10.45898 10.85059 18.02344 10.45898 -12.7334 8.994141 -9.078125 -12.71777 -9.288086 9.204102 13.72461 13.21973 5.402344 13.72461 -10.24219 -10.15039</float_array>
+					<technique_common>
+						<accessor source="#polygon1_PosArr" count="48" stride="3">
+							<param name="X" type="float" />
+							<param name="Y" type="float" />
+							<param name="Z" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon1_Normals">
+					<float_array id="polygon1_NormArr" count="180">0.9091797 0.4163818 0 0.7080078 0.7062378 0 0.9107666 0.387085 -0.1437378 0.6514282 0.6538696 -0.3848267 0.9154053 0.2846069 -0.2846069 0.6514282 0.3848267 -0.6538696 0.9116821 0.1414795 -0.3858032 0.7092285 0 -0.7049561 0.9110718 0 -0.4121704 0.9116821 -0.1414795 -0.3858032 0.906189 0 0.4228516 0.9118042 -0.1583252 0.3789063 0.7109985 -0.3344727 0.6185303 0.9154053 -0.2846069 0.2846069 0.6514282 -0.6538696 0.3848267 0.9107666 -0.387085 0.1437378 0.7080078 -0.7062378 0 0.9091797 -0.4163818 0 0.9107666 -0.387085 -0.1437378 0.9498901 -0.3126221 -6.103516E-05 0.998291 -0.05877686 0.000793457 0.9518433 -0.2703857 -0.1446533 0.999939 -0.006896973 -0.008056641 0.9517212 -0.1445313 -0.2706909 0.9981079 0.002075195 -0.06158447 0.949646 6.103516E-05 -0.3134155 0.9508057 0.1455078 -0.2735596 0.9501953 0.274292 0.1477661 0.9998779 0.01489258 0.005310059 0.9525146 0.1425171 0.269043 0.9985352 0.0001220703 0.05413818 0.9521484 0 0.3056641 0.9526367 -0.142334 0.2687988 0.9154053 0.2846069 0.2846069 0.9118042 0.1583252 0.3789063 0.7109985 0.3344727 0.6185303 0.5498657 0 0.8352661 0.9974976 0.07080078 -0.001159668 0.9462891 0.3233032 -6.103516E-05 0.9494629 0.2764282 -0.1486206 0 1 0 0 0.8660278 -0.5 0 0.5 -0.8660278 0 0 -1 0 -0.5 -0.8660278 0.6514282 -0.3848267 -0.6538696 0 -0.8660278 -0.5 0.6514282 -0.6538696 -0.3848267 0 -1 0 0 -0.8660278 0.5 0 -0.5 0.8660278 0 0 1 0 0.5 0.8660278 0 0.8660278 0.5 0.6514282 0.6538696 0.3848267 0.999939 -0.009887695 0.006652832 0.9517212 -0.270874 0.1445313 0.9998169 0.01568604 -0.01055908 0.9107666 0.387085 0.1437378 0.9154053 -0.2846069 -0.2846069</float_array>
+					<technique_common>
+						<accessor source="#polygon1_NormArr" count="60" stride="3">
+							<param name="X" type="float" />
+							<param name="Y" type="float" />
+							<param name="Z" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon1_Colors0">
+					<float_array id="polygon1_ColorArr0" count="8">0.6980392 0.6980392 0.6980392 1 0.4980392 0.4980392 0.4980392 1</float_array>
+					<technique_common>
+						<accessor source="#polygon1_ColorArr0" count="2" stride="4">
+							<param name="R" type="float" />
+							<param name="G" type="float" />
+							<param name="B" type="float" />
+							<param name="A" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon1_UVs0">
+					<float_array id="polygon1_UVArr0" count="148">0.4926758 0.9389648 0.4926758 1.001953 0.6220703 0.9228516 0.7299805 0.9694824 0.7358398 0.8842773 0.9038086 0.8813477 0.8117676 0.826416 0.9675293 0.7607422 0.848877 0.7607422 0.8117676 0.6950684 0.1362305 0.7607422 0.173584 0.6950684 0.08129883 0.6401367 0.2492676 0.637207 0.255127 0.552002 0.3630371 0.598877 0.4926758 0.5197754 0.4926758 0.5827637 0.6220703 0.598877 0.4975586 1.000244 0.4970703 0.9074707 0.2644043 0.9680176 0.2976074 0.8640137 0.09375 0.880127 0.2104492 0.7612305 0.03125 0.7597656 0.09375 0.6396484 0.730957 0.5517578 0.6975098 0.661377 0.9016113 0.6396484 0.7797852 0.7612305 0.9641113 0.7597656 0.9016113 0.880127 0.2492676 0.8842773 0.173584 0.826416 0.08129883 0.8813477 0.01757813 0.7607422 0.4973145 0.6149902 0.4975586 0.5195313 0.2644043 0.5517578 5.312256 -1.011963 4.809814 -1.011963 5.312256 -0.532959 4.809814 -0.532959 4.307373 -1.011963 4.307373 -0.532959 3.804688 -1.011963 3.804688 -0.532959 3.302002 -1.011963 3.302002 -0.532959 2.801514 -1.011963 2.801514 -0.532959 2.302979 -1.011963 2.303223 -0.532959 1.805908 -1.011963 1.805908 -0.532959 1.309814 -1.011963 1.310059 -0.532959 0.8146973 -1.011963 0.8146973 -0.532959 0.3198242 -1.011963 0.3200684 -0.532959 -0.1740723 -1.011963 -0.1740723 -0.532959 -0.6777344 -1.011963 -0.6777344 -0.532959 0.6977539 0.8647461 0.730957 0.9680176 0.2944336 0.6601563 0.3630371 0.9228516 0.255127 0.9694824 0.9038086 0.6401367 0.7358398 0.637207 0.7299805 0.552002</float_array>
+					<technique_common>
+						<accessor source="#polygon1_UVArr0" count="74" stride="2">
+							<param name="S" type="float" />
+							<param name="T" type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<vertices id="polygon1_Vertices">
+					<input semantic="POSITION" source="#polygon1_Positions" />
+				</vertices>
+				<triangles material="mat_tire" count="72">
+					<input semantic="VERTEX" source="#polygon1_Vertices" offset="0" />
+					<input semantic="NORMAL" source="#polygon1_Normals" offset="1" />
+					<input semantic="COLOR" source="#polygon1_Colors0" set="0" offset="2" />
+					<input semantic="TEXCOORD" source="#polygon1_UVs0" set="0" offset="3" />
+					<p>2 2 0 2 1 1 0 1 0 0 0 0 3 3 0 3 1 1 0 1 2 2 0 2 4 4 0 4 3 3 0 3 2 2 0 2 5 5 0 5 3 3 0 3 4 4 0 4 6 6 0 6 5 5 0 5 4 4 0 4 7 7 0 7 5 5 0 5 6 6 0 6 8 8 0 8 7 7 0 7 6 6 0 6 9 9 0 9 7 7 0 7 8 8 0 8 12 12 0 12 11 11 0 11 10 10 0 10 13 13 0 13 11 11 0 11 12 12 0 12 14 14 0 14 13 13 0 13 12 12 0 12 15 15 0 15 13 13 0 13 14 14 0 14 16 16 0 16 15 15 0 15 14 14 0 14 17 17 0 17 15 15 0 15 16 16 0 16 18 18 0 18 17 17 0 17 16 16 0 16 21 21 0 21 20 20 1 20 19 19 0 19 22 22 1 22 20 20 1 20 21 21 0 21 23 23 0 23 22 22 1 22 21 21 0 21 24 24 1 24 22 22 1 22 23 23 0 23 25 25 0 25 24 24 1 24 23 23 0 23 26 26 0 26 24 24 1 24 25 25 0 25 29 29 0 29 28 28 1 28 27 27 0 27 30 30 1 30 28 28 1 28 29 29 0 29 31 31 0 31 30 30 1 30 29 29 0 29 32 32 0 32 30 30 1 30 31 31 0 31 35 35 0 35 34 34 0 34 33 33 0 33 10 10 0 10 34 34 0 34 35 35 0 35 36 36 0 36 10 10 0 10 35 35 0 35 12 12 0 12 10 10 0 10 36 36 0 36 37 37 1 37 27 27 0 27 28 28 1 28 38 38 0 38 27 27 0 27 37 37 1 37 39 39 0 39 38 38 0 38 37 37 1 37 1 1 0 42 40 41 0 41 19 40 0 40 3 3 0 43 40 41 0 41 1 1 0 42 3 3 0 43 32 42 0 44 40 41 0 41 5 5 0 45 32 42 0 44 3 3 0 43 5 5 0 45 31 43 0 46 32 42 0 44 7 7 0 47 31 43 0 46 5 5 0 45 7 7 0 47 29 44 0 48 31 43 0 46 41 45 0 49 29 44 0 48 7 7 0 47 41 45 0 49 27 46 0 50 29 44 0 48 42 47 0 51 27 46 0 50 41 45 0 49 42 47 0 51 38 48 0 52 27 46 0 50 16 16 0 53 38 48 0 52 42 47 0 51 16 16 0 53 39 49 0 54 38 48 0 52 14 14 0 55 39 49 0 54 16 16 0 53 14 14 0 55 26 50 0 56 39 49 0 54 12 12 0 57 26 50 0 56 14 14 0 55 12 12 0 57 25 51 0 58 26 50 0 56 36 36 0 59 25 51 0 58 12 12 0 57 36 36 0 59 23 52 0 60 25 51 0 58 35 35 0 61 23 52 0 60 36 36 0 59 35 35 0 61 21 53 0 62 23 52 0 60 43 54 0 63 21 53 0 62 35 35 0 61 43 54 0 63 19 40 0 64 21 53 0 62 1 1 0 65 19 40 0 64 43 54 0 63 32 32 0 32 44 55 1 66 30 30 1 30 40 56 0 67 44 55 1 66 32 32 0 32 40 56 0 67 20 20 1 20 44 55 1 66 19 19 0 19 20 20 1 20 40 56 0 67 26 26 0 26 45 57 1 68 24 24 1 24 39 39 0 39 45 57 1 68 26 26 0 26 1 1 0 1 46 58 0 69 0 0 0 0 43 54 0 70 46 58 0 69 1 1 0 1 43 54 0 70 33 33 0 33 46 58 0 69 35 35 0 35 33 33 0 33 43 54 0 70 9 9 0 9 41 45 0 71 7 7 0 7 47 59 0 72 41 45 0 71 9 9 0 9 47 59 0 72 42 47 0 73 41 45 0 71 18 18 0 18 42 47 0 73 47 59 0 72 45 57 1 68 39 39 0 39 37 37 1 37 42 47 0 73 18 18 0 18 16 16 0 16</p>
+				</triangles>
+			</mesh>
+		</geometry>
+	</library_geometries>
+	<library_controllers>
+		<controller id="polygon0_Controller">
+			<skin source="#polygon0">
+				<bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</bind_shape_matrix>
+				<source id="polygon0_Joints">
+					<Name_array id="polygon0_JointArr" count="1">tire_fl</Name_array>
+					<technique_common>
+						<accessor source="#polygon0_JointArr" count="1">
+							<param name="JOINT" type="Name" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Matrices">
+					<float_array id="polygon0_MatArr" count="16">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</float_array>
+					<technique_common>
+						<accessor source="#polygon0_MatArr" count="1" stride="16">
+							<param type="float4x4" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon0_Weights">
+					<float_array id="polygon0_WeightArr" count="1">1</float_array>
+					<technique_common>
+						<accessor source="#polygon0_WeightArr" count="1">
+							<param type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<joints>
+					<input semantic="JOINT" source="#polygon0_Joints" />
+					<input semantic="INV_BIND_MATRIX" source="#polygon0_Matrices" />
+				</joints>
+				<vertex_weights count="51">
+					<input semantic="JOINT" offset="0" source="#polygon0_Joints" />
+					<input semantic="WEIGHT" offset="1" source="#polygon0_Weights" />
+					<vcount>1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1</vcount>
+					<v>0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</v>
+				</vertex_weights>
+			</skin>
+		</controller>
+		<controller id="polygon1_Controller">
+			<skin source="#polygon1">
+				<bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</bind_shape_matrix>
+				<source id="polygon1_Joints">
+					<Name_array id="polygon1_JointArr" count="1">tire_fl</Name_array>
+					<technique_common>
+						<accessor source="#polygon1_JointArr" count="1">
+							<param name="JOINT" type="Name" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon1_Matrices">
+					<float_array id="polygon1_MatArr" count="16">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</float_array>
+					<technique_common>
+						<accessor source="#polygon1_MatArr" count="1" stride="16">
+							<param type="float4x4" />
+						</accessor>
+					</technique_common>
+				</source>
+				<source id="polygon1_Weights">
+					<float_array id="polygon1_WeightArr" count="1">1</float_array>
+					<technique_common>
+						<accessor source="#polygon1_WeightArr" count="1">
+							<param type="float" />
+						</accessor>
+					</technique_common>
+				</source>
+				<joints>
+					<input semantic="JOINT" source="#polygon1_Joints" />
+					<input semantic="INV_BIND_MATRIX" source="#polygon1_Matrices" />
+				</joints>
+				<vertex_weights count="48">
+					<input semantic="JOINT" offset="0" source="#polygon1_Joints" />
+					<input semantic="WEIGHT" offset="1" source="#polygon1_Weights" />
+					<vcount>1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1</vcount>
+					<v>0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</v>
+				</vertex_weights>
+			</skin>
+		</controller>
+	</library_controllers>
+	<library_visual_scenes>
+		<visual_scene id="RootNode" name="RootNode">
+			<node id="tire_fl" name="tire_fl" sid="tire_fl" type="JOINT" />
+			<node id="polygon0" name="polygon0" type="NODE">
+				<instance_controller url="#polygon0_Controller">
+					<skeleton>#tire_fl</skeleton>
+					<bind_material>
+						<technique_common>
+							<instance_material symbol="mat_tire_rim" target="#mat_tire_rim">
+								<bind_vertex_input semantic="TEXCOORD0" input_semantic="TEXCOORD" input_set="0" />
+								<bind_vertex_input semantic="TEXCOORD0" input_semantic="TEXCOORD" input_set="0" />
+							</instance_material>
+						</technique_common>
+					</bind_material>
+				</instance_controller>
+			</node>
+			<node id="polygon1" name="polygon1" type="NODE">
+				<instance_controller url="#polygon1_Controller">
+					<skeleton>#tire_fl</skeleton>
+					<bind_material>
+						<technique_common>
+							<instance_material symbol="mat_tire" target="#mat_tire">
+								<bind_vertex_input semantic="TEXCOORD0" input_semantic="TEXCOORD" input_set="0" />
+								<bind_vertex_input semantic="TEXCOORD0" input_semantic="TEXCOORD" input_set="0" />
+							</instance_material>
+						</technique_common>
+					</bind_material>
+				</instance_controller>
+			</node>
+		</visual_scene>
+	</library_visual_scenes>
+	<scene>
+		<instance_visual_scene url="#RootNode" />
+	</scene>
+</COLLADA>

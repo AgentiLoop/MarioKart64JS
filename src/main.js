@@ -1129,6 +1129,11 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG') { HD.cyclePreset(); showRes(); }
   if (e.code === 'KeyJ' && !e.repeat) showRes(togglePhysics());   // jump mode Jumps / Glue, saved
   if (e.code === 'KeyP' && !e.repeat && trackDef) showRes(physicsDebug.toggle() ? 'PHYSICS BODIES ON' : 'PHYSICS BODIES OFF');
+  // 3: Wii 3D kart test (src/kart3d.js) on the player's kart, back to the sprite on the next press
+  if (e.code === 'Digit3' && !e.repeat && player) {
+    if (player.model) { player.set3D(null); showRes('KART: MK64 SPRITE'); }
+    else import('./kart3d.js').then(m => m.buildWiiKart()).then(model => { player.set3D(model); showRes('KART: WII 3D (RED STANDARD KART)'); }, err => { console.error(err); showRes('WII KART FAILED TO LOAD'); });
+  }
   // Q is a second item button that holds the stick up on release: a held banana is thrown ahead (gamepad: stick up)
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat && state !== 'countdown' && player) useItem();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();

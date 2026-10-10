@@ -873,7 +873,17 @@ export class Kart {
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
+    this.model?.userData.update(this.steerVis, this.v, dt);
     this.syncShadow(g);
+  }
+
+  // Wii 3D kart test (src/kart3d.js, the 3 key): the model replaces the sprite under the same group, so the
+  // position, heading, shadow and item scaling carry over; null brings the sprite back
+  set3D(model) {
+    if (this.model) this.mesh.remove(this.model);
+    this.model = model || null;
+    if (model) this.mesh.add(model);
+    this.mesh.children.find(c => c.isSprite).visible = !model;
   }
 
   // Battle balloons (code_80057C60.c). update_player_one_balloon_position: each hangs from a point
@@ -1129,6 +1139,7 @@ export class Kart {
     this.mesh.position.copy(this.world);
     this.mesh.userData.tumble = this.tumble ? this.tumble.a8 >> 8 : null;
     if (this.tumble) this.mesh.position.addScaledVector(this.up, this.tumble.lift * 0.1);   // MK64 units at course scale 0.1
+    this.model?.userData.update(this.steerVis, this.v, dt);
     this.syncShadow(g);
   }
 }
