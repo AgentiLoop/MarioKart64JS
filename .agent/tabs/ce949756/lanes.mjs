@@ -19,13 +19,16 @@ const out = await page.evaluate(([S0, S1, SS, D0, D1, DS, N, TR, FS, VV, LC, DR]
   k.s = k.prevS = 5; k.d = 0; k.psi = k.phi = 0; k.v = 0; k.wallEase = 0; k.syncMesh(0);
   for (let i = 0; i < 400; i++) k.update(1 / 60, { throttle: 1, brake: 0, steer: 0, drift: false });
   const V = VV || Math.max(k.v, k.top * 0.97), end = S1 < 0 ? t.length : S1;
-  let flights = 0, n = 0;
+  let flights = 0, n = 0, under = 0;
   for (let s = S0; s < end; s += SS) for (let d = D0; d <= D1; d += DS) {
     if (d < -t.wallAt(s, -1) + 1 || d > t.wallAt(s, 1) - 1) continue;
     // LC: lane change - steer toward lane d + LC (clamped inside the limits) instead of holding d
     const lane = LC ? Math.max(-t.wallAt(s, -1) + 2, Math.min(t.wallAt(s, 1) - 2, d + LC)) : d;
     k.s = k.prevS = s; k.d = d; k.psi = k.phi = 0; k.v = V; k.wallEase = 0; k.air = false; k.vy = 0; k.arc = null;
     k.rescue = 0; k.spin = 0; k.wallT = 0; k.syncMesh(0);
+    // a start under a ramp's top (placed on the road inside the ramp: no kart gets there) is skipped
+    const top = t.groundBelow(k.world.x, k.world.z, k.world.y + 20);
+    if (top && top.y > k.world.y + 0.5) { under++; continue; }
     const w0 = `${k.world.x.toFixed(0)},${k.world.z.toFixed(0)}`;
     let maxPsi = 0, minV = V, hits = 0, air = 0, maxOff = 0, bad = '';
     for (let i = 0; i < N; i++) {
@@ -46,8 +49,8 @@ const out = await page.evaluate(([S0, S1, SS, D0, D1, DS, N, TR, FS, VV, LC, DR]
     n++; if (air > 15) flights++;
     if (bad || hits || maxOff > (LC ? Math.abs(LC) + 4 : 4)) R.push(`s${s} d${d}${LC ? '>' + lane.toFixed(0) : ''} w${w0} psi${maxPsi.toFixed(2)} vmin${minV.toFixed(0)} hits${hits} off${maxOff.toFixed(1)} air${air} ${bad}`);
   }
-  return { V, n, flights, R };
+  return { V, n, flights, under, R };
 }, [+S0, +S1, +SS, +D0, +D1, +DS, +N, !!process.env.TRACE, process.env.STEER ? +process.env.STEER : null, +(process.env.V || 0), +(process.env.LC || 0), !!process.env.DRIFT]);
-console.log(`V=${out.V.toFixed(1)} starts=${out.n} flights=${out.flights} flagged=${out.R.length}`);
+console.log(`V=${out.V.toFixed(1)} starts=${out.n} under-ramp=${out.under} flights=${out.flights} flagged=${out.R.length}`);
 console.log(out.R.join('\n'));
 await browser.close(); vite.kill(); process.exit(0);
