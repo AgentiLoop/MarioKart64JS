@@ -24,7 +24,7 @@
 		</image>
 	</library_images>
 	<library_materials>
-		<material id="mario_all_tx">
+		<material id="mario_all_tx" name="mario_all_tx">
 			<instance_effect url="#mario_all_tx-fx" />
 		</material>
 		<material id="mario_eye_tx" name="mario_eye_tx">

@@ -357,7 +357,7 @@ export function buildKartMesh(character = 'mario') {
 
 export class Kart {
   constructor(track, { color, s, d, isPlayer = false, skill = 1, name = 'Racer', character = 'mario', spawn = null, speedScale = 1, cc = 2 }) {
-    this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.speedScale = speedScale; this.cc = cc;
+    this.track = track; this.isPlayer = isPlayer; this.skill = skill; this.name = name; this.character = character; this.speedScale = speedScale; this.cc = cc;
     this.s = s; this.psi = 0; this.phi = 0; this.v = 0;
     // inside the walls from the first ground lookup: a grid spot past the road's edge (Frappe Snowland's bridge)
     // would otherwise seed groundY from the ground beside the road and the kart would start on it, under the deck
