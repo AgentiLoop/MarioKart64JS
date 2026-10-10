@@ -570,6 +570,22 @@ export class Track {
       const road = roadNear(i, d, sgn, y);
       return road !== null && y - road > 0.3 && y - road < 2.5 ? road : null;
     };
+    // a face of a wedge ramp standing on the road at y (Koopa Troopa Beach's narrow ramp at (10, 277), 7 high: its
+    // sides and back cut the right bound 40 -> 3.5, so it could not be driven onto): its low corners on the road, and
+    // each raised one a corner of the ramp's top, a gently sloped surface reaching down to the road. A wall's raised
+    // corners belong to the wall's upper triangles or to ground on top of it
+    const vkey = v => `${v[0].toFixed(3)},${v[1].toFixed(3)},${v[2].toFixed(3)}`, topFoot = new Map();   // corner -> lowest corner of a sloped top
+    for (const [a, b, c, , normal] of tris) {
+      if (normal.y <= 0.8) continue;
+      const lo = Math.min(a[1], b[1], c[1]);
+      for (const v of [a, b, c]) if (v[1] - lo > 0.6) { const k = vkey(v); topFoot.set(k, Math.min(topFoot.get(k) ?? Infinity, lo)); }
+    }
+    const rampFace = (t, y) => {
+      const w = walls[t];
+      if (w.some(v => v[1] - y < -0.6) || !w.some(v => v[1] - y >= 0.6)) return false;
+      return w.every(v => v[1] - y < 0.6 || Math.abs((topFoot.get(vkey(v)) ?? Infinity) - y) < 0.6);
+    };
+
     for (let i = 0; i < this.n; i++) {
       const p = this.pos[i], R = this.R[i];
       const y0 = routeY[i];
@@ -607,7 +623,7 @@ export class Track {
                 if (side(2) || side(-2)) { lip = true; break; }
               }
             }
-            if (!lip) break;
+            if (!lip && !rampFace(crossed, prev)) break;
           }
           prev = y;
         }
