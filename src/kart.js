@@ -837,11 +837,11 @@ export class Kart {
     // ... but off a lip (Koopa Troopa Beach's start ramp at (-3, 48)) the kart is still at the top, not on the
     // ground below, so the lip's own back face is not in its body
     const cap = this.model?.userData.capsule, gy = g ? Math.max(g.y, y0) : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
-    let wx = x, wz = z, nx = 0, nz = 0, turn = 0;
+    let wx = x, wz = z, nx = 0, nz = 0, turn = 0, touched = 0, fn = null;
     if (!cap) {
       const h = t.wallPush(px, pz, x, z, gy, this.visualHalfWidth);
       // pushed WALL_CLEAR past the surface, so the next frame doesn't start touching (and slowing) again
-      if (h) { wx = h.x + h.nx * WALL_CLEAR; wz = h.z + h.nz * WALL_CLEAR; nx = h.nx; nz = h.nz; }
+      if (h) { wx = h.x + h.nx * WALL_CLEAR; wz = h.z + h.nz * WALL_CLEAR; nx = h.nx; nz = h.nz; touched = 1; }
     } else for (let pass = 0; pass < 2; pass++) {
       // the capsule as a rigid body: each axle circle's push (plus WALL_CLEAR) split into a move and a turn, the
       // sideways parts solved for both ends at once (a long kart turned across a narrow bridge, Yoshi Valley's at
@@ -849,7 +849,7 @@ export class Kart {
       // the move can bring the other end to a face
       const a = this.psi + turn, c = Math.cos(a), s = Math.sin(a);
       const hx = f.T.x * c + f.R.x * s, hz = f.T.z * c + f.R.z * s, sx = f.R.x * c - f.T.x * s, sz = f.R.z * c - f.T.z * s;
-      const P = [cap.front, cap.rear].map(o => {
+      const P = [cap.front, cap.rear].map((o, i) => {
         // each circle over the ground under it (in flight too: landing on the second ramp of the pair at (-96, 121) /
         // (-86, 128), the nose was at its lip): up a wedge ramp (Koopa Troopa Beach's at (-4, 69)) the nose circle
         // reached the lip 2 units ahead while the centre was still 0.7 down the slope, and tested at the centre's
@@ -857,7 +857,7 @@ export class Kart {
         const go = t.groundAt(wx + hx * o, wz + hz * o, gy), gyo = go ? Math.max(go.y, gy) : gy;
         const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r);
         if (!h) return [0, 0];
-        nx += h.nx; nz += h.nz;
+        nx += h.nx; nz += h.nz; touched |= 1 << i; fn ??= h;
         const mx = h.x + h.nx * WALL_CLEAR - wx - hx * o, mz = h.z + h.nz * WALL_CLEAR - wz - hz * o;
         return [mx * sx + mz * sz, mx * hx + mz * hz];   // sideways, along the heading
       });
@@ -870,8 +870,14 @@ export class Kart {
       const side = both ? P[0][0] - th * cap.front : Math.abs(P[0][0]) > Math.abs(P[1][0]) ? P[0][0] : P[1][0], along = P[0][1] + P[1][1];
       wx += sx * side + hx * along; wz += sz * side + hz * along; turn += th;
     }
-    const nl = Math.hypot(nx, nz);
-    if (nl < 1e-6) return;
+    if (!touched) return;
+    // wedged: both ends against faces over the passes (nose in one wall of Bowser's Castle's 5-wide passage at
+    // (169, -150), the push brought the tail to the other, Bowser's kart 5 long): the opposite normals cancelled and
+    // the hit was dropped, the nose left in the wall (37% of its width, tools/test-walls.mjs WII3D) - the first face's
+    // normal stands in, and wallBounce turns the nose along it
+    const wedged = touched === 3;
+    let nl = Math.hypot(nx, nz);
+    if (nl < 1e-6) { nx = fn.nx; nz = fn.nz; nl = 1; }
     const w = { x: wx, z: wz, nx: nx / nl, nz: nz / nl };
     // (dx, dz) = T * denom * ds + R * dd, a few Newton steps: far off a tight bend the frame turns under the kart
     for (let i = 0; i < 3; i++) {
@@ -889,22 +895,35 @@ export class Kart {
     const fx = f.T.x * cp + f.R.x * sp, fz = f.T.z * cp + f.R.z * sp, vn = (fx * w.nx + fz * w.nz) * this.v;
     if (vn >= 0) return;
     const mx = fx * this.v - 1.5 * vn * w.nx, mz = fz * this.v - 1.5 * vn * w.nz;
-    this.wallBounce(mx * f.T.x + mz * f.T.z, mx * f.R.x + mz * f.R.z);
+    this.wallBounce(mx * f.T.x + mz * f.T.z, mx * f.R.x + mz * f.R.z, wedged);
     this.drift = 0;
     if (cap) this.routeWallPush(t, Math.max(0.3, 1 - this.frame.k * this.d), true);
   }
 
-  // A wall contact's new motion (mt, mr along the frame's T / R) as speed and travel direction phi, the kart still
-  // going the way it went (a steep hit flipped into reverse rammed the face again with the nose still in it); a
-  // fresh hit slows the kart by 18 currentSpeed units (player_decelerate_alternative). The nose turns 60% of the
-  // way to the new heading, as at the route limit, so the grip doesn't steer the motion back into the face.
-  wallBounce(mt, mr) {
+  // A wall contact's new motion (mt, mr along the frame's T / R) as speed and travel direction phi; a fresh hit slows
+  // the kart by 18 currentSpeed units (player_decelerate_alternative). A glancing hit turns the nose 60% of the way to
+  // the new heading (along the face), as at the route limit, so the grip doesn't steer the motion back into the face.
+  // A steep hit (the reflected motion points behind the kart: over ~55 degrees into the face) bounces the player's
+  // kart back the way it came with its facing kept, as in MK64 (func_8002C954 / func_8003F734 reflect the velocity,
+  // the facing is never turned by a wall): the motion becomes a backwards speed. Before, the nose was turned 60% of the
+  // way round, ~110 degrees head-on into Koopa Troopa Beach's rock at (36, 218). Not with the 3D capsule wedged across
+  // a passage, both ends against faces (Bowser's Castle's 5-wide passage at (169, -150), Bowser's kart 5 long: kept
+  // across it, the capsule sank 37% into the walls, tools/test-walls.mjs WII3D), nor for the CPUs (their driver
+  // steers the nose, Kart.think). Kept facing on glancing hits too was tried: with the steer held into a wall the
+  // nose kept turning into it until the capsule lay across Yoshi Valley's 3-wide bridge at (-199, 87), 37% in the rail.
+  wallBounce(mt, mr, wedged = false) {
+    let sp = Math.hypot(mt, mr);
+    if (this.hitWall <= 0) sp = Math.max(0, sp - WALL_SLOW);
+    this.hitWall = 0.25;
+    if (this.isPlayer && !wedged) {
+      let rel = Math.atan2(mr, mt) - this.psi;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      if (Math.abs(rel) > Math.PI / 2) { this.v = -sp; this.phi = this.psi + Math.atan2(Math.sin(rel + Math.PI), Math.cos(rel + Math.PI)); return; }
+    }
     const dir = this.v < 0 ? -1 : 1;
     const turn = Math.atan2(dir * mr, dir * mt) - this.phi;
     this.phi += Math.atan2(Math.sin(turn), Math.cos(turn));
-    let sp = Math.hypot(mt, mr);
-    if (this.hitWall <= 0) sp = Math.max(0, sp - WALL_SLOW);
-    this.v = dir * sp; this.hitWall = 0.25;
+    this.v = dir * sp;
     const nose = this.phi - this.psi;
     this.psi += 0.6 * Math.atan2(Math.sin(nose), Math.cos(nose));
     if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
