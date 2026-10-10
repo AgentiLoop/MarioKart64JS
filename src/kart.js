@@ -850,14 +850,24 @@ export class Kart {
       const a = this.psi + turn, c = Math.cos(a), s = Math.sin(a);
       const hx = f.T.x * c + f.R.x * s, hz = f.T.z * c + f.R.z * s, sx = f.R.x * c - f.T.x * s, sz = f.R.z * c - f.T.z * s;
       const P = [cap.front, cap.rear].map(o => {
-        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gy, cap.r);
+        // each circle over the ground under it (in flight too: landing on the second ramp of the pair at (-96, 121) /
+        // (-86, 128), the nose was at its lip): up a wedge ramp (Koopa Troopa Beach's at (-4, 69)) the nose circle
+        // reached the lip 2 units ahead while the centre was still 0.7 down the slope, and tested at the centre's
+        // height the lip's own back face was in its body and threw the kart back (40 -> 18)
+        const go = t.groundAt(wx + hx * o, wz + hz * o, gy), gyo = go ? Math.max(go.y, gy) : gy;
+        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r);
         if (!h) return [0, 0];
         nx += h.nx; nz += h.nz;
         const mx = h.x + h.nx * WALL_CLEAR - wx - hx * o, mz = h.z + h.nz * WALL_CLEAR - wz - hz * o;
         return [mx * sx + mz * sz, mx * hx + mz * hz];   // sideways, along the heading
       });
       if (!P[0][0] && !P[0][1] && !P[1][0] && !P[1][1]) break;
-      const th = (P[0][0] - P[1][0]) / (cap.front - cap.rear), side = P[0][0] - th * cap.front, along = P[0][1] + P[1][1];
+      // the rigid turn only with both ends against faces (wedged across a narrow passage: Bowser's Castle's at
+      // (169, -150) is 5 wide, Bowser's kart 5 long): a glancing nose hit alone (the side of a ramp driven past,
+      // Koopa Troopa Beach's at (-177, 18)) swung the kart ~0.4 rad about its rear axle - the redirect off the jumps
+      const both = (P[0][0] || P[0][1]) && (P[1][0] || P[1][1]);
+      const th = both ? (P[0][0] - P[1][0]) / (cap.front - cap.rear) : 0;
+      const side = both ? P[0][0] - th * cap.front : Math.abs(P[0][0]) > Math.abs(P[1][0]) ? P[0][0] : P[1][0], along = P[0][1] + P[1][1];
       wx += sx * side + hx * along; wz += sz * side + hz * along; turn += th;
     }
     const nl = Math.hypot(nx, nz);

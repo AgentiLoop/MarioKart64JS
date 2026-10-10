@@ -451,8 +451,8 @@ export class Track {
     });
     // horizontally nearest point to (px, pz) of the triangle's outline where it stands within the kart's body,
     // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road).
-    // (mx, mz): the kart's move this step, r its body radius
-    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0) => {
+    // (mx, mz): the kart's move this step, r its body radius, behind: its centre is behind the face's plane
+    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0, behind = false) => {
       let best = null, bd = Infinity;
       for (let i = 0; i < 3; i++) {
         const A = tri[i], B = tri[(i + 1) % 3], ex = B[0] - A[0], ey = B[1] - A[1], ez = B[2] - A[2];
@@ -481,9 +481,15 @@ export class Track {
         const qx = A[0] + ex * s, qz = A[2] + ez * s, dd = (qx - px) ** 2 + (qz - pz) ** 2;
         // the edge rims the ground the kart rides, within a climb of its height: Koopa Troopa Beach's ramp at (-86,
         // 128) landed on from the one before it, its lip corner 2.1 high pushed the kart riding up at 1.55 back off
-        // sideways (turned ~1.6 rad, 42 -> 19). The ground just in from the edge toward the kart is level with it
+        // sideways (turned ~1.6 rad, 42 -> 19). The ground just in from the edge toward the kart is level with it.
+        // Gently sloped edges too (under ~24 deg) with the kart behind the face: a wedge ramp's side rising with its
+        // top (Koopa Troopa Beach's start ramp at (-177, 18) stands at an angle to the route, and a kart cutting its
+        // foot corner onto the top was pushed back off by the side's edge beside it, from inside the ramp); the
+        // ground beside the edge on the kart's side is the ramp's top. From the road beside the ramp (in front of
+        // the face), and along a steep ramp's edge (Bowser's Castle's 45 deg ramp at (198, -269), where the body
+        // would hang off the side), a sloped edge pushes as before
         const qy = A[1] + ey * s;
-        if (ey * ey < 0.09 * hh && qy < y0 - 0.55 + CLIMB && dd > 1e-12) {
+        if ((ey * ey < 0.09 * hh || (behind && ey * ey < 0.2 * hh)) && qy < y0 - 0.55 + CLIMB && dd > 1e-12) {
           const dh = Math.sqrt(dd), g = height(qx + (px - qx) * 0.3 / dh, qz + (pz - qz) * 0.3 / dh, qy);
           if (g !== null && Math.abs(g - qy) < 0.15) continue;
         }
@@ -520,7 +526,7 @@ export class Track {
                 // beside the face: its outline within the body, 0.55 (lower lips are climbed) to 2 (higher edges hang
                 // over the road: the kart drives under them, e.g. the face 2.2 over Mario Raceway's road at (59, 52))
                 if (u < 0 || v < 0 || u + v > 1) {
-                  const e = rim(x, z, y + 0.55, y + 2, walls[t], x - x0, z - z0, r);
+                  const e = rim(x, z, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d < 0);
                   if (!e) continue;
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
