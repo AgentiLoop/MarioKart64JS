@@ -169,6 +169,7 @@ npm run dev        # http://localhost:5173
 - **Graphics check:** `node tools/qc-graphics.mjs` drives every course in a headless browser and reports missing textures and flicker.
 - **Website and lobby** (`website/`): a Cloudflare Worker. Publish it with `npm run deploy:web`.
 - **Desktop apps** (`desktop/`): run `npm run game` first, then `webkit/build.sh` for Mac, `npm run dist:win` or `dist:linux` for Windows and Linux, or `raspberrypi/build.sh` for the Pi.
+- **Web-thin desktop apps** (`desktop/`): small apps with no game files that open the hosted game at mk64js.gokart.games/play. No `npm run game` needed. Build them with `webkit/build-web-thin.sh` (Mac, WKWebView), `raspberrypi/build-web-thin.sh` (Pi, WebKitGTK), `windows/build-web-thin.sh` (an Edge app window; `Install.cmd` adds Start menu and desktop shortcuts) or `linux/build-web-thin.sh` (a Chrome or Chromium app window; `install.sh` installs a browser if none is found and adds a Games menu entry).
 
 ### Assets
 

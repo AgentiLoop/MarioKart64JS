@@ -1,0 +1,35 @@
+#!/bin/sh
+# MarioKart64JS Web for Linux: opens the hosted game in a Chrome / Chromium app window (no tabs or address bar,
+# 1280x960, its own profile). Uses the first browser found; falls back to the WebKitGTK window (mk64js.py) when no
+# Chromium-based browser is installed. MK64_BROWSER=<command> picks a browser, MK64_WEB_URL=<url> another server.
+D="$(dirname "$(readlink -f "$0")")"
+URL="${MK64_WEB_URL:-$(head -n 1 "$D/url.txt")}"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}/mariokart64js-web"
+FLAGS="--window-size=1280,960 --autoplay-policy=no-user-gesture-required --no-first-run --no-default-browser-check"
+
+for b in ${MK64_BROWSER:-} google-chrome-stable google-chrome chromium chromium-browser microsoft-edge-stable \
+         microsoft-edge brave-browser; do
+  command -v "$b" >/dev/null 2>&1 || continue
+  PROFILE="$DATA/profile"
+  case "$b" in   # Ubuntu's Chromium is a snap, which may only write under ~/snap/chromium
+    chromium*) [ -x /snap/bin/chromium ] && PROFILE="$HOME/snap/chromium/common/mariokart64js-web" ;;
+  esac
+  mkdir -p "$PROFILE"
+  # shellcheck disable=SC2086
+  exec "$b" --app="$URL" --user-data-dir="$PROFILE" --class=MarioKart64JS-Web $FLAGS "$@"
+done
+
+for f in org.chromium.Chromium com.google.Chrome; do   # Flatpak installs
+  if command -v flatpak >/dev/null 2>&1 && flatpak info "$f" >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    exec flatpak run "$f" --app="$URL" --class=MarioKart64JS-Web $FLAGS "$@"
+  fi
+done
+
+if python3 -c 'import gi; gi.require_version("WebKit2", "4.1")' 2>/dev/null \
+   || python3 -c 'import gi; gi.require_version("WebKit2", "4.0")' 2>/dev/null; then
+  exec python3 "$D/mk64js.py" "$URL" "$@"
+fi
+
+echo "MarioKart64JS Web needs Google Chrome or Chromium. Run $D/install.sh to install one." >&2
+exit 1
