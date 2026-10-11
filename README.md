@@ -11,6 +11,8 @@ We built it as a test of how closely AI tools can recreate a classic game.
 - **▶ Play now:** https://mk64js.gokart.games/play
 - **⬇ Desktop apps** (Mac, Windows, Linux, Raspberry Pi): [Releases](https://github.com/AgentiLoop/MarioKart64JS/releases/latest)
 
+![3D title screen with Wii karts driving at the camera](docs/screenshots/title3d.gif)
+
 | | |
 |---|---|
 | ![Title](docs/screenshots/hires/title.jpg) | ![Course select](docs/screenshots/hires/course-select.jpg) |
