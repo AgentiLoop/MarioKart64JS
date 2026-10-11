@@ -1,6 +1,6 @@
 :root{--bg:#0b0a22;--bg2:#141238;--ink:#f6f3e8;--mut:#aeb2d4;--gold:#ffc928;--org:#ff7a1a;--red:#e8352e;--cyan:#38d2ff;--line:rgba(255,255,255,.12)}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;background:#0b0a22;color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 a{color:var(--cyan)}
 img{max-width:100%;display:block}
