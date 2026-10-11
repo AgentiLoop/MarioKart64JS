@@ -79,12 +79,14 @@ function prepare(scene, eyeRepeat) {
       if (m.map && m.name === 'mat_body') m.map.wrapT = THREE.MirroredRepeatWrapping;
     }
     // the side pods' UVs (u 1-1.32, v 0.5-0.78 in all three classes) put the emblem against the panel's top edge with a
-    // band of livery below it: move them 10 texels up the texture so the emblem sits in the middle of the panel
-    const uv = o.geometry.attributes.uv;
+    // band of livery below it: move them 10 texels up the texture so the emblem sits in the middle of the panel.
+    // Both pods share the same UVs, so the right pod (x < 0) showed the emblem mirrored (DK's logo read upside down,
+    // Luigi's L backwards): flip its u about the emblem's centre (u 1.17)
+    const uv = o.geometry.attributes.uv, pos = o.geometry.attributes.position;
     if (uv && [].concat(o.material).some(m => m.name === 'mat_body')) {
       for (let i = 0; i < uv.count; i++) {
         const u = uv.getX(i), v = uv.getY(i);
-        if (u > 1 && u < 1.32 && v > 0.5 && v < 0.78) uv.setY(i, v + 10 / 128);
+        if (u > 1 && u < 1.32 && v > 0.5 && v < 0.78) uv.setXY(i, pos.getX(i) < 0 ? 2.34 - u : u, v + 10 / 128);
       }
       uv.needsUpdate = true;
     }
