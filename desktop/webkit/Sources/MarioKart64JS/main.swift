@@ -25,13 +25,25 @@ final class GameSchemeHandler: NSObject, WKURLSchemeHandler {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
+    var web: WKWebView!
     let handler = GameSchemeHandler()
+
+    // Develop > Show Web Inspector (⌥⌘I): opens WebKit's inspector attached to this window (SPI _inspector.show).
+    @objc func showWebInspector(_ sender: Any?) {
+        guard let web, web.responds(to: NSSelectorFromString("_inspector")),
+              let inspector = web.value(forKey: "_inspector") as? NSObject,
+              inspector.responds(to: NSSelectorFromString("show")) else { return }
+        inspector.perform(NSSelectorFromString("show"))
+    }
 
     func applicationDidFinishLaunching(_ note: Notification) {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(handler, forURLScheme: "app")
         config.mediaTypesRequiringUserActionForPlayback = []
+        // right-click > Inspect Element inside the app itself (WKPreferences developerExtrasEnabled, set via KVC)
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 1280, height: 960), configuration: config)
+        self.web = web
         if #available(macOS 13.3, *) { web.isInspectable = true }   // Safari > Develop > <this Mac> > MarioKart64JS: console shows the [net] logs
         window = NSWindow(contentRect: web.frame, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
@@ -66,8 +78,15 @@ let menu = NSMenu(), appItem = NSMenuItem()
 menu.addItem(appItem)
 appItem.submenu = NSMenu()
 appItem.submenu!.addItem(withTitle: "Quit MarioKart64JS", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-app.mainMenu = menu
 let delegate = AppDelegate()
+let devItem = NSMenuItem()
+menu.addItem(devItem)
+devItem.submenu = NSMenu(title: "Develop")
+let inspectItem = devItem.submenu!.addItem(withTitle: "Show Web Inspector",
+                                           action: #selector(AppDelegate.showWebInspector(_:)), keyEquivalent: "i")
+inspectItem.keyEquivalentModifierMask = [.command, .option]
+inspectItem.target = delegate
+app.mainMenu = menu
 app.delegate = delegate
 app.setActivationPolicy(.regular)
 app.run()
