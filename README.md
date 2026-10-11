@@ -13,10 +13,16 @@ We built it as a test of how closely AI tools can recreate a classic game.
 
 ![3D title screen with Wii karts driving at the camera](docs/screenshots/title3d.gif)
 
-| | |
-|---|---|
-| ![Title](docs/screenshots/hires/title.jpg) | ![Course select](docs/screenshots/hires/course-select.jpg) |
-| ![Mario Raceway](docs/screenshots/hires/race-mario.jpg) | ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) |
+<table>
+  <tr>
+    <td><img src="docs/screenshots/hires/title.jpg" alt="Title" width="400"></td>
+    <td><img src="docs/screenshots/hires/course-select.jpg" alt="Course select" width="400"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/hires/race-mario.jpg" alt="Mario Raceway" width="400"></td>
+    <td><img src="docs/screenshots/hires/race-rainbow.jpg" alt="Rainbow Road" width="400"></td>
+  </tr>
+</table>
 
 ## What you can do
 
@@ -38,10 +44,16 @@ to go back to the original art. Your choice is remembered.
 
 After the last lap, the camera orbits your kart, then cuts to roadside, crane and tail shots, as on the console.
 
-| | |
-|---|---|
-| ![3D title screen](docs/screenshots/hires/title3d.jpg) | ![Racing in 3D, Royal Raceway](docs/screenshots/hires/race3d-royal.jpg) |
-| ![Racing in 3D, Mario Raceway](docs/screenshots/hires/race3d-mario.jpg) | ![Finish fly-over](docs/screenshots/hires/fly3d-orbit-mario.jpg) |
+<table>
+  <tr>
+    <td><img src="docs/screenshots/hires/title3d.jpg" alt="3D title screen" width="400"></td>
+    <td><img src="docs/screenshots/hires/race3d-royal.jpg" alt="Racing in 3D, Royal Raceway" width="400"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/hires/race3d-mario.jpg" alt="Racing in 3D, Mario Raceway" width="400"></td>
+    <td><img src="docs/screenshots/hires/fly3d-orbit-mario.jpg" alt="Finish fly-over" width="400"></td>
+  </tr>
+</table>
 
 ## Keyboard controls
 
