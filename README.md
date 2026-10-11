@@ -147,13 +147,15 @@ npm run dev        # http://localhost:5173
 
 ### Assets
 
-The game's assets are not stored in this repo. They live in two git submodules that both point to
+The game's assets are not stored in this repo. They live in four git submodules that all point to
 [MarioKart64JS-assets](https://github.com/AgentiLoop/MarioKart64JS-assets):
 
 | Folder | Branch | Contents |
 | --- | --- | --- |
 | `public/mk64` | default | Assets extracted from the ROM by the `tools/extract-*.py` scripts |
 | `public/mk64-hd` | `hd` | HD textures (2x and 4x tiers plus `manifest.json`) from `tools/build-hd-textures.py` |
+| `public/wii` | `wii` | Mario Kart Wii karts, drivers and Lakitu from `tools/build-wii-karts.py` and `tools/build-wii-lakitu.py` |
+| `public/title3d` | `title3d` | 3D title menu stills from `tools/render-title3d-stills.mjs` |
 
 Fetch them with `git submodule update --init`.
 
@@ -161,7 +163,7 @@ The [n64decomp/mk64](https://github.com/n64decomp/mk64) decompilation does **not
 sounds. It is source code only, and it needs your own ROM to rebuild its assets. The `tools/extract-*.py` scripts use the
 decomp only as a map (offsets, sizes, formats, display lists) and decode every texture to PNG straight from your ROM.
 
-`npm run build:web` builds the game, then runs `tools/build-web-assets.mjs` to copy both folders into
+`npm run build:web` builds the game, then runs `tools/build-web-assets.mjs` to copy all four folders into
 `website/public/play/` (skipping submodule `.git` files). That folder is in `.gitignore`. `npm run deploy:web` runs the
 build and uploads `website/public` to Cloudflare as Workers Static Assets, so the game at `/play` has the same textures
 and resolutions as the desktop apps.

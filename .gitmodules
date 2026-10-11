@@ -5,3 +5,11 @@
 	path = public/mk64-hd
 	url = https://github.com/AgentiLoop/MarioKart64JS-assets.git
 	branch = hd
+[submodule "public/wii"]
+	path = public/wii
+	url = https://github.com/AgentiLoop/MarioKart64JS-assets.git
+	branch = wii
+[submodule "public/title3d"]
+	path = public/title3d
+	url = https://github.com/AgentiLoop/MarioKart64JS-assets.git
+	branch = title3d
