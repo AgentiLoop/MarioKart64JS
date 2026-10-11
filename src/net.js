@@ -15,7 +15,9 @@ const ICE_SERVERS = [
   // TURN relay servers for strict/symmetric NATs arrive from the lobby server in its 'go' message (see
   // website/src/lobby.js iceServers), so every build (vite, deployed site, WebKit app) gets them without bundling secrets.
 ];
-const DISCONNECT_GRACE = 8000;   // a 'disconnected' ICE state often recovers by itself
+const DISCONNECT_GRACE = 3000;   // a 'disconnected' ICE state often recovers by itself; after this the offerer restarts ICE
+const RECOVER_TIMEOUT = 20000;   // a peer still not connected this long after it broke is dropped (OPPONENT LEFT)
+const PING_INTERVAL = 25000;     // keeps the lobby socket (needed for ICE restarts) from idling out during the race
 const MESH_TIMEOUT = 25000;
 export const VERSION = '0.1';
 
@@ -47,7 +49,8 @@ export class Net extends EventTarget {
   leave() {
     if (this.ws) { try { this.ws.close(); } catch {} }
     this.ws = null;
-    for (const p of this.peers.values()) { try { p.pc.close(); } catch {} }
+    clearInterval(this.pingTimer);
+    for (const p of this.peers.values()) { clearTimeout(p.dropTimer); clearTimeout(p.recoverTimer); try { p.pc.close(); } catch {} }
     this.peers.clear();
     clearTimeout(this.meshTimer);
     this.earlySigs = [];
@@ -61,6 +64,8 @@ export class Net extends EventTarget {
     try { ws = new WebSocket(this.lobbyUrl); } catch (e) { this._fail(`Can't reach ${this.lobbyUrl}.`); return; }
     this.ws = ws;
     ws.onopen = () => ws.send(JSON.stringify(hello));
+    clearInterval(this.pingTimer);
+    this.pingTimer = setInterval(() => this._send({ t: 'ping' }), PING_INTERVAL);
     ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m && typeof m === 'object') this._onLobby(m); };
     ws.onclose = () => { if (this.ws === ws) { this.ws = null; if (this.state === 'lobby') this._fail('Lost connection to the lobby.'); } };
     ws.onerror = () => { if (this.ws === ws && this.state === 'lobby') this._fail(`Can't reach ${this.lobbyUrl}.`); };
@@ -106,8 +111,14 @@ export class Net extends EventTarget {
         const st = pc.connectionState;
         console.info('[net] peer', p.id, 'connection', st, 'ice', pc.iceConnectionState, peer.route || '');
         if (!this.peers.has(p.id) || this.peers.get(p.id) !== peer) return;
-        if (st === 'failed' || st === 'closed') this._dropPeer(p.id);
-        else if (st === 'disconnected') peer.dropTimer = setTimeout(() => { if (pc.connectionState === 'disconnected' && this.peers.get(p.id) === peer) this._dropPeer(p.id); }, DISCONNECT_GRACE);
+        if (st === 'connected') { clearTimeout(peer.recoverTimer); peer.recoverTimer = 0; return; }
+        if (st === 'closed' || (st === 'failed' && this.state !== 'racing')) { this._dropPeer(p.id); return; }
+        if (st !== 'failed' && st !== 'disconnected') return;
+        // Racing: a broken path (NAT rebinding, Wi-Fi blip, TURN switch) gets an ICE restart over the lobby socket
+        // before the opponent is given up on.
+        if (!peer.recoverTimer) peer.recoverTimer = setTimeout(() => { if (this.peers.get(p.id) === peer && pc.connectionState !== 'connected') this._dropPeer(p.id); }, RECOVER_TIMEOUT);
+        if (st === 'failed') this._restartIce(p.id, peer);
+        else peer.dropTimer = setTimeout(() => { if (pc.connectionState === 'disconnected' && this.peers.get(p.id) === peer) this._restartIce(p.id, peer); }, DISCONNECT_GRACE);
       };
       peer.q = Promise.resolve();
       this.peers.set(p.id, peer);
@@ -157,8 +168,19 @@ export class Net extends EventTarget {
     this.state = 'racing';
     for (const p of this.peers.values()) this._route(p);
     clearTimeout(this.meshTimer);
-    if (this.ws) { try { this.ws.close(); } catch {} this.ws = null; }   // signaling done: peer-to-peer only from here
+    // The lobby socket stays open during the race: the karts go peer-to-peer, but an ICE restart needs signaling.
     this._emit('mesh', {});
+  }
+
+  // The lower id offers, as in _buildMesh; the other side answers through _handleSignal.
+  _restartIce(id, peer) {
+    console.info('[net] ICE restart', id, this.myId < id ? '(offering)' : '(waiting for offer)');
+    if (this.myId > id || !this.ws) return;
+    const pc = peer.pc;
+    peer.q = peer.q.then(() => pc.createOffer({ iceRestart: true }))
+      .then(o => pc.setLocalDescription(o))
+      .then(() => this._send({ t: 'sig', to: id, data: { sdp: pc.localDescription.toJSON() } }))
+      .catch(e => console.warn('[net] ICE restart', id, e));
   }
 
   // Diagnostics: which path the peer connection settled on ('host' = same LAN, 'srflx' = direct through NAT,
@@ -181,7 +203,7 @@ export class Net extends EventTarget {
     const why = `${p.pc.connectionState}${p.route ? ` · ${p.route}` : ''}`;
     console.warn('[net] dropping peer', id, why);
     this.peers.delete(id);
-    clearTimeout(p.dropTimer);
+    clearTimeout(p.dropTimer); clearTimeout(p.recoverTimer);
     try { p.pc.close(); } catch {}
     if (this.state === 'signaling') { this._fail("Couldn't connect to the other players (firewall or strict NAT)."); return; }
     this.players = this.players.filter(q => q.id !== id);

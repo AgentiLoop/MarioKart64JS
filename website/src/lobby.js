@@ -1,7 +1,7 @@
 // MarioKart64JS multiplayer lobby: matchmaking + WebRTC signaling relay (same design as ../GoKart
 // website/src/lobby.js). Clients open a WebSocket to /api/mp. The server only groups 2-4 players
 // into a room and relays SDP offers/answers/ICE candidates between them; once the WebRTC mesh is
-// up all racing traffic flows peer-to-peer and the game closes this socket.
+// up all racing traffic flows peer-to-peer; the socket stays open for ICE restarts (and {t:"ping"} keepalives).
 //
 // Client -> server
 //   {t:"hello", name, version, course, char, players, mode}  quick match: a room for `players` (2-MAX_ROOM_PLAYERS) in `mode`
@@ -20,7 +20,7 @@
 const MAX_ROOM_PLAYERS = 4;
 const AUTO_START_SECS = 15; // a room starts this long after its first player arrives (if 2+ are in)
 const READY_TIMEOUT_MS = 30_000; // players not back on the course page by then are dropped
-const SIGNAL_GRACE_MS = 90_000; // sockets of a started room are closed after this
+const SIGNAL_GRACE_MS = 30 * 60_000; // sockets of a started room are closed after this (they carry ICE restarts mid-race)
 
 const clean = (s, n) => String(s ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, n);
 
@@ -227,6 +227,6 @@ export class Lobby {
       this.broadcastRoom(room);
       this.schedule(room);
     }
-    // Once the mesh is up, peers close this socket themselves; WebRTC reports real disconnects.
+    // Peers keep this socket for the race (ICE restarts); WebRTC reports real disconnects.
   }
 }
