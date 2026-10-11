@@ -958,7 +958,7 @@ addEventListener('keydown', e => {
 // every banana / shell / star / boo / lightning you use appears in the other games, and only the player who gets hit decides it (their spin
 // arrives in their pose). The lowest id is the host: each game says READY once its mesh is up, the host answers
 // GO and all run Lakitu's start countdown together. Every online grid is MAX_ONLINE_KARTS karts: the humans who showed up,
-// then CPU karts in the empty seats. The host (lowest id) drives the CPU karts and sends their poses and items like
+// then CPU karts in the empty seats (not VS: humans only, a CPU just takes over a leaver's kart in 3P/4P). The host (lowest id) drives the CPU karts and sends their poses and items like
 // its own (they carry an `id`); the other games show them as puppets. If the host leaves, the next one takes them over.
 // Enter on the lobby (nobody came) races MAX_ONLINE_KARTS offline with CPU karts.
 // MAX_ONLINE_KARTS can go up to 8 (GRID_SLOTS has 8 spots). Raising it: also MAX_ROOM_PLAYERS in website/src/lobby.js
@@ -972,7 +972,7 @@ if (timeTrial) { for (const b of items.boxes) items.group.remove(b.mesh); items.
 const net = online ? new Net() : null;
 const lobbyEl = $('lobby'), lobbyCount = $('lobbyCount'), lobbyList = $('lobbyList'), lobbyMsg = $('lobbyMsg');
 const SEND_INTERVAL = 1 / 30, PUPPET_DELAY = 0.1;
-let sendClock = 0, netReady = new Set(), raceGo = false;
+let sendClock = 0, netReady = new Set(), raceGo = false, vsTakeover = false;
 const peerKart = id => karts.find(k => k.netId === id);
 // Drivers by player id (the same on every peer): a driver picked twice goes to the first free one, in native order.
 function resolveChars(players) {
@@ -1002,7 +1002,10 @@ function setupOnline() {
   const chars = resolveChars(net.players);
   const seats = net.players.map(p => ({ id: p.id, c: chars.get(p.id) }));
   const free = characters.filter(c => ![...chars.values()].includes(c));
-  while (seats.length < MAX_ONLINE_KARTS && free.length) seats.push({ id: `c${seats.length + 1}`, c: free.shift(), cpu: true });
+  // VS is humans only (no CPU karts on the console): every kart on the grid has a split-screen view.
+  // A CPU only ever takes over the seat of a human who left a 3P/4P VS race (see 'left' below).
+  vsTakeover = raceMode === 'vs' && net.players.length >= 3;
+  while (raceMode !== 'vs' && seats.length < MAX_ONLINE_KARTS && free.length) seats.push({ id: `c${seats.length + 1}`, c: free.shift(), cpu: true });
   seats.forEach(({ id, c, cpu }, i) => {
     const ci = characters.indexOf(c);
     const [d, back] = GRID_SLOTS[i];
@@ -1147,7 +1150,10 @@ if (online) {
   net.addEventListener('data', e => onlineData(e.detail.from, e.detail.msg));
   net.addEventListener('left', e => {
     const k = peerKart(e.detail.id);
-    if (k) { scene.remove(k.mesh); k.mesh.userData.dispose(); karts = karts.filter(q => q !== k); }
+    // 3P/4P VS: a CPU takes over the leaver's kart where it is (place, lap, split-screen view) so the race goes on;
+    // the host drives it like the other CPU karts (its poses carry the leaver's id)
+    if (k && vsTakeover && !k.cpu) { k.cpu = true; k.remote = true; }
+    else if (k) { scene.remove(k.mesh); k.mesh.userData.dispose(); karts = karts.filter(q => q !== k); }
     if (net.hostIsMe) for (const q of karts) if (q.cpu && q.remote) { q.remote = false; q.poses = []; q.prevS = q.s; }   // new host: drive the CPU karts
     if (karts.filter(q => !q.cpu).length <= 1 && state !== 'finished') { const msg = `OPPONENT LEFT (${e.detail.why})`; banner.textContent = msg; setTimeout(() => { if (banner.textContent === msg) banner.textContent = ''; }, 6000); }
     hostCheckGo();
