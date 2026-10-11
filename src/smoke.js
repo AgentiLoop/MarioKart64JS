@@ -16,6 +16,9 @@ const CURRENT_SPEED = 320 / 44;
 const HEIGHT = { wario: 5.5, bowser: 6.5 };
 const PRIM = [[0xfb, 0xff, 0xfb], [0xff, 0xfb, 0x86]].map(c => c.map(v => v / 255));   // normal, mushroom
 const ENV = [[0x89, 0x62, 0x8f], [0xfe, 0x01, 0x09]].map(c => c.map(v => v / 255));
+// 3D karts (not MK64): ENV taken 60% of the way to white for a lighter vapour, fainter and smaller at the pipe
+const ENV_3D = ENV.map(c => c.map(v => v + (1 - v) * 0.6));
+const PIPE_ALPHA = 0.75, PIPE_SIZE = 0.7;
 
 export class Exhaust {
   constructor(scene) {
@@ -71,17 +74,21 @@ export class Exhaust {
       dir.copy(k.frame.T).multiplyScalar(Math.cos(yaw)).addScaledVector(k.frame.R, Math.sin(yaw));
       dir.addScaledVector(k.up, -dir.dot(k.up)).normalize();
       const height = HEIGHT[k.mesh.userData.character] ?? 4.5;
-      for (const s of k.smoke) {
+      // Wii 3D kart (kart3d.js): puffs leave its exhaust pipes, alternating sides, smaller and lighter than the sprite's
+      const pipes = k.model?.userData.pipes;
+      if (pipes) k.model.updateWorldMatrix(true, false);
+      for (const [i, s] of k.smoke.entries()) {
         if (s.alive) {
-          p.copy(k.world).addScaledVector(k.up, K * (height + s.rise)).addScaledVector(dir, -K * s.back);
-          const h = 2 * s.scale * K, v0 = 1 - (s.frame + 1) / FRAMES + 0.5 / (32 * FRAMES), v1 = 1 - s.frame / FRAMES - 0.5 / (32 * FRAMES);
+          if (pipes) p.copy(pipes[i % 2]).applyMatrix4(k.model.matrixWorld).addScaledVector(k.up, K * s.rise).addScaledVector(dir, -K * (s.back - 5.5));
+          else p.copy(k.world).addScaledVector(k.up, K * (height + s.rise)).addScaledVector(dir, -K * s.back);
+          const h = 2 * s.scale * K * (pipes ? PIPE_SIZE : 1), v0 = 1 - (s.frame + 1) / FRAMES + 0.5 / (32 * FRAMES), v1 = 1 - s.frame / FRAMES - 0.5 / (32 * FRAMES);
           [[1, 1, 1, v1], [1, -1, 1, v0], [-1, -1, 0, v0], [-1, 1, 0, v1]].forEach(([x, y, u, v], j) => {
             c.copy(p).addScaledVector(right, x * h); c.y += y * h;
             a.position.array.set([c.x, c.y, c.z], (q * 4 + j) * 3);
             a.uv.array.set([u, v], (q * 4 + j) * 2);
             a.prim.array.set(PRIM[s.boost], (q * 4 + j) * 3);
-            a.env.array.set(ENV[s.boost], (q * 4 + j) * 3);
-            a.alpha.array[q * 4 + j] = s.alpha / 255;
+            a.env.array.set((pipes ? ENV_3D : ENV)[s.boost], (q * 4 + j) * 3);
+            a.alpha.array[q * 4 + j] = s.alpha / 255 * (pipes ? PIPE_ALPHA : 1);
           });
         }
         q++;

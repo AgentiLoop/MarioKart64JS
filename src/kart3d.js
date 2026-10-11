@@ -14,11 +14,12 @@ const SCALE = 1.9;
 const BODY_Y = 0.2;                      // metres the body's origin sits over the ground (all three classes)
 const STEER_ANGLE = 0.45;                // rad the front tires turn at full lock
 // Per class: the body texture its body.dae names (swapped for the character's), the tire mesh's own radius, each
-// axle's half-track / position / tire radius (= axle height) in metres from the body's origin.
+// axle's half-track / position / tire radius (= axle height) in metres from the body's origin, and the exhaust pipe
+// mouth (centre of the rearmost vertex ring in body.dae, mirrored to both sides) in metres from the body's origin.
 const CLASSES = {
-  small: { body: 'body_bmr.png', tireRadius: 0.152, tires: [{ x: 0.473, z: 0.25, r: 0.152 }, { x: 0.554, z: -0.53, r: 0.214 }] },
-  medium: { body: 'body_mr.png', tireRadius: 0.21, tires: [{ x: 0.48, z: 0.55, r: 0.21 }, { x: 0.58, z: -0.43, r: 0.27 }] },
-  large: { body: 'body_wr.png', tireRadius: 0.21, tires: [{ x: 0.635, z: 0.75, r: 0.21 }, { x: 0.708, z: -0.815, r: 0.317 }] },
+  small: { body: 'body_bmr.png', tireRadius: 0.152, tires: [{ x: 0.473, z: 0.25, r: 0.152 }, { x: 0.554, z: -0.53, r: 0.214 }], pipe: [0.30, 0.20, -1.06] },
+  medium: { body: 'body_mr.png', tireRadius: 0.21, tires: [{ x: 0.48, z: 0.55, r: 0.21 }, { x: 0.58, z: -0.43, r: 0.27 }], pipe: [0.355, 0.28, -1.13] },
+  large: { body: 'body_wr.png', tireRadius: 0.21, tires: [{ x: 0.635, z: 0.75, r: 0.21 }, { x: 0.708, z: -0.815, r: 0.317 }], pipe: [0.455, 0.43, -1.61] },
 };
 // Per MK64 character: Wii class, body texture, eye texture repeat, seat. The eye textures are one eye; on the Wii a texture
 // matrix doubles S and the sampler mirrors it (<wrap_s>MIRROR</wrap_s>) so u 0-0.5 is one eye and 0.5-1 its mirror.
@@ -138,5 +139,8 @@ export async function buildWiiKart(character = 'mario') {
   // nose and tail), as wide as the rear track plus the tire's half-width; scene units along the heading
   const [fa, ra] = cls.tires;
   g.userData.capsule = { front: fa.z * SCALE * 0.7, rear: ra.z * SCALE * 0.7, r: ra.x * SCALE + 0.15 };
+  // exhaust pipe mouths in this group's space (src/smoke.js puffs from them): wii is turned PI about y
+  const [px, py, pz] = cls.pipe;
+  g.userData.pipes = [1, -1].map(side => new THREE.Vector3(-side * px * SCALE, (py + BODY_Y) * SCALE, -pz * SCALE));
   return g;
 }
