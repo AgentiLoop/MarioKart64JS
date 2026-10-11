@@ -18,7 +18,9 @@ const readYaml = name => {
 };
 
 test('all 16 race courses have a sky entry', () => {
-  assert.deepEqual(Object.keys(NATIVE_SKY).sort(), Object.keys(YAML).sort());
+  const battle = ['big-donut', 'block-fort', 'double-deck', 'skyscraper'];   // arenas have a sky too
+  assert.deepEqual(Object.keys(NATIVE_SKY).filter(id => !battle.includes(id)).sort(), Object.keys(YAML).sort());
+  for (const id of battle) assert.ok(NATIVE_SKY[id], id);
 });
 
 test('sky table matches decomp course metadata', { skip: !existsSync(SOURCE) && 'mk64-master not present' }, () => {

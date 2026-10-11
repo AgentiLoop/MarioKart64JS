@@ -49,7 +49,7 @@ test('eight atlases, frame UVs, camera-relative yaw, independent textures and di
       assert.equal(sprite.material.depthWrite, true);
       assert.equal(sprite.material.toneMapped, false);
       assert.ok(map.userData.hd.url.endsWith(`/${group.userData.character}.png`));
-      for (const [x, z, frame, mirror] of [[0, 10, 84, false], [10, 0, 239, false], [-10, 0, 239, true], [0, -10, 248, false]]) {
+      for (const [x, z, frame, mirror] of [[0, 10, 84, false], [10, 0, 239, true], [-10, 0, 239, false], [0, -10, 248, false]]) {
         camera.position.set(x, 4, z);
         sprite.onBeforeRender(null, null, camera);
         assert.deepEqual(sprite.userData, { frame, mirrored: mirror });

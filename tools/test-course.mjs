@@ -29,7 +29,8 @@ test(`${name}: course batches reference valid vertices and extracted textures`, 
     for (const i of b.indices) assert.ok(i >= 0 && i < course.vertices.length);
     if (b.texture) {
       assert.ok(course.textures[b.texture], b.texture);
-      assert.ok(existsSync(new URL(course.textures[b.texture].image, dir)), b.texture);
+      const image = course.textures[b.texture].image;   // common/... images are shared across courses (tools/dedupe-textures.py)
+      assert.ok(existsSync(new URL(image, image.startsWith('common/') ? new URL('../', dir) : dir)), b.texture);
     }
   }
   assert.equal(tris, expectedTris);

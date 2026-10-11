@@ -6,3 +6,6 @@ __pycache__/
 node_modules/
 dist/
 website/public/play/
+
+# test coverage output
+coverage/

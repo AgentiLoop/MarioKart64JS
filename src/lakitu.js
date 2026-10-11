@@ -417,7 +417,7 @@ export class Lakitu {
     let ds = k.s - (k.wrongS ?? k.s);
     if (ds > L / 2) ds -= L; else if (ds < -L / 2) ds += L;
     k.wrongS = k.s;
-    if (ds < 0 && deg >= WRONG_MIN) { if (++k.wrongCount >= WRONG_FRAMES) { k.wrongCount = WRONG_FRAMES; k.wrongWay = true; } }
+    if (ds < 0 && deg >= WRONG_MIN) { if ((k.wrongCount = (k.wrongCount || 0) + 1) >= WRONG_FRAMES) { k.wrongCount = WRONG_FRAMES; k.wrongWay = true; } }
     else if (deg < CORRECT_MAX) { k.wrongCount = 0; k.wrongWay = false; }
   }
 
