@@ -143,7 +143,7 @@ async function menusModes() {
     await press(p, 'ArrowDown', 'ArrowDown', 'Enter', 'Enter'); await waitShown(p, 'char'); steps.push('arena 3 / ok');
     await press(p, 'Enter', 'Enter'); await p.waitForURL(/track=/, { timeout: 10000 }); urls.push(new URL(p.url()).search); steps.push('battle race');
     await waitPlayer(p);
-    await press(p, 'KeyM'); await p.waitForURL(u => !new URL(u).search, { timeout: 10000 }); steps.push('M -> menu');
+    await press(p, 'KeyM'); await p.waitForURL(/menu=course&from=double-deck&mode=battle/, { timeout: 10000 }); await waitShown(p, 'menu', 30000); steps.push('M -> course menu');
     await toGameSelect(p);
     await press(p, 'Enter', 'ArrowDown', 'Enter'); await waitShown(p, 'menu'); steps.push('1P time trials');
     await press(p, 'Enter', 'Enter', 'Enter'); await waitShown(p, 'char');
@@ -176,8 +176,8 @@ async function keyboard() {
     await press(p, 'Backspace'); await sleep(500);
     const after = await p.evaluate(() => ({ state: window.__game.state, t: window.__game.raceTime, progress: window.__game.player.progress }));
     if (after.state !== 'countdown' || after.t > 1) bad.push(`restart left state ${after.state} t ${after.t}`);
-    await press(p, 'KeyM'); await p.waitForURL(u => !new URL(u).search, { timeout: 10000 });
-    await waitShown(p, 'title', 30000);
+    await press(p, 'KeyM'); await p.waitForURL(/menu=course&from=luigi&mode=mario_gp&cc=150/, { timeout: 10000 });
+    await waitShown(p, 'menu', 30000);
     return { r1, res0, res1, after, bad, errors: w.errors };
   } catch (e) { bad.push(String(e).split('\n')[0]); return { bad, errors: w.errors }; }
   finally { await w.close(); }
