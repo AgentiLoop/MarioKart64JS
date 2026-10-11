@@ -181,6 +181,25 @@
   </div>
 </section>
 
+<section class="wrap" id="url-arguments">
+  <h2>URL arguments</h2>
+  <p class="sub">Add these to the game's address to skip the menus or switch settings, for example <a href="/play/?track=banshee&amp;char=mario&amp;cc=extra&amp;mode=mario_gp&amp;autopilot&amp;3d=3d&amp;graphics=960&amp;jump=glue&amp;showphysics=true"><code>/play/?track=banshee&amp;char=mario&amp;cc=extra&amp;mode=mario_gp&amp;autopilot&amp;3d=3d&amp;graphics=960&amp;jump=glue&amp;showphysics=true</code></a></p>
+  <div class="keys">
+    <div><code>track</code><span>Starts a race on that course: luigi, moomoo, koopa, kalimari, toad, frappe, choco, mario, wario, sherbet, royal, bowser, dk, yoshi, banshee, rainbow; battle: big-donut, block-fort, double-deck, skyscraper</span></div>
+    <div><code>char</code><span>Your driver: mario, luigi, peach, toad, yoshi, donkeykong, wario, bowser</span></div>
+    <div><code>cc</code><span>50 / 100 / 150 / extra (mirror). Default 150, ignored in Time Trials and Battle</span></div>
+    <div><code>mode</code><span>mario_gp / vs / time_trials / battle. Default mario_gp</span></div>
+    <div><code>autopilot</code><span>No value: the CPU drives your kart</span></div>
+    <div><code>3d</code><span>3d / 2d: Wii 3D karts on / off, like <kbd>3</kbd></span></div>
+    <div><code>graphics</code><span>240 / 480 / 960 / native, like <kbd>G</kbd></span></div>
+    <div><code>jump</code><span>jump / glue: kart physics, like <kbd>J</kbd></span></div>
+    <div><code>showphysics</code><span>true / false: show physics bodies, like <kbd>P</kbd> (<code>physics</code> also works)</span></div>
+    <div><code>players</code><span>2 / 3 / 4 with <code>track</code>: join an online race</span></div>
+    <div><code>lobby</code><span>A ws:// or wss:// lobby server URL, kept for the session</span></div>
+  </div>
+  <p class="muted">3d, graphics and jump are saved like their keys. The game adds <code>menu</code>, <code>from</code>, <code>room</code> and <code>you</code> to its own links; you don't need to set them.</p>
+</section>
+
 <section class="band" id="download">
   <div class="wrap">
     <h2>Download</h2>

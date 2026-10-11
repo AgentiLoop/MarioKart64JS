@@ -105,6 +105,31 @@ After the last lap, the camera orbits your kart, then cuts to roadside, crane an
 
 **Gamepad:** left stick or D-pad steers, A / RT gas, B / LT brake, LB / RB drift, X / Y item, Start restarts.
 
+## URL arguments
+
+Add these to the game's address to skip the menus or switch settings, for example:
+
+`http://localhost:5173/?track=banshee&char=mario&cc=extra&mode=mario_gp&autopilot&3d=3d&graphics=960&jump=glue&showphysics=true`
+
+| Argument | Values | What it does |
+|---|---|---|
+| `track` | `luigi`, `moomoo`, `koopa`, `kalimari`, `toad`, `frappe`, `choco`, `mario`, `wario`, `sherbet`, `royal`, `bowser`, `dk`, `yoshi`, `banshee`, `rainbow`; battle: `big-donut`, `block-fort`, `double-deck`, `skyscraper` | Starts a race on that course right away. Without it you get the title screen. |
+| `char` | `mario`, `luigi`, `peach`, `toad`, `yoshi`, `donkeykong`, `wario`, `bowser` | Your driver. Defaults to the last one you picked, or Mario. |
+| `cc` | `50`, `100`, `150`, `extra` | Engine class. `extra` is mirror mode at 100cc speeds. Defaults to 150cc. Ignored in Time Trials and Battle. |
+| `mode` | `mario_gp`, `vs`, `time_trials`, `battle` | Game mode. Defaults to `mario_gp`. Battle courses always play as battle. |
+| `autopilot` | (no value) | The CPU drives your kart. Handy for testing. |
+| `3d` | `3d`, `2d` | Wii 3D karts on or off, like the **3** key. |
+| `graphics` | `240`, `480`, `960`, `native` | Resolution, like the **G** key. `240` is 1× N64 textures, `480` is 2×, `960` is 4×, `native` matches your screen. |
+| `jump` | `jump`, `glue` | Kart physics, like the **J** key. |
+| `showphysics` | `true`, `false` | Shows the physics bodies, like the **P** key. `?physics` also works. |
+| `players` | `2`, `3`, `4` | With `track`, joins an online race for that many players. |
+| `lobby` | a `ws://` or `wss://` URL | Uses a different online lobby server, e.g. `ws://localhost:8787/api/mp`. Kept for the browser session. |
+
+`3d`, `graphics` and `jump` are saved like their keys, so they stick for later visits until you change them.
+
+The game also adds `menu`, `from`, `room` and `you` to its own links when it goes back to the course menu or rejoins an online room. You don't need to set these yourself.
+
+
 ## Playing online
 
 1. On the game select screen, pick **2P, 3P or 4P GAME**.

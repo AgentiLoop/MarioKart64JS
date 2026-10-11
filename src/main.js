@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn, HALF_WIDTH } from './track.js';
-import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS, speedKmh, togglePhysics } from './kart.js';
+import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS, speedKmh, togglePhysics, PHYSICS } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -58,6 +58,12 @@ const engine = battle ? CC_BATTLE : cc;
 const mirror = !!trackDef && ccParam === 'extra';
 // ?autopilot (or window.__game.autopilot = true): the CPU driver (Kart.think / Items.aiUse) drives your kart - for testing
 let autopilot = params.has('autopilot');
+// Link settings, applied and saved like their keys: ?3d=3d|2d (3), ?graphics=240|480|960|native (G: 240 = 1x N64
+// textures, 480 = 2x, 960 = 4x), ?jump=jump|glue (J), ?showphysics=true|false (P, below)
+const URL_GRAPHICS = { 240: '1x', 480: '2x', 960: '4x', native: 'native' };
+if (params.has('3d')) { if (['3d', 'true', '1', 'on'].includes(params.get('3d'))) localStorage.setItem('mk64wii3d', '1'); else localStorage.removeItem('mk64wii3d'); }
+if (URL_GRAPHICS[params.get('graphics')]) HD.setPreset(URL_GRAPHICS[params.get('graphics')]);
+if (['jump', 'jumps', 'glue'].includes(params.get('jump'))) { PHYSICS.glue = params.get('jump') === 'glue'; localStorage.setItem('kartPhysics', PHYSICS.glue ? 'glue' : 'jumps'); }
 const th = (trackDef || TRACKS[0]).theme;
 const skyTop = new THREE.Color(th.skyTop), skyBot = new THREE.Color(th.skyBot);
 scene.background = skyBot;
@@ -212,7 +218,7 @@ window.__clouds = clouds && { set: cloudSet, get yaw() { return cameraYaw; }, me
 const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]), { mirror });
 scene.add(track.group);
 const physicsDebug = new PhysicsDebug(scene, track);   // P / ?physics: walls and kart collision bodies
-if (params.has('physics')) physicsDebug.toggle(true);
+if (params.has('physics') || params.get('showphysics') === 'true') physicsDebug.toggle(true);
 
 const PALETTE = [0xe63946, 0x2a9d8f, 0xf49ac2, 0x3a86ff, 0x70c83c, 0x98633b, 0xf4cd30, 0xe78d32];
 const names = ['Mario', 'Luigi', 'Peach', 'Toad', 'Yoshi', 'Donkey Kong', 'Wario', 'Bowser'];
