@@ -58,15 +58,24 @@
 <main id="top">
 <section class="hero">
   <div class="hero-bg" style="background-image:url(/img/race-mario.jpg)"></div>
-  <div class="hero-in">
-    <p class="kicker">Fan project &middot; Three.js &middot; no emulator</p>
-    <h1 class="logo" aria-label="MarioKart64JS"><span>M</span><span>K</span><span>6</span><span>4</span><span class="js">JS</span></h1>
-    <p class="lead">Mario Kart 64, rebuilt from scratch in JavaScript by AI agents, supervised by the AgentiLoop Team. The low-res graphics and sound are extracted from a Mario Kart 64 (USA) ROM, using the n64decomp/mk64 decompilation as the map. Hi-res graphics come from MK64 Reloaded (press <kbd>G</kbd>), and Wii-style 3D karts are a keypress away (press <kbd>3</kbd>). The game code is a port of the decompiled original, running natively in Three.js, WebGL and Vita.</p>
-    <div class="cta">
-      <a class="btn big" href="/play">Play in your browser</a>
-      <a class="btn ghost big" href="#download" id="hero-dl">Download for <span data-os>your computer</span></a>
-      <a class="btn ghost big" href="https://github.com/AgentiLoop/MarioKart64JS">View source</a>
+  <div class="hero-in mk-card">
+    <div class="mk-copy">
+      <span class="mk-tag"><span class="mk-dot"></span>Built by AgentiLoop Agent!</span>
+      <h1 class="mk-title" aria-label="MarioKart64JS"><span class="mk-rainbow">MarioKart64</span> rebuilt in <span class="mk-js">JavaScript</span></h1>
+      <p class="kicker">Fan project &middot; Three.js &middot; no emulator</p>
+      <p class="lead">Mario Kart 64, rebuilt from scratch in JavaScript by AI agents, supervised by the AgentiLoop Team. The low-res graphics and sound are extracted from a Mario Kart 64 (USA) ROM, using the n64decomp/mk64 decompilation as the map. Hi-res graphics come from MK64 Reloaded (press <kbd>G</kbd>), and Wii-style 3D karts are a keypress away (press <kbd>3</kbd>). The game code is a port of the decompiled original, running natively in Three.js, WebGL and Vita.</p>
+      <div class="mk-chips">
+        <span class="mk-chip mk-chip-a">16 Courses</span>
+        <span class="mk-chip mk-chip-b">Online 4P</span>
+        <span class="mk-chip mk-chip-c">Wii 3D Karts</span>
+      </div>
+      <div class="cta">
+        <a class="btn big" href="/play">Play It &rarr;</a>
+        <a class="btn ghost big" href="#download" id="hero-dl">Download for <span data-os>your computer</span></a>
+        <a class="btn ghost big" href="https://github.com/AgentiLoop/MarioKart64JS">GitHub</a>
+      </div>
     </div>
+    <a class="mk-screen" href="/play"><img src="/img/title3d.gif" width="640" height="480" alt="MarioKart64JS animated 3D title screen. Click to play"></a>
     <p class="plat-line"><span class="half"><span>Play online with up to 4 players</span> &nbsp;&middot;&nbsp; <span>any browser</span> &nbsp;&middot;&nbsp; <span>macOS universal</span></span> <span class="half"><span>Windows x64 / arm64</span> &nbsp;&middot;&nbsp; <span>Linux x64 / arm64</span> &nbsp;&middot;&nbsp; <span>Raspberry Pi</span></span></p>
   </div>
 </section>
