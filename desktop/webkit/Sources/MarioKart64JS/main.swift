@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         config.setURLSchemeHandler(handler, forURLScheme: "app")
         config.mediaTypesRequiringUserActionForPlayback = []
         let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 1280, height: 960), configuration: config)
+        if #available(macOS 13.3, *) { web.isInspectable = true }   // Safari > Develop > <this Mac> > MarioKart64JS: console shows the [net] logs
         window = NSWindow(contentRect: web.frame, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         window.title = "MarioKart64JS"

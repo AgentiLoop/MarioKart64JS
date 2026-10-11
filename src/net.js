@@ -5,7 +5,7 @@
 // Flow: quickMatch() -> 'room' updates -> server 'start' (everyone loads the room's course; a page reload comes
 // back with rejoin()) -> ready() -> server 'go' -> mesh built -> 'mesh' once every data channel is open -> race.
 // Events (CustomEvent.detail): room {code, you, host, players, countdown, max} · start {code, you, players,
-// course, seed} · mesh · data {from, msg} · left {id} · error {message}.
+// course, seed} · mesh · data {from, msg} · left {id, why} · error {message}.
 // The lowest id in the room is the host: it decides anything that must agree (the start).
 
 const DEFAULT_LOBBY = 'wss://mk64js.gokart.games/api/mp';
@@ -104,6 +104,7 @@ export class Net extends EventTarget {
       pc.onconnectionstatechange = () => {
         clearTimeout(peer.dropTimer);
         const st = pc.connectionState;
+        console.info('[net] peer', p.id, 'connection', st, 'ice', pc.iceConnectionState, peer.route || '');
         if (!this.peers.has(p.id) || this.peers.get(p.id) !== peer) return;
         if (st === 'failed' || st === 'closed') this._dropPeer(p.id);
         else if (st === 'disconnected') peer.dropTimer = setTimeout(() => { if (pc.connectionState === 'disconnected' && this.peers.get(p.id) === peer) this._dropPeer(p.id); }, DISCONNECT_GRACE);
@@ -154,21 +155,38 @@ export class Net extends EventTarget {
       if (!p.open) return;
     }
     this.state = 'racing';
+    for (const p of this.peers.values()) this._route(p);
     clearTimeout(this.meshTimer);
     if (this.ws) { try { this.ws.close(); } catch {} this.ws = null; }   // signaling done: peer-to-peer only from here
     this._emit('mesh', {});
   }
 
+  // Diagnostics: which path the peer connection settled on ('host' = same LAN, 'srflx' = direct through NAT,
+  // 'relay' = through TURN), kept on the peer and logged so a later drop can be explained.
+  _route(peer) {
+    peer.pc.getStats().then(stats => {
+      let pair;
+      stats.forEach(s => { if (s.type === 'transport' && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId); });
+      if (!pair) stats.forEach(s => { if (!pair && s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') pair = s; });
+      if (!pair) return;
+      const l = stats.get(pair.localCandidateId), r = stats.get(pair.remoteCandidateId);
+      peer.route = `${l?.candidateType || '?'}/${l?.protocol || '?'} -> ${r?.candidateType || '?'}`;
+      console.info('[net] route', peer.route);
+    }).catch(() => {});
+  }
+
   _dropPeer(id) {
     const p = this.peers.get(id);
     if (!p) return;
+    const why = `${p.pc.connectionState}${p.route ? ` · ${p.route}` : ''}`;
+    console.warn('[net] dropping peer', id, why);
     this.peers.delete(id);
     clearTimeout(p.dropTimer);
     try { p.pc.close(); } catch {}
     if (this.state === 'signaling') { this._fail("Couldn't connect to the other players (firewall or strict NAT)."); return; }
     this.players = this.players.filter(q => q.id !== id);
     if (this.players.length) this.hostId = this.players[0].id;
-    this._emit('left', { id });
+    this._emit('left', { id, why });
   }
 
   // Broadcast (reliable by default; unreliable for the kart poses).

@@ -1149,7 +1149,7 @@ if (online) {
     const k = peerKart(e.detail.id);
     if (k) { scene.remove(k.mesh); k.mesh.userData.dispose(); karts = karts.filter(q => q !== k); }
     if (net.hostIsMe) for (const q of karts) if (q.cpu && q.remote) { q.remote = false; q.poses = []; q.prevS = q.s; }   // new host: drive the CPU karts
-    if (karts.filter(q => !q.cpu).length <= 1 && state !== 'finished') { banner.textContent = 'OPPONENT LEFT'; setTimeout(() => { if (banner.textContent === 'OPPONENT LEFT') banner.textContent = ''; }, 3000); }
+    if (karts.filter(q => !q.cpu).length <= 1 && state !== 'finished') { const msg = `OPPONENT LEFT (${e.detail.why})`; banner.textContent = msg; setTimeout(() => { if (banner.textContent === msg) banner.textContent = ''; }, 6000); }
     hostCheckGo();
   });
   net.addEventListener('error', e => { lobbyMsg.textContent = e.detail.message; lobbyCount.textContent = ''; });
