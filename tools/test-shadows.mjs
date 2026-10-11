@@ -59,6 +59,26 @@ try {
           byLayer.get(layer).push({ name: m.name, area, p: a.clone().add(b).add(c).divideScalar(3) });
         }
       }
+      // a spot buried under another opaque surface (the start gate's footing under the road, a box under its own top) is
+      // no ground a kart can stand on: the covering surface hides the kart and its shadow alike
+      const covers = [];
+      for (const m of track.group.children) {
+        if (!m.isMesh || m.material.isShadowMaterial || m.material.transparent || m.material.alphaTest) continue;
+        const p = m.geometry.attributes.position;
+        for (let i = 0; i < p.count; i += 3) {
+          a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+          covers.push([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]);
+        }
+      }
+      const COVER_HEIGHT = 6;   // taller than the kart and its shadow caster
+      const buried = q => covers.some(([ax, ay, az, bx, by, bz, cx, cy, cz]) => {
+        const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+        if (Math.abs(d) < 1e-9) return false;
+        const u = ((bz - cz) * (q.x - cx) + (cx - bx) * (q.z - cz)) / d, v = ((cz - az) * (q.x - cx) + (ax - cx) * (q.z - cz)) / d, w = 1 - u - v;
+        if (u < 0 || v < 0 || w < 0) return false;
+        const dy = u * ay + v * by + w * cy - q.y;
+        return dy > 0.05 && dy < COVER_HEIGHT;
+      });
       const gl = renderer.getContext(), W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
       const read = () => { const buf = new Uint8Array(W * H * 4); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, buf); return buf; };
       let seed = 7;
@@ -71,6 +91,7 @@ try {
         const step = Math.max(1, Math.floor(tris.length / SPOTS));
         for (let t = 0; t < tris.length && out.filter(o => o.layer === layer).length < SPOTS; t += step) {
           const spot = tris[t];
+          if (buried(spot.p)) { skipped++; continue; }
           player.mesh.position.copy(spot.p); player.mesh.quaternion.identity(); player.mesh.updateMatrixWorld(true);
           sun.position.copy(spot.p).add(new THREE.Vector3(60, 100, 40)); sun.target.position.copy(spot.p); sun.target.updateMatrixWorld();
           const view = (yaw, jitter) => {
@@ -154,7 +175,7 @@ try {
       console.log(`${id} layer ${s.layer} ${s.name} (${s.at}): shadow ${s.shadowPx} px, flicker ${(s.flicker * 100).toFixed(1)}%${s.underTranslucent ? ' (under a translucent surface)' : ''}${why.length ? '  FAIL ' + why.join(', ') : ''}`);
       if (shots) writeFileSync(`${shots}/${id}-${i}-L${s.layer}.png`, Buffer.from(result.pngs[i].split(',')[1], 'base64'));
     });
-    console.log(`${id}: ${result.spots.length - bad}/${result.spots.length} spots ok (${result.skipped} skipped: kart out of sight)`);
+    console.log(`${id}: ${result.spots.length - bad}/${result.spots.length} spots ok (${result.skipped} skipped: kart out of sight or buried under another surface)`);
     failures += bad;
     report.push({ id, spots: result.spots });
     await context.close();
