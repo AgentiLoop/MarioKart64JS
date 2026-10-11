@@ -58,6 +58,8 @@ export function partMeshes(model, dir, textures, doubleSided = false) {
   });
 }
 
+const PROP_COURSES = new Set(['mario-raceway', 'wario-stadium', 'koopa-troopa-beach', 'dks-jungle-parkway']);
+
 export class Props {
   constructor(scene, def, { mirror = false } = {}) {
     this.group = new THREE.Group();
@@ -67,7 +69,8 @@ export class Props {
     this.spinners = [];
     this.ticks = 0;
     this.acc = 0;
-    this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/props.json`)
+    this.ready = !PROP_COURSES.has(def.dir) ? Promise.resolve() :   // skip the 404 on courses without props
+      fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/props.json`)
       .then(r => (r.ok ? r.json().catch(() => null) : null))   // no file: the dev server answers with index.html
       .then(data => data && this._build(data, def.dir));
   }
