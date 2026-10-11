@@ -33,7 +33,7 @@ async function latestDownload(suffix) {
 }
 
 const HSTS = "max-age=31536000; includeSubDomains";   // a year, subdomains included; no preload for now
-const CSP = "default-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self' wss:; worker-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; img-src 'self' data:; media-src 'self'; connect-src 'self' wss: https://cloudflareinsights.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
 
 export default {
   async fetch(request, env) {
