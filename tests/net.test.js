@@ -30,6 +30,7 @@ class FakePC {
   async setRemoteDescription(d) { if (this.failRemote) throw new Error('bad sdp'); this.remote.push(d); }
   async addIceCandidate(c) { this.cands.push(c); }
   close() { this.closed = true; }
+  async getStats() { return new Map(); }
 }
 
 beforeEach(() => {
@@ -228,7 +229,7 @@ describe('Net mesh', () => {
     const sigs = sockets[0].sent.filter(m => m.t === 'sig' && m.data.cand);
     expect(sigs).toEqual([{ t: 'sig', to: 2, data: { cand: { c: 1 } } }]);
   });
-  it('the mesh opens when every data channel of every peer is open: the socket closes and mesh fires', () => {
+  it('the mesh opens when every data channel of every peer is open: mesh fires, the socket stays for ICE restarts', () => {
     const n = new Net('ws://x');
     const got = events(n, 'mesh');
     n.quickMatch({});
@@ -242,8 +243,8 @@ describe('Net mesh', () => {
     pcs[1].channels[1].open();
     expect(n.state).toBe('racing');
     expect(got).toHaveLength(1);
-    expect(ws.closed).toBe(true);
-    expect(n.ws).toBeNull();
+    expect(ws.closed).toBe(false);
+    expect(n.ws).toBe(ws);
     n._checkMesh();                  // already racing: no second event
     expect(got).toHaveLength(1);
   });
@@ -314,12 +315,12 @@ describe('Net peer loss', () => {
     for (const p of pcs) for (const c of p.channels) c.open();
     return n;
   };
-  it('a failed or closed connection drops that peer and promotes the next host', () => {
+  it('a closed connection drops that peer and promotes the next host', () => {
     const n = race();
     const got = events(n, 'left');
-    pcs[0].connectionState = 'failed';
+    pcs[0].connectionState = 'closed';
     pcs[0].onconnectionstatechange();
-    expect(got).toEqual([['left', { id: 2 }]]);
+    expect(got).toEqual([['left', { id: 2, why: 'closed' }]]);
     expect(n.players.map(p => p.id)).toEqual([5, 9]);
     expect(n.hostId).toBe(5);
     expect(n.hostIsMe).toBe(true);
@@ -329,7 +330,29 @@ describe('Net peer loss', () => {
     n._dropPeer(9);   // already gone
     expect(got).toHaveLength(2);
   });
-  it('a disconnected peer gets a grace period to recover', () => {
+  it('a failed connection mid-race gets an ICE restart (lower id offers) and is dropped only if it never recovers', async () => {
+    vi.useFakeTimers();
+    const n = race();
+    const got = events(n, 'left');
+    const ws = sockets[0];
+    await vi.advanceTimersByTimeAsync(0);   // the first offer to 9 goes out
+    ws.sent = [];
+    pcs[1].connectionState = 'failed';   // peer 9: I'm 5, so I offer the restart
+    pcs[1].onconnectionstatechange();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ws.sent.filter(m => m.t === 'sig' && m.to === 9 && m.data.sdp?.type === 'offer')).toHaveLength(1);
+    pcs[1].connectionState = 'connected';
+    pcs[1].onconnectionstatechange();
+    vi.advanceTimersByTime(30000);
+    expect(got).toHaveLength(0);
+    pcs[0].connectionState = 'failed';   // peer 2 offers to me: I just wait for its offer
+    pcs[0].onconnectionstatechange();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ws.sent.filter(m => m.to === 2)).toHaveLength(0);
+    vi.advanceTimersByTime(20001);
+    expect(got).toEqual([['left', { id: 2, why: 'failed' }]]);
+  });
+  it('a disconnected peer gets a grace period, then an ICE restart, then is dropped', () => {
     vi.useFakeTimers();
     const n = race();
     const got = events(n, 'left');
@@ -337,18 +360,18 @@ describe('Net peer loss', () => {
     pcs[0].onconnectionstatechange();
     vi.advanceTimersByTime(4000);
     pcs[0].connectionState = 'connected';
-    pcs[0].onconnectionstatechange();   // recovered, timer cleared
-    vi.advanceTimersByTime(10000);
+    pcs[0].onconnectionstatechange();   // recovered, timers cleared
+    vi.advanceTimersByTime(30000);
     expect(got).toHaveLength(0);
     pcs[0].connectionState = 'disconnected';
     pcs[0].onconnectionstatechange();
-    vi.advanceTimersByTime(8001);
-    expect(got).toEqual([['left', { id: 2 }]]);
+    vi.advanceTimersByTime(20001);
+    expect(got).toEqual([['left', { id: 2, why: 'disconnected' }]]);
     // a stale timer on a replaced peer does nothing
     pcs[1].connectionState = 'disconnected';
     pcs[1].onconnectionstatechange();
     n.peers.set(9, {});
-    vi.advanceTimersByTime(9000);
+    vi.advanceTimersByTime(30000);
     expect(got).toHaveLength(1);
   });
   it('state changes of a peer we already dropped are ignored', () => {

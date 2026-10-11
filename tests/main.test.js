@@ -379,8 +379,8 @@ describe('online', () => {
     gg.items.give(gg.player, 'mushroom'); press('KeyE');
     expect(net.sent.some(m => m.t === 'item')).toBe(true);
     // a peer leaves
-    net.emit('left', { id: 2 });
-    expect($('banner').textContent).toBe('OPPONENT LEFT');
+    net.emit('left', { id: 2, why: 'failed' });
+    expect($('banner').textContent).toBe('OPPONENT LEFT (failed)');
     net.emit('error', { message: 'nope' });
     expect($('lobbyMsg').textContent).toBe('nope');
     // Backspace does not restart online
