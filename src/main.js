@@ -289,7 +289,6 @@ const ring = (r, dy, c) => {
 };
 const outline = (el, r, color, dy) => { el.style.textShadow = [...ring(r, 0, color), ...ring(r, dy, '#000'), `0 ${dy}px 0 #000`].join(','); };
 outline($('hud'), 3, '#000', 3);
-outline(banner, 6, '#b3200f', 8);
 outline(posStrokeEl, 5, '#1a1a6e', 6);
 const mini = $('mini').getContext('2d');
 const audio = new AudioSys();
