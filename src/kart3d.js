@@ -77,6 +77,9 @@ function prepare(scene, eyeRepeat) {
       // the body's front bumper runs v below 0 and relies on the Wii's mirrored T wrap to stay red with the white
       // stripe (ColladaLoader repeats it, which pulled the texture's top rows of other parts onto the bumper)
       if (m.map && m.name === 'mat_body') m.map.wrapT = THREE.MirroredRepeatWrapping;
+      // DK's, Peach's and Bowser's body UVs run outside 0-1 and their model.dae samplers say MIRROR, which
+      // ColladaLoader ignores (it always repeats), so DK's fur, chest and tie came out as patches of the wrong part
+      if (m.map && ['donkey_all_tx', 'peach_all_tx', 'koopa_all_tx'].includes(m.name)) m.map.wrapS = m.map.wrapT = THREE.MirroredRepeatWrapping;
     }
     // the side pods' UVs (u 1-1.32, v 0.5-0.78 in all three classes) put the emblem against the panel's top edge with a
     // band of livery below it: move them 10 texels up the texture so the emblem sits in the middle of the panel.
