@@ -75,11 +75,13 @@ export class Exhaust {
       dir.addScaledVector(k.up, -dir.dot(k.up)).normalize();
       const height = HEIGHT[k.mesh.userData.character] ?? 4.5;
       // Wii 3D kart (kart3d.js): puffs leave its exhaust pipes, alternating sides, smaller and lighter than the sprite's
-      const pipes = k.model?.userData.pipes;
+      // boosting (mushroom, mini-turbo, pad, star): the two upper engines vent too, all four outlets in turn
+      const pipes = k.model?.userData.pipes, engines = k.model?.userData.engines;
+      const outlets = engines ? [...pipes, ...engines] : pipes;
       if (pipes) k.model.updateWorldMatrix(true, false);
       for (const [i, s] of k.smoke.entries()) {
         if (s.alive) {
-          if (pipes) p.copy(pipes[i % 2]).applyMatrix4(k.model.matrixWorld).addScaledVector(k.up, K * s.rise).addScaledVector(dir, -K * (s.back - 5.5));
+          if (pipes) p.copy(s.boost ? outlets[i % outlets.length] : pipes[i % 2]).applyMatrix4(k.model.matrixWorld).addScaledVector(k.up, K * s.rise).addScaledVector(dir, -K * (s.back - 5.5));
           else p.copy(k.world).addScaledVector(k.up, K * (height + s.rise)).addScaledVector(dir, -K * s.back);
           const h = 2 * s.scale * K * (pipes ? PIPE_SIZE : 1), v0 = 1 - (s.frame + 1) / FRAMES + 0.5 / (32 * FRAMES), v1 = 1 - s.frame / FRAMES - 0.5 / (32 * FRAMES);
           [[1, 1, 1, v1], [1, -1, 1, v0], [-1, -1, 0, v0], [-1, 1, 0, v1]].forEach(([x, y, u, v], j) => {
