@@ -33,7 +33,8 @@ def serve(req):
 
 
 def main():
-    if not os.path.isfile(os.path.join(ROOT, 'index.html')):
+    url = sys.argv[1] if len(sys.argv) > 1 else None  # web-thin build: hosted game URL instead of game/
+    if not url and not os.path.isfile(os.path.join(ROOT, 'index.html')):
         sys.exit(f'error: {ROOT} missing')
     ctx = WebKit2.WebContext.get_default()
     ctx.register_uri_scheme('app', serve)
@@ -56,7 +57,7 @@ def main():
     win.add(view)
     win.connect('destroy', Gtk.main_quit)
     win.show_all()
-    view.load_uri('app://game/index.html')
+    view.load_uri(url or 'app://game/index.html')
     Gtk.main()
 
 

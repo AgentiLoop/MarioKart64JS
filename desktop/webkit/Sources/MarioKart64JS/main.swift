@@ -51,7 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setScale()
         NotificationCenter.default.addObserver(forName: NSWindow.didChangeBackingPropertiesNotification,
                                                object: window, queue: .main) { _ in setScale() }
-        web.load(URLRequest(url: URL(string: "app://game/index.html")!))
+        // web-thin build: Info.plist MK64WebURL points at the hosted game instead of bundled Resources/game.
+        let start = (Bundle.main.object(forInfoDictionaryKey: "MK64WebURL") as? String) ?? "app://game/index.html"
+        web.load(URLRequest(url: URL(string: start)!))
         NSApp.activate(ignoringOtherApps: true)
     }
 
