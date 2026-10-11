@@ -13,12 +13,8 @@ We built it as a test of how closely AI tools can recreate a classic game.
 
 | | |
 |---|---|
-| ![Title](docs/screenshots/hires/title.jpg) | ![Game select](docs/screenshots/hires/game-select.jpg) |
-| ![Course select](docs/screenshots/hires/course-select.jpg) | ![Character select](docs/screenshots/hires/character-select.jpg) |
-| ![Mario Raceway](docs/screenshots/hires/race-mario.jpg) | ![Royal Raceway](docs/screenshots/hires/race-royal.jpg) |
-| ![Koopa Troopa Beach](docs/screenshots/hires/race-koopa.jpg) | ![Sherbet Land](docs/screenshots/hires/race-sherbet.jpg) |
-| ![D.K.'s Jungle Parkway](docs/screenshots/hires/race-dk.jpg) | ![Bowser's Castle](docs/screenshots/hires/race-bowser.jpg) |
-| ![Banshee Boardwalk](docs/screenshots/hires/race-banshee.jpg) | ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) |
+| ![Title](docs/screenshots/hires/title.jpg) | ![Course select](docs/screenshots/hires/course-select.jpg) |
+| ![Mario Raceway](docs/screenshots/hires/race-mario.jpg) | ![Rainbow Road](docs/screenshots/hires/race-rainbow.jpg) |
 
 ## What you can do
 
@@ -29,59 +25,56 @@ We built it as a test of how closely AI tools can recreate a classic game.
 - **Use all 15 items**, from bananas and shells to stars, Boos and lightning.
 - **Hear the original music and voices**, played from the game's own sound data.
 - **Watch the courses come alive:** the Moo Moo Farm cows, the Kalimari Desert trains, Toad's Turnpike traffic, the Bowser's Castle Thwomps, the Rainbow Road Chain Chomps and more.
-- **Switch to Wii 3D karts** with the 3 key: a 3D title screen, 3D Wii-style karts and Lakitu with real shadows, and 3D finish fly-overs. [See below.](#wii-3d-karts-press-3)
+- **Switch to Wii 3D karts** with the 3 key, including a 3D title screen and finish fly-overs. [Details below.](#wii-3d-karts-press-3)
 - **Choose a look:** the original blurry 240p, or sharp HD textures up to full resolution.
 
 ## Wii 3D karts (press 3)
 
-Press **3** on the title screen and the N64 title becomes a 3D scene: Mario, Wario, Bowser, Peach and Toad in Wii-style
-Standard Karts driving at you down a scrolling road. In a race, **3** swaps every kart (each driver in their own kart)
-and the referee Lakitu for 3D models with real shadows. Press **3** again to go back to the original art. Your choice is
-remembered for the next race.
+Press **3** on the title screen for a 3D title scene: Mario, Wario, Bowser, Peach and Toad in Wii-style karts driving down a
+scrolling road. In a race, **3** swaps every kart and the referee Lakitu for 3D models with real shadows. Press **3** again
+to go back to the original art. Your choice is remembered.
 
-**3D title screen and game select**
-
-| | |
-|---|---|
-| ![3D title screen](docs/screenshots/hires/title3d.jpg) | ![Game select over the 3D scene](docs/screenshots/hires/game-select3d.jpg) |
-
-**Racing in 3D**
+After the last lap, the camera orbits your kart, then cuts to roadside, crane and tail shots, as on the console.
 
 | | |
 |---|---|
-| ![Mario Raceway](docs/screenshots/hires/race3d-mario.jpg) | ![Luigi Raceway](docs/screenshots/hires/race3d-luigi.jpg) |
-| ![Koopa Troopa Beach](docs/screenshots/hires/race3d-koopa.jpg) | ![Royal Raceway](docs/screenshots/hires/race3d-royal.jpg) |
-| ![Sherbet Land](docs/screenshots/hires/race3d-sherbet.jpg) | ![D.K.'s Jungle Parkway](docs/screenshots/hires/race3d-dk.jpg) |
-| ![Bowser's Castle](docs/screenshots/hires/race3d-bowser.jpg) | ![Rainbow Road](docs/screenshots/hires/race3d-rainbow.jpg) |
-| ![Wario Stadium](docs/screenshots/hires/race3d-wario.jpg) | |
+| ![3D title screen](docs/screenshots/hires/title3d.jpg) | ![Racing in 3D, Royal Raceway](docs/screenshots/hires/race3d-royal.jpg) |
+| ![Racing in 3D, Mario Raceway](docs/screenshots/hires/race3d-mario.jpg) | ![Finish fly-over](docs/screenshots/hires/fly3d-orbit-mario.jpg) |
 
-**Fly-overs after the finish**
+## Keyboard controls
 
-Cross the line on the last lap and the camera swings round the kart to its nose, then cuts to roadside shots, a high crane and
-a low tail shot, as on the console. With the Wii karts on, they show your 3D kart.
+**Racing**
 
-| | |
+| Action | Keys |
 |---|---|
-| ![Orbit round the kart, Mario Raceway](docs/screenshots/hires/fly3d-orbit-mario.jpg) | ![Head-on, Mario Raceway](docs/screenshots/hires/fly3d-nose-mario.jpg) |
-| ![High crane, Mario Raceway](docs/screenshots/hires/fly3d-crane-mario.jpg) | ![Orbit round the kart, Royal Raceway](docs/screenshots/hires/fly3d-orbit-royal.jpg) |
-| ![High crane, Royal Raceway](docs/screenshots/hires/fly3d-crane-royal.jpg) | ![Low tail shot, Royal Raceway](docs/screenshots/hires/fly3d-tail-royal.jpg) |
-
-## Controls
-
-| Action | Key |
-|---|---|
-| Gas / brake | ↑ / ↓ (or W / S) |
-| Steer | ← / → (or A / D) |
-| Drift (let go for a boost) | Space |
+| Gas / brake | ↑ / ↓ or W / S |
+| Steer | ← / → or A / D |
+| Drift (release for a boost) | Space |
 | Use item | Shift or E |
-| Throw a banana forward | Q |
-| Restart race | Delete |
-| Change resolution | G |
-| Wii 3D karts on/off (title screen and races) | 3 |
-| Music on/off | N |
-| Show physics bodies (walls red, kart bodies cyan) | P |
+| Throw a held banana forward | Q |
+| Restart race | Delete or Backspace |
+| Back to course select | M |
 
-Gamepads work too.
+**Menus**
+
+| Action | Keys |
+|---|---|
+| Move | ← ↑ → ↓ |
+| Select | Enter or Space |
+| Back | Esc or Backspace |
+| Options / Records (game select) | L / R |
+
+**Display and sound** (any time)
+
+| Action | Keys |
+|---|---|
+| Wii 3D karts on/off | 3 |
+| Change resolution | G |
+| Music on/off | N |
+| Kart physics: Glue / Jumps | J |
+| Show physics bodies (walls red, karts cyan) | P |
+
+**Gamepad:** left stick or D-pad steers, A / RT gas, B / LT brake, LB / RB drift, X / Y item, Start restarts.
 
 ## Playing online
 
@@ -91,8 +84,7 @@ Gamepads work too.
 
 You don't need codes or accounts. Everyone who picks the same player count around the same time ends up in the same race.
 
-Players connect directly to each other. A few very strict home or office networks block that kind of connection, and
-then the game can't connect.
+Players connect directly to each other. Some strict home or office networks block this, and the game can't connect.
 
 ## Roadmap
 

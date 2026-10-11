@@ -32,7 +32,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, stencil: tr
 renderer.setPixelRatio(1);
 HD.setRenderer(renderer);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 const sharpen = createSharpen(renderer);
 const present = draw => { draw(); if (HD.presetId() === '2x') sharpen(); };   // 2x: CAS-sharpen the 480-line frame before CSS stretches it
 
@@ -298,7 +298,7 @@ const cows = trackDef?.dir === 'moo-moo-farm' ? new Foliage(scene, track, trackD
 const props = track.arena ? null : new Props(scene, trackDef || TRACKS[0], { mirror });   // palm trees, spinning signs, DK trees
 const piranha = ['mario', 'royal'].includes(trackDef?.id) ? new PiranhaPlants(scene, trackDef) : null;   // spawn_piranha_plants
 const yoshiEgg = trackDef?.id === 'yoshi' ? new YoshiEgg(scene, trackDef, { mirror }) : null;   // ACTOR_YOSHI_EGG
-const train = trackDef?.id === 'kalimari' ? new Train(scene, track, trackDef, { mirror, audio, gp: raceMode === 'mario_gp' }) : null;   // trains + railroad crossings
+const train = trackDef?.id === 'kalimari' ? new Train(scene, track, trackDef, { mirror, audio, gp: raceMode === 'mario_gp', items }) : null;   // trains + railroad crossings
 const traffic = trackDef?.id === 'toad' ? new Traffic(scene, track, trackDef, { mirror, cc, timeTrial: raceMode === 'time_trials' }) : null;   // trucks, buses, tankers, cars
 const ferry = trackDef?.id === 'dk' ? new Ferry(scene, trackDef, { mirror, audio }) : null;   // the paddle-boat ferry
 const balloon = trackDef?.id === 'luigi' ? new HotAirBalloon(scene, trackDef, { mirror, timeTrial: raceMode === 'time_trials' }) : null;   // the hot-air balloon
@@ -1570,7 +1570,7 @@ function frame(now) {
   props?.update(dt);
   piranha?.update(dt, views.map(v => v.cam));
   yoshiEgg?.update(dt, views.map(v => v.cam));
-  train?.update(dt, views.map(v => v.cam));
+  train?.update(dt, views.map(v => v.cam), karts);
   traffic?.update(dt);
   ferry?.update(dt, views.map(v => v.cam));
   balloon?.update(dt, views.map(v => v.cam), views.some(v => (v.kart ?? player)?.crossings >= 1));   // a player's lap counter reached 1

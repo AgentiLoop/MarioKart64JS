@@ -30,6 +30,9 @@ function load(file, textures = {}) {
     return textures[name] ? url.slice(0, url.lastIndexOf('/') + 1) + textures[name] : url;
   });
   const loader = new ColladaLoader(manager);
+  // parse() is synchronous: drop only the loader's harmless Z-UP warning and "File version" debug line while it runs
+  const parse = loader.parse.bind(loader);
+  loader.parse = (...a) => { const w = console.warn, d = console.debug; console.warn = (m, ...r) => { if (!String(m).includes('Z-UP')) w(m, ...r); }; console.debug = (m, ...r) => { if (!String(m).includes('File version')) d(m, ...r); }; try { return parse(...a); } finally { console.warn = w; console.debug = d; } };
   const p = new Promise((resolve, reject) => loader.load(`${DIR}${file}`, c => resolve(c.scene), undefined, reject));
   cache.set(key, p);
   return p;

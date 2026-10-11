@@ -373,7 +373,11 @@ export class Track {
     let hitNormal = null, hitRamp = null;
     // Stacked surfaces (Wario Stadium's visible dirt lumps over its lower collision dirt): stay on top of the
     // highest one at most CLIMB above yRef, so the kart rides what is drawn; otherwise the nearest within 3.
-    const CLIMB = 0.6;
+    // A surface steeper than 45 deg is not climbed onto: MK64 files a triangle whose normal is more horizontal than
+    // vertical as a wall (FACING_X/Z_AXIS, collision.c), never as ground. Climbing the 56-68 deg faces at the foot of
+    // Mario Raceway's barrier at (90, 69) put a kart up between its two leaning walls, a gap narrower than its body,
+    // where it bounced from one into the other a quarter of its width deep (tools/test-walls.mjs).
+    const CLIMB = 0.6, FLOOR_NY = 0.7;
     const height = (x, z, yRef) => {
       let best = null, top = null, topN = null, topR = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
@@ -384,7 +388,7 @@ export class Track {
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
         if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; }
-        if (y - yRef > -3 && y - yRef <= CLIMB && (top === null || y > top)) { top = y; topN = normal; topR = ramp; }
+        if (y - yRef > -3 && y - yRef <= CLIMB && (y - yRef <= 0.05 || normal.y >= FLOOR_NY) && (top === null || y > top)) { top = y; topN = normal; topR = ramp; }
       }
       if (top !== null) { hitNormal = topN; hitRamp = topR; return top; }
       return best;

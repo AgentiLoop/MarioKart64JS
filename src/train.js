@@ -16,8 +16,10 @@
 // The locomotive's bell 0x1901800E as it reaches 2D point 190 or 320, else its whistle 0x1901800D one frame in 100.
 // EXTRA: the console mirrors positions and headings only, so each model is flipped back in its own x (as src/props.js)
 // and the crossings turn the other way.
-// Not ported: the locomotive's smoke (render_object_trains_smoke_particles), karts tumbling when a train hits them
-// (handle_trains_interactions) and CPU karts waiting at a rung crossing (check_ai_crossing_distance).
+// EXTRA: a kart touching a car (its footprint box, kart radius 5.5 / DK and Bowser 6) is knocked into the air as by a
+// star kart (Items.hit), standing in for handle_trains_interactions.
+// Not ported: the locomotive's smoke (render_object_trains_smoke_particles) and CPU karts waiting at a rung crossing
+// (check_ai_crossing_distance).
 import * as THREE from 'three';
 import { NATIVE_SCALE } from './track.js';
 import { partMeshes } from './props.js';
@@ -39,6 +41,9 @@ const KINDS = {
 };
 const FAR = 9000000, WHEELS = 1440000, CROSSING_FAR = 4000000;
 const CROSSING_AT = [0.42299348, 0.72017354];
+// half width / half length / height of each car's hit box (model units)
+const BOX = { engine: [20, 58, 66], tender: [16, 26, 40], car: [16, 47, 52] };
+const BBOX = { donkeykong: 6, bowser: 6 };   // gKartBoundingBoxSizeTable: 5.5, DK and Bowser 6
 
 const _p = new THREE.Vector3();
 // x/z distance squared from this camera to the actor (distance_if_visible without its view-cone test)
@@ -73,7 +78,8 @@ export function followPath(P, car, speed) {
   if (car.vel[0] || car.vel[1]) car.yaw = Math.atan2(car.vel[0], car.vel[1]);   // atan2s(dx, dz)
 }
 export class Train {
-  constructor(scene, track, def, { mirror = false, audio = null, gp = false } = {}) {
+  constructor(scene, track, def, { mirror = false, audio = null, gp = false, items = null } = {}) {
+    this.items = items;
     this.group = new THREE.Group();
     this.group.name = 'train';
     scene.add(this.group);
@@ -211,8 +217,25 @@ export class Train {
     }
   }
 
+  // a kart inside a car's box is knocked into the air
+  _collide(karts) {
+    for (const k of karts) {
+      if (!k?.world || k.boo > 0 || k.tumble || k.out || k.star > 0) continue;
+      const r = BBOX[k.mesh?.userData?.character] ?? 5.5;
+      for (const t of this.trains) for (const car of [t.engine, t.tender, ...t.cars]) {
+        if (!car.active) continue;
+        const [hx, hz, hy] = BOX[car.kind], dx = k.world.x / S - car.pos[0], dz = k.world.z / S - car.pos[2], dy = k.world.y / S - car.pos[1];
+        const s = Math.sin(car.yaw), c = Math.cos(car.yaw);
+        if (Math.abs(dx * c - dz * s) < hx + r && Math.abs(dx * s + dz * c) < hz + r && dy > -10 && dy < hy) {
+          this.items?.hit(k, 'star');
+          break;
+        }
+      }
+    }
+  }
+
   // cams: each screen's camera (scene units) for the bells and whistle
-  update(dt, cams = []) {
+  update(dt, cams = [], karts = []) {
     if (!this.data) return;
     for (this.acc += dt; this.acc >= TICK; this.acc -= TICK) {
       this.ticks++;
@@ -227,6 +250,7 @@ export class Train {
         if (c.timer === 1 || c.timer === 20) placedSound(this.audio, cams, c.pos, 1, 0x16, this.mirror, 500);
       }
     }
+    this._collide(karts);
     this._place();
   }
 }

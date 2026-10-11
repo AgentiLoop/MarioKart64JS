@@ -30,7 +30,8 @@ function canvasTex(w, h, draw, repeat = false) {
   return t;
 }
 
-// deep N64 blue fading lighter at the horizon, streaky cumulus drawn as clusters of soft ellipses
+// deep N64 blue fading lighter at the horizon, with puffy cumulus: flat-bottomed heaps of overlapping round puffs,
+// white on top and shaded blue-grey underneath like the art's clouds
 function skyTexture() {
   return canvasTex(2048, 1024, (g, w, h) => {
     const grad = g.createLinearGradient(0, 0, 0, h / 2);
@@ -38,16 +39,24 @@ function skyTexture() {
     g.fillStyle = grad; g.fillRect(0, 0, w, h);
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     // the title camera sees elevations -1..27 degrees, canvas rows 0.35h..0.5h: the clouds sit there, smaller near the horizon
-    for (let i = 0; i < 110; i++) {
-      const cy = h * (0.28 + 0.21 * rnd()), cx = w * rnd(), n = 6 + 10 * rnd(), sc = 1.6 - 1.1 * (cy / h - 0.28) / 0.21;
+    for (let i = 0; i < 26; i++) {
+      const base = h * (0.33 + 0.16 * rnd()), cx = w * rnd(), sc = 1.5 - 0.85 * (base / h - 0.33) / 0.16;
+      const width = (50 + 90 * rnd()) * sc, n = 5 + Math.floor(5 * rnd());
+      const puffs = [];
       for (let j = 0; j < n; j++) {
-        const x = cx + (rnd() - 0.5) * 110 * sc, y = cy + (rnd() - 0.5) * 14 * sc, rx = (12 + 26 * rnd()) * sc, ry = rx * (0.3 + 0.25 * rnd());
-        for (const dx of [-w, 0, w]) {   // wraps round the seam
-          const rg = g.createRadialGradient(x + dx, y, 0, x + dx, y, rx);
-          rg.addColorStop(0, `rgba(255,255,255,${0.25 + 0.3 * rnd()})`); rg.addColorStop(1, 'rgba(255,255,255,0)');
-          g.save(); g.translate(x + dx, y); g.scale(1, ry / rx); g.translate(-(x + dx), -y);
-          g.fillStyle = rg; g.beginPath(); g.arc(x + dx, y, rx, 0, Math.PI * 2); g.fill(); g.restore();
+        const u = (j + 0.5) / n * 2 - 1, mid = 1 - u * u;                 // taller in the middle of the heap
+        const r = (7 + 12 * rnd() + 14 * mid * rnd()) * sc;
+        puffs.push({ x: cx + u * width / 2, r, y: base - r * (0.5 + 0.25 * rnd()) - mid * 6 * sc * rnd() });
+      }
+      puffs.sort((p, q) => q.y - p.y);                                  // lowest first so the higher, lighter puffs overlap them
+      for (const dx of [-w, 0, w]) {                                    // wraps round the seam
+        g.save(); g.beginPath(); g.rect(cx + dx - width, 0, width * 2, base + 2 * sc); g.clip();   // flat bottom
+        for (const p of puffs) {
+          const x = p.x + dx, rg = g.createRadialGradient(x - p.r * 0.25, p.y - p.r * 0.35, p.r * 0.1, x, p.y, p.r);
+          rg.addColorStop(0, '#ffffff'); rg.addColorStop(0.55, '#f1f5ff'); rg.addColorStop(0.9, '#b4c4f2'); rg.addColorStop(1, 'rgba(160,180,240,0)');
+          g.fillStyle = rg; g.beginPath(); g.arc(x, p.y, p.r, 0, Math.PI * 2); g.fill();
         }
+        g.restore();
       }
     }
   });
