@@ -145,9 +145,11 @@ export function createTitle3D(canvas) {
   Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 90 });
   scene.add(sun, sun.target);
 
-  // grass out to the horizon, the road and its kerbs on top
+  // grass out to the horizon, the road and its kerbs on top. The grass is pushed back in depth (polygon offset, like
+  // MK64's decal layers in track.js): 0.02 / 0.03 over it is lost to the depth buffer on software GL (SwiftShader
+  // headless Chrome, used for the game's screenshots) and the grass covered the road and kerbs there.
   const grassTex = grassTexture(); grassTex.repeat.set(200, 200);
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ map: grassTex }));
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ map: grassTex, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
   grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true;
   scene.add(grass);
   const roadTex = roadTexture(), kerbTex = kerbTexture();
