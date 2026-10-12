@@ -650,8 +650,9 @@ export class Track {
     const wallTop = walls.map(tri => Math.max(tri[0][1], tri[1][1], tri[2][1]));
     // horizontally nearest point to (px, pz) of the triangle's outline where it stands within the kart's body,
     // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road).
-    // (mx, mz): the kart's move this step, r its body radius, behind: its centre is behind the face's plane
-    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0, behind = false) => {
+    // (mx, mz): the kart's move this step, r its body radius, behind: its centre is behind the face's plane, offTop:
+    // it was behind it last step (on top of a ramp the face is the side of)
+    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0, behind = false, offTop = false) => {
       let best = null, bd = Infinity;
       for (let i = 0; i < 3; i++) {
         const A = tri[i], B = tri[(i + 1) % 3], ex = B[0] - A[0], ey = B[1] - A[1], ez = B[2] - A[2];
@@ -670,11 +671,21 @@ export class Track {
         // kart pushes it, sideways, once the body reaches past the cut. The cut point pushed the kart on the route
         // back off the ramp's corner, turning it ~1 rad and costing a third of its speed. Driven into from the side
         // the cut point still holds (Bowser's Castle's ramp at (195, -268))
+        // Only along the edge itself: past its end (u over 1) there is no edge to run on (Koopa Troopa Beach's rock at
+        // (-145, -79), its edge ending at the cut, put a point 1.6 past the end 0.26 from Bowser's centre: 1.4 in a step)
+        // The line comes in no nearer than the cut point is: it took over from the cut point (no contact up to r away)
+        // at its full depth, and Bowser driving up beside Koopa Troopa Beach's ramp at (-6, 73), 0.36 from the side's
+        // line, went from no contact to 1.33 deep in one step and was shoved out sideways at once (1.1 a frame). Not
+        // for a kart coming off the ramp's top over that side (Koopa's at (-57, 167)): there the line holds in full,
+        // else the body sank 32% into the side (tools/test-walls.mjs)
+        let cut = 0;
         if (c0 > 0 && c0 < 1 && s === c0 && s !== u && ey * ey < hh) {
           const m = Math.hypot(mx, mz);
           if (m > 1e-6 && (mx * ex + mz * ez) * Math.sign(ey) > 0.7 * m * Math.sqrt(hh)) {
-            if (Math.hypot(A[0] + ex * s - px, A[2] + ez * s - pz) >= r) continue;
-            s = u;
+            cut = Math.hypot(A[0] + ex * s - px, A[2] + ez * s - pz);
+            if (cut >= r) continue;
+            if (offTop) cut = 0;
+            s = Math.max(0, Math.min(1, u));
           }
         }
         const qx = A[0] + ex * s, qz = A[2] + ez * s, dd = (qx - px) ** 2 + (qz - pz) ** 2;
@@ -707,7 +718,11 @@ export class Track {
           const g = (C[0] - A[0]) * -ez + (C[2] - A[2]) * ex < 0 === sg > 0 ? height(qx - ez / l * 0.3 * sg, qz + ex / l * 0.3 * sg, qy) : null;
           if (g !== null && Math.abs(g - qy) < 0.15) continue;
         }
-        if (dd < bd) { bd = dd; best = [qx, qz]; }
+        if (Math.max(dd, cut * cut) < bd) {
+          bd = Math.max(dd, cut * cut);
+          const k = dd < cut * cut && dd > 1e-12 ? cut / Math.sqrt(dd) : 1;
+          best = [px + (qx - px) * k, pz + (qz - pz) * k];
+        }
       }
       return best;
     };
@@ -758,7 +773,7 @@ export class Track {
                 // beside the face: its outline within the body, 0.55 (lower lips are climbed) to 2 (higher edges hang
                 // over the road: the kart drives under them, e.g. the face 2.2 over Mario Raceway's road at (59, 52))
                 if (u < 0 || v < 0 || u + v > 1) {
-                  const e = rim(x, z, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d < 0);
+                  const e = rim(x, z, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d < 0, d0 < 0);
                   if (!e) continue;
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;

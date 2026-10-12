@@ -712,9 +712,22 @@ describe('CPU driving', () => {
     // driven into it (0.3 a step) it still pushes the whole overlap out
     const into = t.wallPush(x - 0.25, z - 0.166, x, z, y, 1.336);
     expect(Math.hypot(into.x - x, into.z - z)).toBeGreaterThan(1);
-    // and beside a face, driving onto the end of one (Koopa's at (-61, 168)) still meets its rim in full
+    // and beside a face, driving onto the end of one (Koopa's at (-61, 168)) still meets its rim (as far in as the
+    // edge's cut through the body's height is, not the edge's whole line beside it)
     const rim = t.wallPush(-60.744, 167.386, -60.667, 167.837, 0.086, 1.336);
-    expect(Math.hypot(rim.x + 60.667, rim.z - 167.837)).toBeGreaterThan(1);
+    expect(Math.hypot(rim.x + 60.667, rim.z - 167.837)).toBeGreaterThan(0.4);
+  });
+  it('is not shoved sideways by the side of a Koopa Troopa Beach ramp it drives up beside, nor past an edge\'s end', async () => {
+    // Bowser on the road 0.36 from the side of the ramp at (-6, 73), driving along it toward where its edge rises into
+    // his body: once the body reached past the edge's cut through its height the edge's whole line beside him pushed,
+    // 1.33 in one step (1.1 a frame). Now the line comes in only as near as the cut point is
+    const t = await makeTrack('koopa');
+    const step = t.wallPush(-6.411, 73.566, -6.46, 73.343, 0.1, 1.688);
+    expect(step).not.toBeNull();
+    expect(Math.hypot(step.x + 6.46, step.z - 73.343)).toBeLessThan(0.5);
+    // past the end of the edge of the rock's slope at (-145, -79) there is no edge beside him (1.43 in one step)
+    const end = t.wallPush(-145.36, -79.955, -145.145, -79.766, 3.171, 1.688);
+    expect(end ? Math.hypot(end.x + 145.145, end.z + 79.766) : 0).toBeLessThan(0.3);
   });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
