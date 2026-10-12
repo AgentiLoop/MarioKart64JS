@@ -700,6 +700,22 @@ describe('CPU driving', () => {
     const in3 = t.wallPush(x + 0.3, z, x, z, y, 1.336);
     expect(Math.hypot(in3.x - x, in3.z - z)).toBeGreaterThan(1);
   });
+  it('is not shoved sideways off Koopa Troopa Beach\'s rock face when its ground drops beside it', async () => {
+    // eased in past the limit down the rock at (-48, 184), the ground fell 1.4 in a frame: the 73 deg face (top 3.9,
+    // not a low face, too steep for the slope rule) now cut the body 1.2 deep at a kart backing away from it, and
+    // pushed it all out in one step (1.26 a frame). Not moving into it, it pushes out only 0.15 a step
+    const t = await makeTrack('koopa');
+    const x = -47.709, z = 183.276, y = 2.116;
+    const h = t.wallPush(-47.672, 183.27, x, z, y, 1.336);
+    expect(h).not.toBeNull();
+    expect(Math.hypot(h.x - x, h.z - z)).toBeLessThan(0.3);
+    // driven into it (0.3 a step) it still pushes the whole overlap out
+    const into = t.wallPush(x - 0.25, z - 0.166, x, z, y, 1.336);
+    expect(Math.hypot(into.x - x, into.z - z)).toBeGreaterThan(1);
+    // and beside a face, driving onto the end of one (Koopa's at (-61, 168)) still meets its rim in full
+    const rim = t.wallPush(-60.744, 167.386, -60.667, 167.837, 0.086, 1.336);
+    expect(Math.hypot(rim.x + 60.667, rim.z - 167.837)).toBeGreaterThan(1);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

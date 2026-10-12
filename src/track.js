@@ -739,7 +739,13 @@ export class Track {
                 // shoved off 1-1.9 a frame. Driven into (up a bank from its foot) it pushes in full, as before - but
                 // not for a hair's move into it (under 0.02 a step): stopped on the 55 deg slope below Choco Mountain's
                 // ledge at (-6, 10), 0.001 into it at v 0.1 pushed the whole overlap out, 1.2 in one step
-                const was = wallTop[t] < y + 1.25 || (side * ny > 0.35 && side * ((x - x0) * nx + (z - z0) * nz) >= -0.02) ? r - side * d0 : 0, most = was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
+                // ... and so does any other face the kart is not moving into: coming down off Koopa Troopa Beach's rock
+                // at (-48, 184) beside its 73 deg face (top 3.9), the ground dropped 1.4 in a frame, the face now cut the
+                // body 1.2 deep and shoved it out sideways in one step. Beside a face its plane says nothing of the rim:
+                // its overlap where the kart was, and whether the kart moves toward it, are the rim's own (driving past a
+                // face's end, Koopa's at (-61, 168), moves off the plane and onto the corner)
+                const into = side * ((x - x0) * nx + (z - z0) * nz) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
+                const low = wallTop[t] < y + 1.25, most = eased(low || (side * ny > 0.35 && !into)), mostIn = eased(low || !into);
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];
@@ -756,8 +762,14 @@ export class Track {
                   if (!e) continue;
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
-                  c = { depth: Math.min(r - dh, most), nx: dx / dh, nz: dz / dh };
-                } else c = { depth: Math.min(depth / h, most), nx: side * nx / h, nz: side * nz / h };
+                  let cap = most;
+                  if (cap === Infinity && (x - x0) * dx + (z - z0) * dz >= -0.02 * dh) {
+                    const e0 = rim(x0, z0, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d0 < 0);
+                    const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
+                    if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
+                  }
+                  c = { depth: Math.min(r - dh, cap), nx: dx / dh, nz: dz / dh };
+                } else c = { depth: Math.min(depth / h, mostIn), nx: side * nx / h, nz: side * nz / h };
                 if (!deepest || c.depth > deepest.depth) deepest = c;
               }
             }
