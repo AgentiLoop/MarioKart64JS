@@ -946,7 +946,9 @@ export class Items {
     }
     o.s = (o.s + (o.dir || 1) * o.speed * dt + L) % L;
     if (target) o.d += THREE.MathUtils.clamp(target.d - o.d, -18 * dt, 18 * dt);
-    o.d = THREE.MathUtils.clamp(o.d, -10, 10);
+    // kept on the road between its walls (as karts, 1.2 in), not a fixed +-10 band
+    const t = this.track;
+    o.d = THREE.MathUtils.clamp(o.d, -(t.wallAt(o.s, -1) - 1.2), t.wallAt(o.s, 1) - 1.2);
     return false;
   }
 

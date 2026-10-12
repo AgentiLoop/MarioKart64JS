@@ -197,6 +197,31 @@ describe('Items on a race course', () => {
     expect(cpu.tumble || cpu.invuln > 0 || items.shots.length === 0).toBeTruthy();
   });
 
+  it('shells reach the whole width of the road and stay off the walls', () => {
+    // Mario Raceway s520-600: the road runs 35 left / 20 right of the route; s790-870 narrows to the bridge's 7 / 6
+    const fire = (k, kind, ks) => { k.item = kind; items.use(k, ks); items.release(k, ks, 0); for (let i = 0; i < 60 && !items.shots.length; i++) items.update(1 / 60, ks); return items.shots[0]; };
+    player.s = 520; player.d = -20; cpu.s = 545; cpu.d = -20;
+    const g = fire(player, 'green_shell', karts);
+    expect(g.d).toBeCloseTo(-20, 5);   // not pulled in to d -10
+    step(items, karts, 1.5);
+    expect(cpu.tumble || cpu.invuln > 0).toBeTruthy();
+
+    items.shots.length = 0;
+    const far = makeKart(track, { s: 625, d: -20 });
+    player.s = 520; player.d = 0;
+    fire(player, 'red_shell', [player, far]);
+    step(items, [player, far], 4);
+    expect(far.tumble || far.invuln > 0).toBeTruthy();   // homed out to d -20
+
+    items.shots.length = 0;
+    player.s = 780; player.d = 15;
+    const o = fire(player, 'green_shell', [player]);
+    for (let i = 0; i < 120 && items.shots.includes(o); i++) {
+      items.update(1 / 60, [player]);
+      expect(o.d).toBeLessThanOrEqual(track.wallAt(o.s, 1) - 1.2 + 1e-9);   // into the bridge's narrows, not through the rail
+    }
+  });
+
   it('triple green shell fires three in turn, and expires at the ttl', () => {
     player.item = 'triple_green_shell'; items.use(player, karts);
     expect(player.trail.meshes).toHaveLength(3);
