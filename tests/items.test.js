@@ -282,6 +282,39 @@ describe('Items on a race course', () => {
     expect(cpu.tumble || cpu.invuln > 0).toBeTruthy();
   });
 
+  it('flies a blue shell straight on, then along the path and straight at the leader in the world; a wall smashes it', () => {
+    // Mario Raceway s297 down the middle: its first 0.5 s (MOVING_SHELL) runs straight on into the wall at (210, -21)
+    // (func_802B4104). In (s, d) it slid round the bend.
+    player.s = 297; player.d = 0; player.psi = 0; player.v = 1.4 * (player.top || 60); cpu.s = 380; cpu.d = 0;
+    items.launch(player, 'blue_shell', karts);
+    player.v = 0;
+    let o = items.shots[0];
+    for (let i = 0; i < 60 && items.shots.includes(o); i++) items.update(1 / 60, karts);
+    expect(items.shots).not.toContain(o);
+    expect(cpu.tumble || cpu.invuln > 0).toBeFalsy();
+    expect(items.debris.length).toBe(1);
+    // BLUE_SHELL_LOCK_ON along the path after the leader, then within 20 (200 units) state 9 straight at it, 8 a frame
+    player.s = 400; player.d = 0; cpu.s = 560; cpu.d = 10;
+    items.launch(player, 'blue_shell', karts);
+    o = items.shots.at(-1);
+    const f = track.frameAt(cpu.s, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3() });
+    const cx = f.pos.x + f.R.x * cpu.d, cz = f.pos.z + f.R.z * cpu.d, top = player.top || 60;
+    let chased = 0, locked = 0;
+    for (let i = 0; i < 600 && items.shots.includes(o); i++) {
+      const x = o.x, z = o.z;
+      items.update(1 / 60, karts);
+      if (o.mode === 'chase') { chased++; expect(o.target).toBe(cpu); }
+      if (o.mode !== 'lock' || !items.shots.includes(o)) continue;
+      locked++;
+      const dx = o.x - x, dz = o.z - z, l = Math.hypot(cx - x, cz - z);
+      expect((dx * (cx - x) + dz * (cz - z)) / Math.hypot(dx, dz) / l).toBeGreaterThan(0.9999);
+      expect(Math.hypot(dx, dz) * 60).toBeCloseTo(8 / 5.885 * top, 6);
+    }
+    expect(chased).toBeGreaterThan(10);
+    expect(locked).toBeGreaterThan(3);
+    expect(cpu.tumble || cpu.invuln > 0).toBeTruthy();
+  });
+
   it('sits bananas and shells on the ground the karts ride, not on the route\'s banked plane', () => {
     // Mario Raceway: the smoothed route plane runs ~3 under the road at (92, -43) (s204, d -11.6) and ~3 over it at
     // (195, -2) (s310, d 17.5)
