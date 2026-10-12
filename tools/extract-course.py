@@ -166,6 +166,7 @@ def convert(source, rom, course_id):
         inputs.append(f'assets/courses/{course_id}.json')
     texts = {name: (source / name).read_text() for name in inputs}
     vertices = []
+    lakitu = []   # vertices with flag 2: a collision triangle of three gets 0x800 (Lakitu retrieval, func_802ABDF4)
     packed = bytearray()
     for line in texts[inputs[0]].splitlines():
         if 'MACRO_COLOR_FLAG' not in line:
@@ -173,6 +174,8 @@ def convert(source, rom, course_id):
         x, y, z, s, t, r, g, b, flag, alpha = numbers(line)
         packed.extend(struct.pack('>5h4B', x, y, z, s, t, (r & 252) | (flag & 3),
                                   (g & 252) | ((flag >> 2) & 3), b, alpha))
+        if flag == 2:
+            lakitu.append(len(vertices))
         vertices.append([x, y, z, s, t, r & 252, g & 252, b])
     # Find the original compressed vertex block by its declared decoded size.
     vertex_offset = None
@@ -497,7 +500,8 @@ def convert(source, rom, course_id):
         provenance.update(pathBlockRomOffset=path_block, pathBlockOffset=path_offset,
                           pathBytesSha256=hashlib.sha256(path_bytes).hexdigest())
     course = dict(name=cfg['name'], vertices=vertices, path=route[:-1], batches=list(batches.values()),
-                  **({'ramps': ramps} if ramps else {}), **({'collision': collision} if collision['indices'] else {}), **extra,
+                  **({'ramps': ramps} if ramps else {}), **({'collision': collision} if collision['indices'] else {}),
+                  **({'lakitu': lakitu} if lakitu else {}), **extra,
                   textures=textures, provenance=dict(**provenance,
                   vertexRomOffset=vertex_offset, vertexBytesSha256=hashlib.sha256(packed).hexdigest(),
                   sources={name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in inputs}))

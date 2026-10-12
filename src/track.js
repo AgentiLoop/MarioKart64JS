@@ -352,6 +352,14 @@ export class Track {
     for (const [kind, idx] of Object.entries(course.ramps || {})) {
       for (let i = 0; i + 2 < idx.length; i += 3) rampOf.set(idx.slice(i, i + 3).sort((p, q) => p - q).join(), kind);
     }
+    // vertices with flag 2 (extract-course.py "lakitu"): a triangle of three is flagged 0x800 (add_collision_triangle),
+    // ground Lakitu fishes a kart off (func_80079860: Yoshi Valley's canyon, the fields beyond the fences)
+    // (drawn-only triangles are no collision: Frappe Snowland's flagged dip at (-126, -121) under the road)
+    const lakituV = new Set(course.lakitu || []), lakituTri = new Set();
+    const lci = lakituV.size && course.collision ? course.collision.indices : [];
+    for (let i = 0; i + 2 < lci.length; i += 3) {
+      if ([0, 1, 2].every(k => lakituV.has(lci[i + k]))) lakituTri.add(lci.slice(i, i + 3).sort((p, q) => p - q).join());
+    }
     // Steep faces (walls) come from the course's collision surfaces where the extractor lists them (course.collision:
     // MK64's TrackSections table, which is all generate_collision_mesh reads): decorative geometry drawn but not
     // listed (Koopa Troopa Beach's arrow signs at (-93, -136) / (-34, -119), the scenery rocks at (-50, -115), palm
@@ -394,7 +402,8 @@ export class Track {
         const sg = area > 0 ? -1 : 1, nl = Math.hypot(nx, area, nz);   // cross(b-a, c-a).y = -area; keep normal pointing up
         const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
         const ramp = rampOf.get(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join()) || null;
-        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp]) - 1);
+        const lakitu = lakituTri.size > 0 && lakituTri.has(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join());
+        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp, lakitu]) - 1);
       }
     }
     let hitNormal = null, hitRamp = null;
@@ -425,19 +434,19 @@ export class Track {
       const y = height(x, z, yRef);
       return y === null ? null : { y, normal: hitNormal, ramp: hitRamp };
     };
-    // Highest ground at or below yTop under (x, z): { y, normal, ramp } or null. Used by airborne karts.
+    // Highest ground at or below yTop under (x, z): { y, normal, ramp, lakitu } or null. Used by airborne karts.
     this.groundBelow = (x, z, yTop) => {
-      let best = null, n = null, r = null;
+      let best = null, n = null, r = null, l = false;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal, ramp] = tris[t];
+        const [a, b, c, area, normal, ramp, lakitu] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (y <= yTop && (best === null || y > best)) { best = y; n = normal; r = ramp; }
+        if (y <= yTop && (best === null || y > best)) { best = y; n = normal; r = ramp; l = lakitu; }
       }
-      return best === null ? null : { y: best, normal: n, ramp: r };
+      return best === null ? null : { y: best, normal: n, ramp: r, lakitu: l };
     };
     // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face? (crossed = its index)
     let crossed = -1;

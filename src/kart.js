@@ -1363,6 +1363,14 @@ export class Kart {
         }
       } else this.arc = null;
     }
+    // func_80079860: over a 0x800 triangle (Yoshi Valley's canyon, track.groundBelow lakitu) within 3 MK64 units, Lakitu
+    // fishes the kart out. A kart nudged past the edge onto the route plane over one never gets that low here (the
+    // plane holds it up, and the shrinking route limit held it out there): a quarter second on the plane will do
+    if (dt && t.groundAt && !this.fell && !this.rescue) {
+      const below = t.groundBelow(x, z, this.y + 0.5);
+      this.overLakitu = below?.lakitu && !g && !this.air ? (this.overLakitu || 0) + dt : 0;
+      if (below?.lakitu && (this.y - below.y <= 0.3 || this.overLakitu > 0.25)) this.fell = { kind: 'drop', base: this.y };
+    }
     this.stepBounce(dt);
     if (g && !this.air) {
       this.groundY = g.y; this.world.y = PHYSICS.glue ? g.y : this.y + this.lead;
