@@ -343,9 +343,17 @@ export class Items {
     const g = this.track.groundAt(x, z, kart.y) || this.track.groundBelow(x, z, kart.y + 0.5);
     return { x, z, y: g ? g.y : kart.y };
   }
-  put(mesh, p, h = 0.05) { if (this.arena) this.place(mesh, p.x, p.z, p.y + h); else this.place(mesh, p.s, p.d, h); }
+  put(mesh, p, h = 0.05) {
+    if (this.arena) this.place(mesh, p.x, p.z, p.y + h);
+    else { this.place(mesh, p.s, p.d, h); if (p.vx !== undefined) mesh.position.set(p.x, p.y + h, p.z); }   // a race green shell (moveGreen)
+  }
   touch(k, p, r) {
     if (this.arena) return Math.abs(k.x - p.x) < r && Math.abs(k.z - p.z) < r && Math.abs(k.y - p.y) < 2.5;
+    if (p.vx !== undefined) {   // a race green shell (moveGreen) is in the world: the kart's spot there, near along the route
+      if (Math.abs(this.delta(k.s, p.s)) > 30) return false;
+      const f = this.track.frameAt(k.s, this.fr);
+      return Math.abs(f.pos.x + f.R.x * k.d - p.x) < r && Math.abs(f.pos.z + f.R.z * k.d - p.z) < r;
+    }
     return Math.abs(this.delta(k.s, p.s)) < r && Math.abs(k.d - p.d) < r;
   }
 
@@ -454,7 +462,8 @@ export class Items {
     const p = this.spot(kart, back ? -3 : 3), mesh = this.makeMesh(kind);
     const speed = Math.max(SHELL_MIN * (kart.top || 60), 1.2 * Math.abs(kart.v));
     this.shots.push({ kind, ...p, h: kart.h + (back ? Math.PI : 0), dir: back ? -1 : 1, speed, owner: kart, safe: 0.6, mesh,
-      ttl: kind === 'green_shell' ? 8 : kind === 'blue_shell' ? Infinity : 12, t: 0, top: kart.top || 60 });
+      ttl: kind === 'green_shell' ? 8 : kind === 'blue_shell' ? Infinity : 12, t: 0, top: kart.top || 60,
+      ...(kind === 'green_shell' && !this.arena && { a: (kart.psi || 0) + (back ? Math.PI : 0) }) });
     this.snd(kart, SND_FIRE); this.voice(kart, V_THROW);
   }
 
@@ -938,6 +947,7 @@ export class Items {
       }
       return false;
     }
+    if (o.kind === 'green_shell' && o.a !== undefined) return this.moveGreen(o, dt);
     let target = null;
     if (o.kind === 'red_shell') {
       let best = 120; target = null;
@@ -953,6 +963,67 @@ export class Items {
     const t = this.track;
     o.d = THREE.MathUtils.clamp(o.d, -(t.wallAt(o.s, -1) - 1.2), t.wallAt(o.s, 1) - 1.2);
     return false;
+  }
+  // Green shell on a race course (update_actor_green_shell MOVING_SHELL): it flies on in a straight line in the
+  // world (x, z, velocity vx, vz) at the heading it left the kart with (a, off the route's) and is reflected off the
+  // course's steep faces (actor_terrain_collision / shell_collision; Track.sweep at its height) and off the route
+  // limits that hold the karts where there is no face. (s, d) is the route spot square across from it (as
+  // Kart.routeStep's split), for the hits and drawing. Riding the route frame in (s, d) instead ran it backwards
+  // past the centre of a bend (1 - k d under 0).
+  moveGreen(o, dt) {
+    const t = this.track, L = t.length;
+    if (o.vx === undefined) {
+      const f = t.frameAt(o.s, this.fr), c = Math.cos(o.a), sn = Math.sin(o.a);
+      const hx = f.T.x * c + f.R.x * sn, hz = f.T.z * c + f.R.z * sn, l = Math.hypot(hx, hz) || 1, y = f.pos.y + f.R.y * o.d;
+      o.vx = hx / l * o.speed; o.vz = hz / l * o.speed;
+      o.x = f.pos.x + f.R.x * o.d; o.z = f.pos.z + f.R.z * o.d;
+      const g = t.groundAt(o.x, o.z, y) || t.groundBelow(o.x, o.z, y + 3);
+      o.y = g ? g.y : y;
+    }
+    let dx = o.vx * dt, dz = o.vz * dt;
+    const hit = t.sweep(o.x, o.z, o.x + dx, o.z + dz, o.y);
+    if (hit) {   // stopped at the face, just off it, and bounced
+      dx = dx * hit.k + hit.nx * 0.05; dz = dz * hit.k + hit.nz * 0.05;
+      this.bounce(o, hit.nx, hit.nz);
+    }
+    const px = o.x, pz = o.z, ps = o.s, pd = o.d;
+    o.x += dx; o.z += dz;
+    const f = this.fr;
+    // at most 6 along a step (its 1.6 over the frame's 0.3 floor): past the centre of a bend the foot is ambiguous
+    // and the search jumped 30-70 to the far leg
+    for (let i = 0, moved = 0; i < 5; i++) {
+      t.frameAt(o.s, f);
+      const ex = o.x - f.pos.x, ez = o.z - f.pos.z, det = f.T.x * f.R.z - f.T.z * f.R.x;
+      const u = (ex * f.R.z - ez * f.R.x) / det;
+      o.d = (f.T.x * ez - f.T.z * ex) / det;
+      const step = THREE.MathUtils.clamp(u / Math.max(0.3, 1 - f.k * o.d), -6 - moved, 6 - moved);
+      if (Math.abs(u) < 0.01 || Math.abs(step) < 1e-6) break;
+      o.s = (o.s + step + L) % L; moved += step;
+    }
+    // past the route limit: bounced off the limit's line, (T den, R side dl) in the world - a limit closing in across
+    // the road (Mario Raceway's bridge, s822: 17.7 -> 6 in 2 along) is a wall across it - and the step taken back
+    const side = Math.sign(o.d);
+    if (side && Math.abs(o.d) > t.wallAt(o.s, side) - 1.2) {
+      const tl = Math.hypot(f.T.x, f.T.z) || 1, rl = Math.hypot(f.R.x, f.R.z) || 1, den = Math.max(0.3, 1 - f.k * o.d);
+      const dl = (t.wallAt((o.s + 1) % L, side) - t.wallAt((o.s - 1 + L) % L, side)) / 2;
+      let nx = dl * f.T.x / tl - side * den * f.R.x / rl, nz = dl * f.T.z / tl - side * den * f.R.z / rl;
+      const nl = Math.hypot(nx, nz);
+      if (this.bounce(o, nx / nl, nz / nl)) { o.x = px; o.z = pz; o.s = ps; o.d = pd; }
+    }
+    const g = t.groundAt(o.x, o.z, o.y) || t.groundBelow(o.x, o.z, o.y + 0.5);
+    if (g) { o.y = g.y; o.fall = 0; } else { o.y -= 20 * dt; if ((o.fall = (o.fall || 0) + 20 * dt) > 30) return true; }
+    return false;
+  }
+  // process_shell_collision: the velocity reflected off the face (unit normal n, facing the shell; only when heading
+  // into it), and its speed set to 4 MK64 units a frame unless already 3.5-4.5: a shell fired at 8+ runs on at half
+  // that after its first bounce. True when it bounced.
+  bounce(o, nx, nz) {
+    const vn = o.vx * nx + o.vz * nz;
+    if (vn >= 0) return false;
+    o.vx -= 2 * vn * nx; o.vz -= 2 * vn * nz;
+    const u = o.top / 5.885, v = Math.hypot(o.vx, o.vz);
+    if (v > 4.5 * u || v < 3.5 * u) { o.vx *= 4 * u / v; o.vz *= 4 * u / v; }
+    return true;
   }
 
   // Battle: shells fly along their heading and follow the floor; green ones bounce off walls, red ones home on the

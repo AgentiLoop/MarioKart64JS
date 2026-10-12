@@ -202,7 +202,7 @@ describe('Items on a race course', () => {
     const fire = (k, kind, ks) => { k.item = kind; items.use(k, ks); items.release(k, ks, 0); for (let i = 0; i < 60 && !items.shots.length; i++) items.update(1 / 60, ks); return items.shots[0]; };
     player.s = 520; player.d = -20; cpu.s = 545; cpu.d = -20;
     const g = fire(player, 'green_shell', karts);
-    expect(g.d).toBeCloseTo(-20, 5);   // not pulled in to d -10
+    expect(g.d).toBeCloseTo(-20, 1);   // not pulled in to d -10
     step(items, karts, 1.5);
     expect(cpu.tumble || cpu.invuln > 0).toBeTruthy();
 
@@ -221,6 +221,35 @@ describe('Items on a race course', () => {
       expect(o.d).toBeLessThanOrEqual(track.wallAt(o.s, 1) - 1.2 + 1e-9);   // into the bridge's narrows, not through the rail
     }
   });
+
+  it('flies a green shell straight on in the world and bounces it off the wall, at 4 units a frame after', () => {
+    // Mario Raceway s300 down the middle: the road bends left under the shell, which runs on straight across it to the
+    // wall at (210, -21) (s333, d 18.6; a face from (207, -13) to (217, -28)) and comes off it on the far side of
+    // the normal. Riding the route at d 0 instead, it never left the middle of the road (or met a wall).
+    player.s = 297; player.d = 0; player.psi = 0;
+    items.launch(player, 'green_shell', [player]);
+    const o = items.shots[0], pts = [], top = player.top || 60;
+    let bounced = -1, maxD = 0;
+    for (let i = 0; i < 60 && items.shots.includes(o); i++) {
+      items.update(1 / 60, [player]);
+      pts.push([o.x, o.z, Math.hypot(o.vx, o.vz)]);
+      maxD = Math.max(maxD, Math.abs(o.d));
+      expect(Math.abs(o.d)).toBeLessThanOrEqual(track.wallAt(o.s, Math.sign(o.d) || 1) + 0.5);
+      if (bounced < 0 && pts.length > 1 && Math.abs(pts.at(-1)[2] - pts[0][2]) > 1e-6) bounced = i;
+    }
+    expect(maxD).toBeGreaterThan(15);
+    expect(bounced).toBeGreaterThan(5);
+    // a straight line up to the wall
+    const [ax, az] = pts[0], [bx, bz] = pts[bounced - 1], l = Math.hypot(bx - ax, bz - az);
+    for (const [x, z] of pts.slice(0, bounced)) expect(Math.abs((x - ax) * (bz - az) - (z - az) * (bx - ax)) / l).toBeLessThan(0.05);
+    // reflected off the face (normal ~(-0.83, -0.55)) and slowed to 4 MK64 units a frame
+    const [n1x, n1z] = [bx - ax, bz - az], [cx, cz] = pts[bounced], [dx, dz] = pts[Math.min(pts.length - 1, bounced + 5)];
+    const nx = -0.832, nz = -0.555;
+    expect((n1x * nx + n1z * nz) / l).toBeLessThan(-0.3);
+    expect(((dx - cx) * nx + (dz - cz) * nz) / Math.hypot(dx - cx, dz - cz)).toBeGreaterThan(0.3);
+    expect(pts[bounced][2]).toBeCloseTo(4 / 5.885 * top, 6);
+  });
+
 
   it('sits bananas and shells on the ground the karts ride, not on the route\'s banked plane', () => {
     // Mario Raceway: the smoothed route plane runs ~3 under the road at (92, -43) (s204, d -11.6) and ~3 over it at
