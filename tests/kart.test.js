@@ -769,6 +769,23 @@ describe('CPU driving', () => {
       expect(Math.hypot(k.world.x - x, k.world.z - z) - v0 / 120).toBeLessThan(0.5);
     }
   });
+  it('is not shuttled between Royal Raceway\'s mound foot and the route limit easing it in', async () => {
+    // Bowser 23 out past the limit at (-116, 8), eased in (wallEase) at a standstill against the mound's 53 deg foot:
+    // the face pushed him out past the eased edge, and the edge snapped him back in from where it had eased to,
+    // 1.2 in one step, into the face again (1.15 a frame)
+    const t = await makeTrack('royal');
+    const k = makeKart(t, { isPlayer: true, character: 'bowser', s: 1600, d: 0 });
+    Object.assign(k, { s: 1630.1442, d: -23.1313, psi: 2.8897, phi: 3.109, v: -0.971, y: -6, vy: 0, groundY: -6,
+      prevX: undefined, prevZ: undefined, air: false, wallEase: 23.1313, wallT: 0.59, hitWall: 0.17, wallN: { t: 0.5155, r: -0.8569 } });
+    k.syncMesh(0);
+    let worst = 0;
+    for (let i = 0; i < 120; i++) {
+      const x = k.world.x, z = k.world.z, v0 = Math.abs(k.v);
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: 0.9067, drift: false });
+      worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v0 / 120);
+    }
+    expect(worst).toBeLessThan(0.5);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

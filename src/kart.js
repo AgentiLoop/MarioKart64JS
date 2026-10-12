@@ -1059,6 +1059,11 @@ export class Kart {
       if (Math.abs(det) < 1e-6) break;
       this.s += (dx * e - b * dz) / det; this.d += (a * dz - c * dx) / det;
     }
+    // a face pushing a kart that is being eased in (wallEase) out past the eased edge moves the edge out with it: the
+    // edge then eased the kart back in 0.5 a frame from where it was eased to, not from where the face left it, and
+    // snapped it 1.2 in one step back into the face, which pushed it out again (Royal Raceway's mound foot at (-116,
+    // 8), 22 out past the limit: Bowser shuttled 1.15 a frame at a standstill)
+    if (this.wallEase > 0 && Math.abs(this.d) > this.wallEase) this.wallEase = Math.abs(this.d);
     if (turn) { this.psi += turn; if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45); }
     this.wallT = 0.6; this.wallN = { t: w.nx * f.T.x + w.nz * f.T.z, r: w.nx * f.R.x + w.nz * f.R.z };
     if (settle) return;
