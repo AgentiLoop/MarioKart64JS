@@ -377,6 +377,24 @@ describe('CPU driving', () => {
     expect(minD).toBeGreaterThan(-4.5);
     expect(cpu.s).toBeGreaterThan(625);
   });
+  it('keeps CPUs off Yoshi Valley\'s canyon side, a slope too steep to drive down', async () => {
+    // the road's right edge at (-297, -34) runs on down a 65 deg slope into the canyon: no wall, so the wall limit is
+    // 40 out (the player can still go over), and CPU lanes reached 8.5 out; 1-2 karts a race fell in at s915-925
+    const track = await makeTrack('yoshi');
+    for (let s = 916; s <= 931; s += 3) {
+      expect(track.wallAt(s, 1)).toBeGreaterThan(30);
+      expect(track.dryAt(s, 1)).toBeLessThan(7);
+    }
+    const over = [];
+    for (const d0 of [2, 4]) for (const off of [4.8, 8]) for (const s0 of [890, 895, 902]) {
+      const cpu = makeKart(track, { name: 'Wario', character: 'wario', s: s0, d: d0 });
+      cpu.aiOffset = off; cpu.psi = cpu.phi = 0.1; cpu.v = 38;
+      let low = Infinity;
+      for (let i = 0; i < 60 * 2 && !cpu.fell; i++) { cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]); low = Math.min(low, cpu.world.y); }
+      if (low < -3 || cpu.fell) over.push([s0, d0, off, +cpu.s.toFixed(1), +cpu.d.toFixed(1), +low.toFixed(1)]);
+    }
+    expect(over).toEqual([]);
+  });
   it('lifts a CPU sliding out of Banshee Boardwalk\'s hairpin onto its outside limit', async () => {
     // out of the hairpin at (-5, -210) (k 0.21) the karts powered away on full lock with the travel 0.26 rad outward
     // of the route, slid 2 units across and hit the outside limit (wR 5.5) 20-30 times a race

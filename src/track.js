@@ -822,7 +822,7 @@ export class Track {
       const y0 = routeY[i];
       for (const sgn of [-1, 1]) {
         // (not where the route's own ground is under it: no bank to keep off)
-        let prev = y0, d = STEP, passed = 0, wet = wetAt(p.x, p.z, y0) ? -Infinity : Infinity;
+        let prev = y0, d = STEP, passed = 0, wet = wetAt(p.x, p.z, y0) ? -Infinity : Infinity, cliff = Infinity;
         for (; d <= MAX; d += STEP) {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn, x1 = p.x + R.x * (d - STEP) * sgn, z1 = p.z + R.z * (d - STEP) * sgn;
           const hit = d > 1.5 && blocked(x1, z1, x, z, prev);   // the route itself may graze ramp sides
@@ -832,6 +832,11 @@ export class Track {
           // still holds their bodies off its faces)
           if (y === null) break;
           if (wet === Infinity && wetAt(x, z, y)) wet = d;
+          // the dry bound also ends where the ground drops away down a slope steeper than 45 deg, which a kart falls
+          // off rather than drives down: Yoshi Valley's canyon side at (-297, -34), 65 deg (1.1 down a step), is no
+          // wall (the player can still go over), so the wall limit ran 40 out at s913-931, CPU lanes reached 8.5 out
+          // past the road's edge (5.5) and 1-2 karts a race went over into the canyon
+          if (cliff === Infinity && y < prev - 0.3 && hitNormal.y < FLOOR_NY) cliff = d;
           // ... and so does a climb steeper than 45 deg, which groundAt never takes a kart up (FLOOR_NY): the bound
           // went up the 49 deg front of Koopa Troopa Beach's rock at (-171, 11) and on to 38, so CPUs steered into
           // the 3-wide gap between it and the ramp beside it, where Bowser wedged crosswise for 40 s
@@ -869,7 +874,7 @@ export class Track {
         // (-172, 14), 3 wide, karts wedged against the ramp's side for whole races, steering for the route beyond it
         if (d <= MAX && passed && d - passed < GAP) d = passed;
         raw[sgn].push(Math.max(2.5, d - STEP));
-        dry[sgn].push(Math.max(2.5, Math.min(d, wet < 0 ? Infinity : wet) - STEP));
+        dry[sgn].push(Math.max(2.5, Math.min(d, wet < 0 ? Infinity : wet, cliff) - STEP));
       }
     }
     // a wall is only as open as its narrowest neighbour (no slipping through single-sample gaps)
