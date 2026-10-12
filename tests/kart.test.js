@@ -393,6 +393,28 @@ describe('CPU driving', () => {
       expect(worst).toBeLessThan(0.3);
     }
   });
+  it('drives Mario Raceway\'s grass and infield without being flung or dragged sideways', async () => {
+    // far in on the inside of a bend (1 - k d under 0.3) the frame step moved the kart up to 7x its speed (1.7 a
+    // frame at (257, 5)); out on the hills the closing route limit dragged it in 5.5 a frame at (110, -55); beside the
+    // road at (102, 46) it dragged it 2.3 a frame sideways into the pipe ahead. Each frame's move stays its own.
+    const track = await makeTrack('mario');
+    const cases = [
+      { s: 471.76, d: -35.14, psi: -0.12, v: 13.3, input: gas },
+      { s: 213.57, d: -37.65, psi: -0.31, phi: -0.02, v: 18.8, drift: 1, input: { throttle: 1, brake: 0, steer: -0.46, drift: true } },
+      { s: 819.4, d: 18.15, psi: 0.07, v: 17.3, input: { throttle: 1, brake: 0, steer: 0.37, drift: false } },
+    ];
+    for (const c of cases) {
+      const k = makeKart(track, { isPlayer: true, s: c.s, d: 0 });
+      k.d = c.d; k.psi = c.psi; k.phi = c.phi ?? c.psi; k.v = c.v; k.drift = c.drift ?? 0; k.syncMesh(0);
+      let worst = 0;
+      for (let i = 0; i < 90 && !k.fell; i++) {
+        const x = k.world.x, z = k.world.z, v = Math.abs(k.v);
+        k.update(1 / 60, c.input, [k]);
+        worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v / 60);
+      }
+      expect(worst).toBeLessThan(0.6);
+    }
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

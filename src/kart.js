@@ -770,12 +770,15 @@ export class Kart {
     this.stepLen = Math.abs(dsActual);   // routeWallPush: a world step longer than this came from the route frame / limit
     const along = dsActual * Math.cos(this.phi);
     const lateral = dsActual * Math.sin(this.phi);
-    const denom = Math.max(0.3, 1 - k * this.d);
-    const ds = along / denom;
-    this.s += ds; this.d += lateral;
+    let denom = (1 - k * this.d < 0.3 && this.routeStep(t, along, lateral)) || 0;
+    if (!denom) {
+      denom = Math.max(0.3, 1 - k * this.d);
+      const ds = along / denom;
+      this.s += ds; this.d += lateral;
+      const yaw = k * ds;                 // frame rotates under us
+      this.psi -= yaw; this.phi -= yaw;
+    }
     this.shoveStep(dt, denom);
-    const yaw = k * ds;                 // frame rotates under us
-    this.psi -= yaw; this.phi -= yaw;
 
     // safety net: still against a wall (last frame's, wallN) at a crawl for half a second, the kart is moved 0.5 off
     // it and its nose turned up to 0.3 rad toward the wall's outward side; the wall checks below still apply
@@ -792,20 +795,25 @@ export class Kart {
     // walls
     const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2, out = Math.abs(this.d) - wall;
     // the limit closing in under the kart (more than a frame's sideways move past it at once: beside Koopa Troopa
-    // Beach's narrow ramp at (10, 277) it drops from 40 to 3.5, at (41, 225) from 36 to 9) is taken in a quarter of
-    // the way a frame (at least 0.5) instead of snapping the kart in by up to 7 units; the steep faces still push its
-    // body (routeWallPush). wallEase is the eased edge's |d|, not its distance past the limit: where the limit keeps
-    // closing in over a few samples (at (41, 225), s972) that distance shrank with it and still snapped the kart in
-    // by 5. (0.5 a frame from far out left a kart beside DK's Jungle Parkway's bridge at (-142, -51) to reach its face.)
+    // Beach's narrow ramp at (10, 277) it drops from 40 to 3.5, at (41, 225) from 36 to 9) is taken in 0.5 a frame
+    // instead of snapping the kart in by up to 7 units; the steep faces still push its body (routeWallPush). wallEase
+    // is the eased edge's |d|, not its distance past the limit: where the limit keeps closing in over a few samples
+    // (at (41, 225), s972) that distance shrank with it and still snapped the kart in by 5. (A quarter of the way a
+    // frame dragged a kart out on Mario Raceway's hills, 22 past the limit at (110, -55), 5.5 a frame sideways.)
     const lim = this.wallEase > 0 ? this.wallEase : out > 1 ? Math.abs(this.d) : 0;
-    const ease = out > 0 ? Math.max(0, Math.min(out, lim - Math.max(0.5, 0.25 * (lim - wall)) - wall)) : 0;
+    const ease = out > 0 ? Math.max(0, Math.min(out, lim - 0.5 - wall)) : 0;
     // ... but not into the ground: where the limit closes in over a mound (Koopa Troopa Beach's rock at (31, 250),
     // no steep faces, driven over in MK64, which has no route limit) a step of up to 6 carried the kart in under
     // its top, on the route plane inside the rock or falling through its floorless inside to Lakitu. Such a step is
     // held (the kart stays out, as in MK64) until the limit opens again or the way in is level. So is a step through
     // a steep face: a kart out in the open beside a barrier where the limit closes in behind it (Wario Stadium's at
-    // (-46, 148), Royal Raceway's at (116, -230)) was carried through the barrier onto the road.
-    const held = ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)));
+    // (-46, 148), Royal Raceway's at (116, -230)) was carried through the barrier onto the road. And so is the kart
+    // with a steep face anywhere between it and the limit, here or 4 ahead: on the grass beside Mario Raceway's road
+    // at (102, 46) the limit drops from 19.5 to 6 at the mouth of the pipe ahead (s821, its sides 11 out), and a
+    // kart 18 out was dragged 2.3 a frame sideways into the pipe before its side came level with it.
+    const ahead = this.s + (this.v < 0 ? -4 : 4);
+    const held = ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)) ||
+      this.wallBetween(t, this.d, sgn * wall) || this.wallBetween(t, this.d, sgn * wall, ahead));
     this.wallEase = held ? Math.abs(this.d) : ease > 0 ? wall + ease : 0;
     if (held) { /* stays out past the limit */ }
     else if (ease > 0) this.d = sgn * (wall + ease);
@@ -847,6 +855,39 @@ export class Kart {
     this.syncMesh(dt);
   }
 
+  // The frame step far in on the inside of a bend (1 - k d under 0.3, past the bend's centre where it goes below 0)
+  // moved the kart backwards and up to 7x its speed: on Mario Raceway's infield at (257, 5), 35 in from the route,
+  // 1.7 a frame at 14.5 (0.24 a frame), the route limit there 38. Here the step is taken in the world instead and the
+  // kart put back on the route square across from it (s, d), the nose and travel kept in the world: the foot of the
+  // perpendicular within 60 nearest to it, where the kart's offset along the route's tangent goes from ahead to
+  // behind. (Taking the nearest route point instead left part of the offset along the tangent where the route wiggles,
+  // dropped from d: jumps of 2-6.) Only a foot where the route runs the same way as here (within 90 degrees), not the
+  // far leg of a hairpin. Returns the new spot's frame denominator, or null with no foot found.
+  routeStep(t, along, lateral) {
+    const f = this.frame, x = f.pos.x + f.R.x * this.d + f.T.x * along + f.R.x * lateral;
+    const z = f.pos.z + f.R.z * this.d + f.T.z * along + f.R.z * lateral, tx = f.T.x, tz = f.T.z;
+    const g = this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+    // the offset along the frame's T and across it on R as they lie in the plane (a sloped route's are shorter there)
+    const split = (q, u, w) => { const det = q.T.x * q.R.z - q.T.z * q.R.x; return [(u * q.R.z - w * q.R.x) / det, (q.T.x * w - q.T.z * u) / det]; };
+    const at = u => { const q = t.frameAt(u, g); return split(q, x - q.pos.x, z - q.pos.z); };
+    let best = Infinity, lo = 0, prev = at(this.s - 60);
+    for (let o = -59; o <= 60; o++) {
+      const c = at(this.s + o);
+      if (prev[0] >= 0 && c[0] < 0 && Math.abs(c[1]) < best && g.T.x * tx + g.T.z * tz > 0) { best = Math.abs(c[1]); lo = this.s + o - 1; }
+      prev = c;
+    }
+    if (best === Infinity) return null;
+    let hi = lo + 1;
+    for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (at(mid)[0] >= 0) lo = mid; else hi = mid; }
+    const h = [f.T.x * Math.cos(this.psi) + f.R.x * Math.sin(this.psi), f.T.z * Math.cos(this.psi) + f.R.z * Math.sin(this.psi)];
+    const m = [f.T.x * Math.cos(this.phi) + f.R.x * Math.sin(this.phi), f.T.z * Math.cos(this.phi) + f.R.z * Math.sin(this.phi)];
+    this.s = (lo + hi) / 2; t.frameAt(this.s, f);
+    this.d = split(f, x - f.pos.x, z - f.pos.z)[1];
+    const ang = v => { const [a, b] = split(f, v[0], v[1]); return Math.atan2(b, a); };
+    this.psi = ang(h); this.phi = this.psi + wrapAngle(ang(m) - this.psi);
+    return Math.max(0.3, 1 - f.k * this.d);
+  }
+
   // Would the kart at lateral offset d be under the ground there? The ground it would ride (Track.groundAt from its
   // height) is more than a step above it, or there is none at its height but a surface over it.
   intoGround(t, d) {
@@ -859,10 +900,10 @@ export class Kart {
     return !!top && top.y > y + 1;
   }
 
-  // Is there a steep face between lateral offsets d0 and d1 at the kart's s, at its body height?
-  wallBetween(t, d0, d1) {
+  // Is there a steep face between lateral offsets d0 and d1 at the kart's s (or at s), at its body height?
+  wallBetween(t, d0, d1, s = this.s) {
     if (!t.sweep || this.air) return false;
-    const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const f = t.frameAt(s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
     const y = this.groundY ?? f.pos.y;
     return !!t.sweep(f.pos.x + f.R.x * d0, f.pos.z + f.R.z * d0, f.pos.x + f.R.x * d1, f.pos.z + f.R.z * d1, y);
   }

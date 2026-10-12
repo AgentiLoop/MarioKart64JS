@@ -15,7 +15,7 @@ const pw = process.env.PLAYWRIGHT || '/private/tmp/mk64-browser-check/node_modul
 const { chromium } = createRequire(import.meta.url)(pw);
 const LIMIT = +(process.env.LIMIT ?? 10), WII = !!process.env.WII3D;
 const BATTLE = ['big-donut', 'block-fort', 'double-deck', 'skyscraper'];
-const RACE = ['mario', 'luigi', 'bowser', 'banshee', 'frappe', 'choco', 'dk', 'yoshi', 'royal', 'wario'];
+const RACE = ['luigi', 'moomoo', 'koopa', 'kalimari', 'toad', 'frappe', 'choco', 'mario', 'wario', 'sherbet', 'royal', 'bowser', 'dk', 'yoshi', 'banshee', 'rainbow'];
 const courses = process.argv.slice(2).length ? process.argv.slice(2) : [...BATTLE, ...RACE];
 
 const port = 5800 + Math.floor(Math.random() * 500);
