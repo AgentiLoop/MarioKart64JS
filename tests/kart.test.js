@@ -376,6 +376,23 @@ describe('CPU driving', () => {
     expect(n).toBeGreaterThan(8);
     expect(fell).toBe(0);
   });
+  it('drives down Bowser\'s Castle\'s stairs without being shoved on by each step\'s riser', async () => {
+    // the stairs at (158..133, -79) drop 1 every 5: glued down a step, the riser just behind pushed the kart's body
+    // clear of it in one frame (1.1-1.5 for Bowser, 0.6-0.9 for Mario) on every step, every lap
+    const track = await makeTrack('bowser');
+    for (const ch of ['bowser', 'mario']) {
+      const k = makeKart(track, { name: ch, character: ch, s: 728, d: 0 });
+      k.v = 25; k.psi = -0.42; k.phi = -0.56; k.aiOffset = -4.8;
+      let worst = 0;
+      for (let i = 0; i < 120; i++) {
+        const x = k.world.x, z = k.world.z;
+        k.update(1 / 60, k.think(1 / 60, [k]), [k]);
+        worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - Math.abs(k.v) / 60);
+      }
+      expect(k.world.x).toBeLessThan(130);
+      expect(worst).toBeLessThan(0.3);
+    }
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

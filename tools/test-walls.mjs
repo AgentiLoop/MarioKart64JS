@@ -77,7 +77,9 @@ for (const id of courses) {
         for (let i = 0; i < steps; i++) {
           if (k.free) k.updateFree(1 / 60, input); else k.update(1 / 60, input);
           const p = k.mesh.position;
-          if (lastY - p.y > 0.5) dropAt = i;   // stepped down off a ledge (Double Deck's tiers): the face is behind it
+          // stepped down off a ledge (Double Deck's tiers, the 0.49-high side of Royal Raceway's ramp at (127, -226)):
+          // the face is behind or beside it, and Track.wallPush eases the body off a low face it came down from
+          if (lastY - p.y > 0.4) dropAt = i;
           lastY = p.y;
           if (k.air || k.rescue > 0 || i - dropAt < 20) continue;   // falling past a building's side / Lakitu is not driving into it
           let pen = half - gap(p.x, p.y, p.z);

@@ -638,6 +638,7 @@ export class Track {
       const l = Math.hypot(...n) || 1;
       return [n[0] / l, n[1] / l, n[2] / l, e1, e2];
     });
+    const wallTop = walls.map(tri => Math.max(tri[0][1], tri[1][1], tri[2][1]));
     // horizontally nearest point to (px, pz) of the triangle's outline where it stands within the kart's body,
     // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road).
     // (mx, mz): the kart's move this step, r its body radius, behind: its centre is behind the face's plane
@@ -703,6 +704,12 @@ export class Track {
                 const d = p[0] * nx + p[1] * ny + p[2] * nz, d0 = (x0 - a[0]) * nx + (y + lift - a[1]) * ny + (z0 - a[2]) * nz;
                 const side = d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
                 if (depth <= 1e-4 || side * d < -1.6) continue;
+                // a low face (a step's riser, at most 1.25 over the ground) the body already overlapped where it was
+                // last frame (it came down off its top: Bowser's Castle's stairs at (158..133, -79), 1 high every 5,
+                // or the side of Royal Raceway's ramp at (127, -226)) pushes out only the part the kart's own move
+                // took it further in, plus 0.15 a frame (first pass only), its top edge too: the whole overlap shoved
+                // the kart on by up to its body's width (1.7 for Bowser) in one frame, on every step
+                const was = wallTop[t] < y + 1.25 ? r - side * d0 : 0, most = was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];
@@ -719,8 +726,8 @@ export class Track {
                   if (!e) continue;
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
-                  c = { depth: r - dh, nx: dx / dh, nz: dz / dh };
-                } else c = { depth: depth / h, nx: side * nx / h, nz: side * nz / h };
+                  c = { depth: Math.min(r - dh, most), nx: dx / dh, nz: dz / dh };
+                } else c = { depth: Math.min(depth / h, most), nx: side * nx / h, nz: side * nz / h };
                 if (!deepest || c.depth > deepest.depth) deepest = c;
               }
             }
