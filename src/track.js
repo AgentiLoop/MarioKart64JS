@@ -736,8 +736,10 @@ export class Track {
                 // ... and so does a slope too steep to stand on (normal y over 0.35, under 70 deg) facing up at a kart
                 // not moving into it: riding down Royal Raceway's 48 deg bank at (-78, -163) its ground sinks, so the
                 // upright body's lower circles cut the slope it is on, then the slope behind it at its foot, and it was
-                // shoved off 1-1.9 a frame. Driven into (up a bank from its foot) it pushes in full, as before
-                const was = wallTop[t] < y + 1.25 || (side * ny > 0.35 && side * ((x - x0) * nx + (z - z0) * nz) >= 0) ? r - side * d0 : 0, most = was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
+                // shoved off 1-1.9 a frame. Driven into (up a bank from its foot) it pushes in full, as before - but
+                // not for a hair's move into it (under 0.02 a step): stopped on the 55 deg slope below Choco Mountain's
+                // ledge at (-6, 10), 0.001 into it at v 0.1 pushed the whole overlap out, 1.2 in one step
+                const was = wallTop[t] < y + 1.25 || (side * ny > 0.35 && side * ((x - x0) * nx + (z - z0) * nz) >= -0.02) ? r - side * d0 : 0, most = was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];

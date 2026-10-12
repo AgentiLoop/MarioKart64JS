@@ -687,6 +687,19 @@ describe('CPU driving', () => {
     }
     expect(worst).toBeLessThan(0.75);
   });
+  it('is not shoved off the 55 deg slope below Choco Mountain\'s ledge by a hair\'s move into it at a standstill', async () => {
+    // eased in down the slope at (-6, 10) (s1130, d -6, normal y 0.59), stopped: the slope the kart rides overlaps its
+    // body and pushes out only the part its own move took it in, unless it moves into the face. A step of 0.001 into it
+    // at v 0.1 counted as driven in and the whole overlap was pushed out: 1.2 sideways in one step (1.5 a frame)
+    const t = await makeTrack('choco');
+    const x = -5.902, z = 9.96, y = 4.395;
+    const h = t.wallPush(x, z + 0.001, x, z, y, 1.336);
+    expect(h).not.toBeNull();
+    expect(Math.hypot(h.x - x, h.z - z)).toBeLessThan(0.3);
+    // driven into it (0.3 a step) it still pushes the overlap out
+    const in3 = t.wallPush(x + 0.3, z, x, z, y, 1.336);
+    expect(Math.hypot(in3.x - x, in3.z - z)).toBeGreaterThan(1);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];
