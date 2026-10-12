@@ -498,6 +498,15 @@ describe('CPU driving', () => {
     const cr = drive(c, gas, 20);
     expect(cr.jump).toBeLessThan(1);
     expect(c.air || c.fell).toBeTruthy();
+    // down Yoshi Valley's canyon side at (-291, 21), 24 under the road: off the foot of the upper slope (3.8 down to the
+    // next) the kart was lifted 24 onto the route plane in a frame; it falls on down the canyon
+    const yoshi = await makeTrack('yoshi');
+    const y = makeKart(yoshi, { isPlayer: true, s: 968, d: 0 });
+    y.d = 14.2; y.wallEase = 14.2; y.psi = y.phi = 0.3; y.v = 19; y.groundY = -23.3; y.y = undefined; y.syncMesh(0);
+    expect(y.mesh.position.y).toBeLessThan(-20);
+    const yr = drive(y, gas, 40);
+    expect(yr.rise).toBeLessThan(1);
+    expect(y.mesh.position.y).toBeLessThan(-20);
   });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
