@@ -757,7 +757,7 @@ export class Track {
       }
       return best;
     };
-    this.wallPush = (x0, z0, x, z, y, r, yp = y) => {
+    this.wallPush = (x0, z0, x, z, y, r, yp = y, creep = 0.15) => {
       let hit = null, steep, off, drop;
       const across = new Set();   // faces an eased push took the body on across the plane of (below)
       // off the ground it rode (dropped: the ground under the step's end lower than where it was), the direction a
@@ -834,9 +834,14 @@ export class Track {
                 // side split in two, pushed Donkey Kong 0.36 then 0.62 more on across it after the 0.32 off the face beside)
                 // Not a slope's: at the foot of D.K.'s Jungle Parkway's river bank at (100, -188) the upright body cuts
                 // the bank on both sides of its plane, and the Wii 3D kart was held in it at full throttle
-                const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
+                // A slope's 0.15 a step is the caller's creep: routeWallPush's capsule calls each circle twice a step
+                // (and both ends cut a slope they ride), so its second pass takes none. And a body already in a hill
+                // (inHill) moved further in eases out too: riding Royal Raceway's bank at (-272, -55), the drawn ground
+                // 0.9 under its collision slope, Bowser's tail circle 1.7 in it went 0.05 deeper and was thrown its whole
+                // overlap up the slope, 2.3 in one step
+                const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : side * ny > 0.35 ? creep : 0.15) : Infinity;
                 const upSlope = side * ny > 0.35 && (!into || steepUnder());
-                const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope || side * ny <= 0.35);
+                const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope || inHill || side * ny <= 0.35);
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];

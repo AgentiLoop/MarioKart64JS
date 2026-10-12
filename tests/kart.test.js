@@ -875,6 +875,30 @@ describe('CPU driving', () => {
       expect(Math.hypot(k.world.x - x, k.world.z - z) - v0 / 120).toBeLessThan(0.5);
     }
   });
+  it('is not shoved down Mario Raceway\'s 46 deg hillside at (98, -87) by both Wii 3D capsule circles at once', async () => {
+    // backing down the hillside (normal y 0.69, a wall face the kart rides) 10 past the route limit: both axle circles
+    // cut the slope, each was eased off it 0.15 in each of routeWallPush's two passes, and the two circles' pushes along
+    // the heading were added up: 1.9 a frame down the slope at v -11.9 (player fuzz WII3D mario 120 seed 45)
+    const t = await makeTrack('mario');
+    const k = makeKart(t, { isPlayer: true, s: 140, d: 0 });
+    const model = new THREE.Group();
+    model.userData.update = () => {};
+    model.userData.capsule = { front: 0.7315, rear: -0.5719, r: 1.252 };
+    k.set3D(model);
+    Object.assign(k, { s: 148.7274, d: -9.8721, psi: -1.0978, phi: -2.4316, v: -11.903, y: 5.1863, vy: -7.1418, groundY: 5.1863,
+      prevX: 98.6327, prevZ: -87.4177, air: false, wallEase: 10.7514, wallT: 0.59, hitWall: 0.225, wallN: { t: 0.0793, r: 0.9969 } });
+    k.syncMesh(0);
+    const x = k.world.x, z = k.world.z;
+    for (let i = 0; i < 2; i++) k.update(1 / 120, { throttle: 1, brake: 0, steer: -0.1197, drift: false });
+    expect(Math.hypot(k.world.x - x, k.world.z - z)).toBeLessThan(1);
+  });
+  it('is not thrown up Royal Raceway\'s bank at (-272, -55) from inside it, its drawn ground 0.9 under the collision slope', async () => {
+    // Bowser's Wii 3D tail circle (r 1.5) rides the drawn bank, 1.7 inside the collision slope's hill; a step 0.05
+    // further in pushed the whole overlap out over the slope, 2.3 in one step (player fuzz WII3D royal bowser seed 46)
+    const t = await makeTrack('royal');
+    const h = t.wallPush(-272.375, -54.729, -272.201, -55.002, -2.084, 1.495, -1.817);
+    expect(h ? Math.hypot(h.x + 272.201, h.z + 55.002) : 0).toBeLessThan(1);
+  });
   it('is not shuttled between Royal Raceway\'s mound foot and the route limit easing it in', async () => {
     // Bowser 23 out past the limit at (-116, 8), eased in (wallEase) at a standstill against the mound's 53 deg foot:
     // the face pushed him out past the eased edge, and the edge snapped him back in from where it had eased to,

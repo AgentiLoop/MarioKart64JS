@@ -998,8 +998,11 @@ export class Kart {
     // cliff foot at (-37, -59) rises 0.8 a frame), so the face above it was tested too low
     const y0 = this.air ? this.y : this.groundY ?? f.pos.y, g = this.air ? null : t.groundAt(x, z, y0);
     // ... but off a lip (Koopa Troopa Beach's start ramp at (-3, 48)) the kart is still at the top, not on the
-    // ground below, so the lip's own back face is not in its body
-    const cap = this.model?.userData.capsule, gy = g ? Math.max(g.y, y0) : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
+    // ground below, so the lip's own back face is not in its body. Only off a lip, though (ground over 0.45 lower):
+    // riding down a slope, last frame's ground held the body over the faces at its foot - eased sideways down Koopa
+    // Troopa Beach's mound at (-15, 15) (0.25-0.4 lower a step) the face rising from its edge (top 3.7) stayed under
+    // the body band and the Wii 3D kart sank 27-50% into it (tools/test-walls.mjs WII3D)
+    const cap = this.model?.userData.capsule, gy = g ? (g.y > y0 - 0.45 ? g.y : y0) : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
     let wx = x, wz = z, nx = 0, nz = 0, turn = 0, touched = 0, fn = null;
     // a frame's step that went right through a face (wallPush only looks 1.6 behind one) is taken back to the face,
     // which then pushes the body out on the side it came from: the route frame's step on the inside of a tight bend
@@ -1025,12 +1028,13 @@ export class Kart {
         // (-86, 128), the nose was at its lip): up a wedge ramp (Koopa Troopa Beach's at (-4, 69)) the nose circle
         // reached the lip 2 units ahead while the centre was still 0.7 down the slope, and tested at the centre's
         // height the lip's own back face was in its body and threw the kart back (40 -> 18)
+        // (a slope's eased 0.15 creep is taken once a step, in the first pass: both passes took it, see the sum below)
         const go = t.groundAt(wx + hx * o, wz + hz * o, gy), gyo = go ? Math.max(go.y, gy) : gy;
-        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r, y0 + gyo - gy);
+        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r, y0 + gyo - gy, pass || settle ? 0 : 0.15);
         if (!h) return [0, 0];
         nx += h.nx; nz += h.nz; touched |= 1 << i; fn ??= h;
         const mx = h.x + h.nx * WALL_CLEAR - wx - hx * o, mz = h.z + h.nz * WALL_CLEAR - wz - hz * o;
-        return [mx * sx + mz * sz, mx * hx + mz * hz];   // sideways, along the heading
+        return [mx * sx + mz * sz, mx * hx + mz * hz, h];   // sideways, along the heading; the face's push
       });
       if (!P[0][0] && !P[0][1] && !P[1][0] && !P[1][1]) break;
       // the rigid turn only with both ends against faces (wedged across a narrow passage: Bowser's Castle's at
@@ -1038,7 +1042,12 @@ export class Kart {
       // Koopa Troopa Beach's at (-177, 18)) swung the kart ~0.4 rad about its rear axle - the redirect off the jumps
       const both = (P[0][0] || P[0][1]) && (P[1][0] || P[1][1]);
       const th = both ? (P[0][0] - P[1][0]) / (cap.front - cap.rear) : 0;
-      const side = both ? P[0][0] - th * cap.front : Math.abs(P[0][0]) > Math.abs(P[1][0]) ? P[0][0] : P[1][0], along = P[0][1] + P[1][1];
+      // (along the heading the body moves as one: both ends pushed the same way off one plane need the larger push, not
+      // the sum - riding down Mario Raceway's 46 deg hillside at (98, -87) both circles cut the slope, and the summed
+      // pushes shoved the Wii 3D kart down it 1.9 a frame)
+      const same = P[0][2] && P[1][2] && P[0][2].nx * P[1][2].nx + P[0][2].nz * P[1][2].nz > 0.99 && P[0][1] * P[1][1] > 0;
+      const side = both ? P[0][0] - th * cap.front : Math.abs(P[0][0]) > Math.abs(P[1][0]) ? P[0][0] : P[1][0];
+      const along = same ? (Math.abs(P[0][1]) > Math.abs(P[1][1]) ? P[0][1] : P[1][1]) : P[0][1] + P[1][1];
       wx += sx * side + hx * along; wz += sz * side + hz * along; turn += th;
     }
     if (!touched) return;
