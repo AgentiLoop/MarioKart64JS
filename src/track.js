@@ -174,8 +174,26 @@ export async function loadNativeCourse(def) {
   const res = await fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/course.json`);
   if (!res.ok) throw new Error(`Course data ${def.dir}: HTTP ${res.status}`);
   def.native = await res.json();
+  if (def.id === 'yoshi') widenYoshiBridge(def.native.vertices);
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
   return def;
+}
+
+// Yoshi Valley's rope bridge (course units (-2179, 743) -> 650 along (0.85, 0.53)) is 30 between the rails, narrower
+// than two karts (Bowser's body 34): CPUs wedged on it. Not in MK64: a port change. Every vertex (mesh and collision
+// share them) is pushed out from the bridge's centre line, 1.6x within 40 of it over the bridge, easing to none 100
+// beyond its ends and 100 out to the sides so the land and canyon walls around it stay joined. The route runs down
+// the centre line and is unchanged.
+function widenYoshiBridge(vertices) {
+  const X = -2179.3, Z = 743.15, tx = 0.8498, tz = 0.5270, LEN = 650, W = 1.6, IN = 40, OUT = 100, EASE = 100;
+  for (const v of vertices) {
+    const px = v[0] - X, pz = v[2] - Z, t = px * tx + pz * tz, n = pz * tx - px * tz, a = Math.abs(n);
+    if (t <= -EASE || t >= LEN + EASE || a >= OUT) continue;
+    const e = THREE.MathUtils.smoothstep(t < 0 ? t + EASE : LEN + EASE - t, 0, EASE);
+    const push = (W - 1) * e * (a <= IN ? a : IN * (OUT - a) / (OUT - IN));
+    v[0] = Math.round(v[0] - tz * Math.sign(n) * push);
+    v[2] = Math.round(v[2] + tx * Math.sign(n) * push);
+  }
 }
 // Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
 // radians with the kart facing (sin h, 0, cos h).
