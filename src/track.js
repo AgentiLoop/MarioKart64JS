@@ -943,7 +943,9 @@ export class Track {
       }
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
         map, vertexColors: true, toneMapped: false, fog: false,
-        side: batch.doubleSided ? THREE.DoubleSide : THREE.FrontSide,   // G_CULL_BACK unless the list clears it
+        // Not in MK64 (G_CULL_BACK unless the list clears it): both sides drawn, so a camera behind a wall sees the
+        // wall instead of looking through its culled back (Sherbet Land's ice walls)
+        side: THREE.DoubleSide,
         alphaTest: batch.alphaTest ? 0.5 : 0,   // G_RM_AA_ZB_TEX_EDGE lists
         // G_RM_AA_ZB_XLU_* lists blend by texture alpha (course vertex alpha is always 0 in the ROM)
         transparent: !!batch.translucent, depthWrite: !batch.translucent,
