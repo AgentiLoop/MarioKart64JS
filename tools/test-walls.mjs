@@ -91,9 +91,12 @@ for (const id of courses) {
           if (!k.free && (t.groundAt?.(p.x, p.z, p.y)?.normal.y ?? 1) < 0.7) continue;
           let pen = half - gap(p.x, p.y, p.z);
           if (cap && !k.free) {   // the capsule's two circles, along the kart's heading (Kart.routeWallPush)
+            // each circle at the ground under it, as Kart.routeWallPush tests it: at the centre's height the nose up the
+            // foot of Mario Raceway's hill at (119, -30) measured the slope's foot edge, under its body, as a wall
             const f = t.frameAt(k.s, FR), hc = Math.cos(k.psi), hs = Math.sin(k.psi);
             const hx = f.T.x * hc + f.R.x * hs, hz = f.T.z * hc + f.R.z * hs;
-            pen = Math.max(half - gap(p.x + hx * cap.front, p.y, p.z + hz * cap.front), half - gap(p.x + hx * cap.rear, p.y, p.z + hz * cap.rear));
+            const circle = o => { const cx = p.x + hx * o, cz = p.z + hz * o, g = t.groundAt(cx, cz, p.y); return half - gap(cx, g ? Math.max(g.y, p.y) : p.y, cz); };
+            pen = Math.max(circle(cap.front), circle(cap.rear));
           }
           if (easing > 0) { if (pen > 0 && pen < lastPen + 1e-3) { lastPen = pen; continue; } easing = 0; }
           if (pen > max) { max = pen; where = [+p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1), i]; }
