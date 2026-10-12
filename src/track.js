@@ -339,11 +339,14 @@ export class Track {
     // listed (Koopa Troopa Beach's arrow signs at (-93, -136) / (-34, -119), the scenery rocks at (-50, -115), palm
     // trunks) has no collision in MK64, and its faces held and turned the karts here. The ground stays what is drawn
     // (stacked visual surfaces, below). Without the list every drawn batch supplies the walls (battle courses).
-    const steep = (a, b, c) => {
+    // ny: the largest |normal.y| that still blocks. The collision list's faces block from 45 deg (MK64 files a face
+    // whose normal is more horizontal than vertical as a wall, collision.c; groundAt never climbs onto them, FLOOR_NY):
+    // at 75 the 45-75 deg rock faces of Koopa Troopa Beach were neither ground nor wall and karts drove into them.
+    const steep = (a, b, c, ny = 0.26) => {
       const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
       const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
       const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-      return Math.abs(area) < 0.26 * Math.hypot(nx, area, nz);   // only near-vertical faces (> 75 deg from up) block
+      return Math.abs(area) < ny * Math.hypot(nx, area, nz);   // drawn batches: only near-vertical faces (> 75 deg from up)
     };
     const addWall = (a, b, c) => {
       const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
@@ -352,7 +355,7 @@ export class Track {
     const ci = course.collision ? course.collision.indices : [];
     for (let i = 0; i + 2 < ci.length; i += 3) {
       const [a, b, c] = [0, 1, 2].map(k => course.vertices[ci[i + k]].slice(0, 3).map(v => v * S));
-      if (steep(a, b, c)) addWall(a, b, c);
+      if (steep(a, b, c, 0.7)) addWall(a, b, c);
     }
     for (const batch of course.batches) {
       for (let i = 0; i + 2 < batch.indices.length; i += 3) {
