@@ -622,6 +622,23 @@ describe('CPU driving', () => {
     }
     expect(worst).toBeLessThan(0.7);
   });
+  it('rides beside the crest of Choco Mountain\'s ledge without being shoved down the ridge by its edge', async () => {
+    // the ledge's edge at (-9.5, 11, 4.9) -> (-5.3, 2, 16.3) runs down 37 deg with a steep fan below it on one side
+    // and the kart's ground on the other; backing down beside it (s1131, d -9), the body's height band cut the edge
+    // behind the kart and the edge pushed it on down the ridge, 1-1.3 a frame at a crawl
+    const t = await makeTrack('choco');
+    const k = makeKart(t, { isPlayer: true, s: 1120, d: 0 });
+    Object.assign(k, { s: 1131.26, d: -9.07, psi: 0.46, phi: 0.1, v: -12, wallEase: 9, y: undefined, groundY: 8, prevX: undefined, prevZ: undefined });
+    k.syncMesh(0);
+    let worst = 0;
+    for (let i = 0; i < 9 && !k.fell; i++) {
+      const x = k.world.x, z = k.world.z, v0 = Math.abs(k.v);
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: 0.92, drift: false });
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: 0.92, drift: false });
+      worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v0 / 60);
+    }
+    expect(worst).toBeLessThan(0.75);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

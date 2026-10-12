@@ -692,6 +692,21 @@ export class Track {
           const dh = Math.sqrt(dd), g = height(qx + (px - qx) * 0.3 / dh, qz + (pz - qz) * 0.3 / dh, qy);
           if (g !== null && Math.abs(g - qy) < 0.15) continue;
         }
+        // ... and a steeper edge (up to ~41 deg) that is the crest of the ground the kart rides along: Choco Mountain's
+        // ledge at (-8, 8) runs down 37 deg to (-5, 16) with a steep fan below it on one side and the kart's ground,
+        // level across, on the other. Riding down beside it, the body's height band cut the edge behind the kart,
+        // which shoved it on down the ridge 1-1.3 a frame. Only where that cut point lies along the edge from the kart
+        // (behind or ahead of it, not beside it, which keeps the body off the fan), the kart is on the far side of the
+        // edge from the face and alongside the edge level with it (riding the crest's ground, not on the floor at its
+        // foot: Koopa Troopa Beach's rock at (-78.6, -105.3)); the ground is probed square off the edge (toward the
+        // kart it would run down the ridge and miss); off a ramp's side onto the road still pushes
+        const ue = hh > 1e-9 ? ((px - A[0]) * ex + (pz - A[2]) * ez) / hh : -1;
+        if (ey * ey < 0.75 * hh && qy < y0 - 0.55 + CLIMB && dd > 1e-12 && Math.abs((px - qx) * ex + (pz - qz) * ez) > 0.7 * Math.sqrt(dd * hh)
+          && ue > 0.1 && ue < 0.9 && Math.abs(A[1] + ey * ue - (y0 - 0.55)) < 0.4) {
+          const l = Math.sqrt(hh), sg = Math.sign((px - qx) * -ez + (pz - qz) * ex) || 1, C = tri[(i + 2) % 3];
+          const g = (C[0] - A[0]) * -ez + (C[2] - A[2]) * ex < 0 === sg > 0 ? height(qx - ez / l * 0.3 * sg, qz + ex / l * 0.3 * sg, qy) : null;
+          if (g !== null && Math.abs(g - qy) < 0.15) continue;
+        }
         if (dd < bd) { bd = dd; best = [qx, qz]; }
       }
       return best;
