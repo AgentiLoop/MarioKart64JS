@@ -656,7 +656,7 @@ export class Track {
     // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road).
     // (mx, mz): the kart's move this step, r its body radius, behind: its centre is behind the face's plane, offTop:
     // it was behind it last step (on top of a ramp the face is the side of)
-    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0, behind = false, offTop = false) => {
+    const rim = (px, pz, y0, y1, tri, mx = 0, mz = 0, r = 0, behind = false, offTop = false, ridden = false) => {
       let best = null, bd = Infinity;
       for (let i = 0; i < 3; i++) {
         const A = tri[i], B = tri[(i + 1) % 3], ex = B[0] - A[0], ey = B[1] - A[1], ez = B[2] - A[2];
@@ -690,7 +690,7 @@ export class Track {
           const m = Math.hypot(mx, mz);
           if (m > 0.02 && (mx * ex + mz * ez) * Math.sign(ey) > 0.7 * m * Math.sqrt(hh)) {
             cut = Math.hypot(A[0] + ex * s - px, A[2] + ez * s - pz);
-            if (cut >= r) continue;
+            if (cut >= r && !ridden) continue;
             // (off the top: last step's centre was beside the edge, not past its low end: Frappe Snowland's bank face
             // at (-108, -105) rises from a tip on the ground, behind which the kart is only past the tip, and Bowser
             // crossing in front of the tip there was thrown the full line, 1.6 in a step)
@@ -710,7 +710,7 @@ export class Track {
         // the face), and along a steep ramp's edge (Bowser's Castle's 45 deg ramp at (198, -269), where the body
         // would hang off the side), a sloped edge pushes as before
         const qy = A[1] + ey * s;
-        if ((ey * ey < 0.09 * hh || (behind && ey * ey < 0.2 * hh)) && qy < y0 - 0.55 + CLIMB && dd > 1e-12) {
+        if (!ridden && (ey * ey < 0.09 * hh || (behind && ey * ey < 0.2 * hh)) && qy < y0 - 0.55 + CLIMB && dd > 1e-12) {
           const dh = Math.sqrt(dd), g = height(qx + (px - qx) * 0.3 / dh, qz + (pz - qz) * 0.3 / dh, qy);
           if (g !== null && Math.abs(g - qy) < 0.15) continue;
         }
@@ -723,7 +723,7 @@ export class Track {
         // foot: Koopa Troopa Beach's rock at (-78.6, -105.3)); the ground is probed square off the edge (toward the
         // kart it would run down the ridge and miss); off a ramp's side onto the road still pushes
         const ue = hh > 1e-9 ? ((px - A[0]) * ex + (pz - A[2]) * ez) / hh : -1;
-        if (ey * ey < 0.75 * hh && qy < y0 - 0.55 + CLIMB && dd > 1e-12 && Math.abs((px - qx) * ex + (pz - qz) * ez) > 0.7 * Math.sqrt(dd * hh)
+        if (!ridden && ey * ey < 0.75 * hh && qy < y0 - 0.55 + CLIMB && dd > 1e-12 && Math.abs((px - qx) * ex + (pz - qz) * ez) > 0.7 * Math.sqrt(dd * hh)
           && ue > 0.1 && ue < 0.9 && Math.abs(A[1] + ey * ue - (y0 - 0.55)) < 0.4) {
           const l = Math.sqrt(hh), sg = Math.sign((px - qx) * -ez + (pz - qz) * ex) || 1, C = tri[(i + 2) % 3];
           const g = (C[0] - A[0]) * -ez + (C[2] - A[2]) * ex < 0 === sg > 0 ? height(qx - ez / l * 0.3 * sg, qz + ex / l * 0.3 * sg, qy) : null;
@@ -738,7 +738,12 @@ export class Track {
       return best;
     };
     this.wallPush = (x0, z0, x, z, y, r, yp = y) => {
-      let hit = null, steep;
+      let hit = null, steep, off;
+      // off the ground it rode (offEdge), the direction a sloped edge is met end-on in (rim) is the kart's own move, not
+      // the passes' pushes: pushed 0.15 off the side of Koopa Troopa Beach's wedge ramp at (-6, 71), Bowser's move
+      // turned 40 deg from along its rising edge and the cut point ahead hit him head-on, 30 -> -18
+      const X = x, Z = z, mv = () => offEdge() ? [X - x0, Z - z0] : [x - x0, z - z0];
+      const offEdge = () => off ??= (g => g !== null && g < yp - 0.4)(height(X, Z, yp));
       const steepUnder = () => steep ??= (g => g !== null && Math.abs(g - yp) < 0.3 && hitNormal.y < FLOOR_NY)(height(x0, z0, yp));
       for (let pass = 0; pass < 3; pass++) {   // a corner touches two faces: resolve them in turn
         let deepest = null;
@@ -793,13 +798,19 @@ export class Track {
                 // beside the face: its outline within the body, 0.55 (lower lips are climbed) to 2 (higher edges hang
                 // over the road: the kart drives under them, e.g. the face 2.2 over Mario Raceway's road at (59, 52))
                 if (u < 0 || v < 0 || u + v > 1) {
-                  const e = rim(x, z, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d < 0, d0 < 0);
+                  const e = rim(x, z, y + 0.55, y + 2, walls[t], ...mv(), r, d < 0, d0 < 0);
                   if (!e) continue;
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
                   let cap = most;
                   if (cap === Infinity && ((x - x0) * dx + (z - z0) * dz >= -0.02 * dh || side * ny <= 0.35)) {
-                    const e0 = rim(x0, z0, yp + 0.55, yp + 2, walls[t], x - x0, z - z0, r, d0 < 0, d0 < 0);
+                    // (the edge of the ground the kart rode where it was counts once its centre has gone off that ground,
+                    // the ground under it now over 0.4 lower, a step down off a ledge (off the foot of Koopa Troopa Beach's
+                    // start ramp at (-180, 17), 0.36 up, the body sank 37% into the side): Bowser riding up Koopa Troopa Beach's wedge ramp at (-6, 71) across
+                    // its side, his centre 0.05 past the side's edge, was thrown his whole overlap off the side in one
+                    // step, 1.63, the edge having been his ramp top's a step before; and its cut point ahead out of reach
+                    // there takes nothing from the line off the top: Mario off the ramp at (-6, 52), 1.24 in a step)
+                    const e0 = rim(x0, z0, yp + 0.55, yp + 2, walls[t], ...mv(), r, d0 < 0, d0 < 0, offEdge());
                     const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
                   }

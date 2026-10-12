@@ -767,6 +767,21 @@ describe('CPU driving', () => {
     const end = t.wallPush(-145.36, -79.955, -145.145, -79.766, 3.171, 1.688);
     expect(end ? Math.hypot(end.x + 145.145, end.z + 79.766) : 0).toBeLessThan(0.3);
   });
+  it('is eased off the side of a Koopa Troopa Beach wedge ramp it rides off, not thrown off it in one step', async () => {
+    // Bowser riding up the ramp at (-6, 71) across its side: his centre 0.05 past the side's edge, the edge (his ramp
+    // top's a step before, so no rim where he was) pushed its whole line, 1.63 in one step; then pass 2, his move
+    // including pass 1's push, met the edge's cut point ahead head-on (30 -> -18). Off the top (ground now 0.7 lower)
+    // the edge he rode counts where he was: pushed back his move out + 0.15
+    const t = await makeTrack('koopa');
+    const dist = (h, x, z) => h ? Math.hypot(h.x - x, h.z - z) : 0;
+    const b = t.wallPush(-6.044, 71.33, -6.154, 71.111, 0.823, 1.688, 0.823);
+    expect(dist(b, -6.154, 71.111)).toBeLessThan(0.4);
+    expect(Math.abs(b.nx)).toBeGreaterThan(0.99);   // sideways off the side, not back off the edge ahead
+    // Mario off the ramp at (-6, 52): the edge's cut point ahead was out of reach where he was (1.24 in a step)
+    expect(dist(t.wallPush(-5.573, 52.179, -5.859, 51.767, 0.574, 1.336, 0.574), -5.859, 51.767)).toBeLessThan(0.5);
+    // off the foot of the start ramp at (-180, 17), 0.36 up, the side still pushes the whole overlap (else 37% sank in)
+    expect(dist(t.wallPush(-179.615, 16.212, -179.637, 16.676, 0.434, 1.688, 0.434), -179.637, 16.676)).toBeGreaterThan(1);
+  });
   it('is not thrown off the tip of a Frappe Snowland bank face it crosses in front of on the ground', async () => {
     // the face at (-108, -105) rises from a tip on the ground; Bowser crossing past the tip was behind its plane
     // there, read as coming off a ramp's top, and the edge's whole line pushed him 1.6 in one step
