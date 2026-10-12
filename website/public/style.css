@@ -157,6 +157,11 @@ body{background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparen
 .mk-screen::after{content:"";position:absolute;inset:0;border-radius:16px;pointer-events:none;transform:rotateY(-10deg) rotateX(4deg);background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;transition:opacity .4s ease}
 .mk-screen:hover img{transform:rotateY(0) rotateX(0) scale(1.02);box-shadow:0 0 0 1px rgba(250,204,21,.6),0 40px 90px -18px rgba(250,204,21,.55),0 0 80px rgba(236,72,153,.35)}
 .mk-screen:hover::after{opacity:0}
+/* 3D tube TV (tv/tv.js): the WebGL canvas replaces the flat GIF, which stays in the DOM (alt text, no-WebGL fallback) */
+.mk-screen.tv{animation:none}
+.mk-screen.tv canvas{display:block;width:140%;margin:-15% -20%;aspect-ratio:4/3;pointer-events:none;filter:drop-shadow(0 30px 40px rgba(236,72,153,.35))}
+.mk-screen.tv img{position:absolute;inset:0;opacity:0;pointer-events:none}
+.mk-screen.tv::after{display:none}
 @keyframes mkFloat{0%,100%{translate:0 0}50%{translate:0 -8px}}
 
 /* Buttons: yellow/orange CTA + glass ghost */
