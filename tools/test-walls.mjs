@@ -74,6 +74,10 @@ for (const id of courses) {
       const trial = (setup, input, steps) => {
         setup();
         let max = 0, where = null, dropAt = -99, lastY = k.mesh.position.y;
+        // put down on the route inside a face (Koopa Troopa Beach's at (-96, 124): the route's ground there is the
+        // road under the ramp's side) the body is eased out, 0.15 a step plus whatever the kart's own move takes it in
+        // (Track.wallPush): no sinking while each frame leaves it less deep than the last
+        let easing = half - gap(k.mesh.position.x, k.mesh.position.y, k.mesh.position.z), lastPen = easing;
         for (let i = 0; i < steps; i++) {
           if (k.free) k.updateFree(1 / 60, input); else k.update(1 / 60, input);
           const p = k.mesh.position;
@@ -91,6 +95,7 @@ for (const id of courses) {
             const hx = f.T.x * hc + f.R.x * hs, hz = f.T.z * hc + f.R.z * hs;
             pen = Math.max(half - gap(p.x + hx * cap.front, p.y, p.z + hz * cap.front), half - gap(p.x + hx * cap.rear, p.y, p.z + hz * cap.rear));
           }
+          if (easing > 0) { if (pen > 0 && pen < lastPen + 1e-3) { lastPen = pen; continue; } easing = 0; }
           if (pen > max) { max = pen; where = [+p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1), i]; }
         }
         pens.push(max);

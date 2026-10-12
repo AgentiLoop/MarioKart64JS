@@ -733,13 +733,27 @@ describe('CPU driving', () => {
     const h = t.wallPush(-47.672, 183.27, x, z, y, 1.336);
     expect(h).not.toBeNull();
     expect(Math.hypot(h.x - x, h.z - z)).toBeLessThan(0.3);
-    // driven into it (0.3 a step) it still pushes the whole overlap out
+    // driven into it (0.3 a step) it pushes back the move (no deeper in) + 0.15, not the whole overlap at once
     const into = t.wallPush(x - 0.25, z - 0.166, x, z, y, 1.336);
-    expect(Math.hypot(into.x - x, into.z - z)).toBeGreaterThan(1);
+    expect(Math.hypot(into.x - x, into.z - z)).toBeGreaterThan(0.3);
+    expect(Math.hypot(into.x - x, into.z - z)).toBeLessThan(0.6);
     // and beside a face, driving onto the end of one (Koopa's at (-61, 168)) still meets its rim (as far in as the
     // edge's cut through the body's height is, not the edge's whole line beside it)
     const rim = t.wallPush(-60.744, 167.386, -60.667, 167.837, 0.086, 1.336);
     expect(Math.hypot(rim.x + 60.667, rim.z - 167.837)).toBeGreaterThan(0.4);
+  });
+  it('is not thrown off Koopa Troopa Beach\'s rock face it already overlaps when it turns into it', async () => {
+    // Bowser eased in down the rock at (-48, 184): the ground dropped 1.25 in a frame and left the 73 deg face 1.5 into
+    // his body (eased out 0.15 a step, not moving into it); a 0.1 turn into it the next step pushed the whole overlap
+    // out at once, the plane 1.6 and the face's rim at the top circle 1.28 (1.7 a frame). Now a face no slope (normal y
+    // under 0.35) that the body already overlapped pushes back the move in + 0.15, moving into it or not
+    const t = await makeTrack('koopa');
+    const h = t.wallPush(-48.1884, 184.1357, -48.0603, 184.0983, 2.261, 1.6875);
+    expect(h).not.toBeNull();
+    expect(Math.hypot(h.x + 48.0603, h.z - 184.0983)).toBeLessThan(0.4);
+    // from outside it, driven into it, the whole overlap still goes (the body never ends up further in than it was)
+    const out = t.wallPush(-49.6, 182.9, -48.0603, 184.0983, 2.261, 1.6875);
+    expect(Math.hypot(out.x + 48.0603, out.z - 184.0983)).toBeGreaterThan(1);
   });
   it('is not shoved sideways by the side of a Koopa Troopa Beach ramp it drives up beside, nor past an edge\'s end', async () => {
     // Bowser on the road 0.36 from the side of the ramp at (-6, 73), driving along it toward where its edge rises into

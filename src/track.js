@@ -775,9 +775,12 @@ export class Track {
                 // was), even turning into it: Choco Mountain's drawn 52 deg slope at (5, 96) lies 0.85 over its collision
                 // face, so the body always overlapped the face ~0.5, and Mario driving across it, turned 0.14 a step
                 // uphill, was shoved its whole overlap down the slope every step (1.3 a frame at v 10)
+                // ... and so does any face but such a slope (side * normal y up to 0.35) moved into: Bowser left 1.5 into
+                // Koopa's rock face at (-48, 184) by his ground dropping, eased out a step, then turned 0.1 into it and was
+                // thrown the whole overlap (1.7 a frame). From outside a face (no overlap where it was) it all still goes
                 const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
                 const upSlope = side * ny > 0.35 && (!into || steepUnder());
-                const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope);
+                const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope || side * ny <= 0.35);
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];
@@ -795,7 +798,7 @@ export class Track {
                   const dx = x - e[0], dz = z - e[1], dh = Math.hypot(dx, dz);
                   if (dh >= r || dh < 1e-6) continue;
                   let cap = most;
-                  if (cap === Infinity && (x - x0) * dx + (z - z0) * dz >= -0.02 * dh) {
+                  if (cap === Infinity && ((x - x0) * dx + (z - z0) * dz >= -0.02 * dh || side * ny <= 0.35)) {
                     const e0 = rim(x0, z0, yp + 0.55, yp + 2, walls[t], x - x0, z - z0, r, d0 < 0, d0 < 0);
                     const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
