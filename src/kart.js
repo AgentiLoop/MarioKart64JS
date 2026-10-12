@@ -1010,7 +1010,7 @@ export class Kart {
     const sw = t.sweep && !this.air && Math.hypot(x - px, z - pz) > (this.stepLen ?? 0) + 0.6 ? t.sweep(px, pz, x, z, gy) : null;
     if (sw) { const k = Math.max(0, sw.k - 0.02); wx = px + (x - px) * k; wz = pz + (z - pz) * k; touched = 1; nx = sw.nx; nz = sw.nz; fn = sw; }
     if (!cap) {
-      const h = t.wallPush(px, pz, wx, wz, gy, this.visualHalfWidth);
+      const h = t.wallPush(px, pz, wx, wz, gy, this.visualHalfWidth, y0);
       // pushed WALL_CLEAR past the surface, so the next frame doesn't start touching (and slowing) again
       if (h) { wx = h.x + h.nx * WALL_CLEAR; wz = h.z + h.nz * WALL_CLEAR; nx = h.nx; nz = h.nz; touched = 1; }
     } else for (let pass = 0; pass < 2; pass++) {
@@ -1026,7 +1026,7 @@ export class Kart {
         // reached the lip 2 units ahead while the centre was still 0.7 down the slope, and tested at the centre's
         // height the lip's own back face was in its body and threw the kart back (40 -> 18)
         const go = t.groundAt(wx + hx * o, wz + hz * o, gy), gyo = go ? Math.max(go.y, gy) : gy;
-        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r);
+        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r, y0 + gyo - gy);
         if (!h) return [0, 0];
         nx += h.nx; nz += h.nz; touched |= 1 << i; fn ??= h;
         const mx = h.x + h.nx * WALL_CLEAR - wx - hx * o, mz = h.z + h.nz * WALL_CLEAR - wz - hz * o;

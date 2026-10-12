@@ -641,6 +641,10 @@ export class Track {
     // Beside a face (outer corners, wall ends: the Block Fort blocks, Big Donut's rim) the nearest point of its
     // outline at body height pushes the kart away instead, else it slid into the corner up to its centre.
     // Returns the corrected { x, z } and the outward horizontal normal { nx, nz } of the deepest face, or null.
+    // yp: the body's height where it was (x0, z0), last frame's ground: a kart riding down a slope too steep to stand
+    // on (Yoshi Valley's 67 deg cliff below the bound at (-307, -48), its ground dropping 1.5 a frame) and turning
+    // across it read as moving into it when measured at one height (0.08 a step), so the face's whole overlap with the
+    // upright body (1.45, it rides the face) went at once: 1.6 off the cliff in one step
     const wallN = walls.map(([a, b, c]) => {
       const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
       const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
@@ -733,7 +737,7 @@ export class Track {
       }
       return best;
     };
-    this.wallPush = (x0, z0, x, z, y, r) => {
+    this.wallPush = (x0, z0, x, z, y, r, yp = y) => {
       let hit = null;
       for (let pass = 0; pass < 3; pass++) {   // a corner touches two faces: resolve them in turn
         let deepest = null;
@@ -747,7 +751,7 @@ export class Track {
               if (h < 1e-6) continue;
               for (const lift of [0.6, 1.2, 2]) {
                 const p = [x - a[0], y + lift - a[1], z - a[2]];
-                const d = p[0] * nx + p[1] * ny + p[2] * nz, d0 = (x0 - a[0]) * nx + (y + lift - a[1]) * ny + (z0 - a[2]) * nz;
+                const d = p[0] * nx + p[1] * ny + p[2] * nz, d0 = (x0 - a[0]) * nx + (yp + lift - a[1]) * ny + (z0 - a[2]) * nz;
                 const side = d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
                 if (depth <= 1e-4 || side * d < -1.6) continue;
                 // a low face (a step's riser, at most 1.25 over the ground) the body already overlapped where it was
@@ -766,7 +770,7 @@ export class Track {
                 // body 1.2 deep and shoved it out sideways in one step. Beside a face its plane says nothing of the rim:
                 // its overlap where the kart was, and whether the kart moves toward it, are the rim's own (driving past a
                 // face's end, Koopa's at (-61, 168), moves off the plane and onto the corner)
-                const into = side * ((x - x0) * nx + (z - z0) * nz) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
+                const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
                 const low = wallTop[t] < y + 1.25, most = eased(low || (side * ny > 0.35 && !into)), mostIn = eased(low || !into);
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
@@ -786,7 +790,7 @@ export class Track {
                   if (dh >= r || dh < 1e-6) continue;
                   let cap = most;
                   if (cap === Infinity && (x - x0) * dx + (z - z0) * dz >= -0.02 * dh) {
-                    const e0 = rim(x0, z0, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d0 < 0, d0 < 0);
+                    const e0 = rim(x0, z0, yp + 0.55, yp + 2, walls[t], x - x0, z - z0, r, d0 < 0, d0 < 0);
                     const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
                   }

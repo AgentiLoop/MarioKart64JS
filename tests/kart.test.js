@@ -747,6 +747,28 @@ describe('CPU driving', () => {
     const step = t.wallPush(-107.946, -105.115, -108.61, -105.475, -4.809, 1.688);
     expect(step ? Math.hypot(step.x + 108.61, step.z + 105.475) : 0).toBeLessThan(1);
   });
+  it('is not thrown off Yoshi Valley\'s 67 deg canyon side it rides down, turning across it', async () => {
+    // Bowser past the bound at (-307, -48), riding down the canyon side (its ground dropping 1.5 a frame, the upright
+    // body 1.45 into the face it rides) and turning across it: measured at one height, the turn read as a move into
+    // the face (0.08 a step) and its whole overlap went at once, 1.6 off the cliff in one step. With last frame's
+    // height the move is along the face and it eases out
+    const t = await makeTrack('yoshi');
+    const step = t.wallPush(-306.606, -47.745, -306.587, -47.448, -18.475, 1.688, -18.646);
+    expect(step ? Math.hypot(step.x + 306.587, step.z + 47.448) : 0).toBeLessThan(0.3);
+    // driven into it at its own height (0.3 a step) it still pushes the whole overlap out
+    const into = t.wallPush(-306.9, -47.45, -306.587, -47.448, -18.475, 1.688, -18.475);
+    expect(Math.hypot(into.x + 306.587, into.z + 47.448)).toBeGreaterThan(1);
+    // the kart itself, two steps from the fuzz's spot: no step more than its own move + 0.5
+    const k = makeKart(t, { isPlayer: true, character: 'bowser', s: 900, d: 0 });
+    Object.assign(k, { s: 906.6786, d: 13.968, psi: 0.2793, phi: 0.3507, v: 37.35, y: -17.918, vy: -22.41, groundY: -17.918,
+      prevX: -306.2376, prevZ: -47.9715, air: false, wallT: 0.59, wallN: { t: -0.1314, r: 0.9913 } });
+    k.syncMesh(0);
+    for (let i = 0; i < 2; i++) {
+      const x = k.world.x, z = k.world.z, v0 = Math.abs(k.v);
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: -0.7134, drift: false });
+      expect(Math.hypot(k.world.x - x, k.world.z - z) - v0 / 120).toBeLessThan(0.5);
+    }
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];
