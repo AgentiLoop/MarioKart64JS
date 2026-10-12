@@ -82,6 +82,9 @@ for (const id of courses) {
           if (lastY - p.y > 0.4) dropAt = i;
           lastY = p.y;
           if (k.air || k.rescue > 0 || i - dropAt < 20) continue;   // falling past a building's side / Lakitu is not driving into it
+          // riding down a bank steeper than 45 deg (D.K.'s Jungle Parkway's river bank at (94, -188), 49 deg) the face
+          // it stands on is a wall face, and the body's upright cylinder cuts the slope just uphill of it
+          if (!k.free && (t.groundAt?.(p.x, p.z, p.y)?.normal.y ?? 1) < 0.7) continue;
           let pen = half - gap(p.x, p.y, p.z);
           if (cap && !k.free) {   // the capsule's two circles, along the kart's heading (Kart.routeWallPush)
             const f = t.frameAt(k.s, FR), hc = Math.cos(k.psi), hs = Math.sin(k.psi);

@@ -169,9 +169,10 @@ describe('Kart on a race course', () => {
     k.update(1 / 60, gas);
     // the limit closing in is eased (a quarter of the way a frame), a kart just past it is put back and bounced
     expect(Math.abs(k.d)).toBeLessThan(lim + 2);
-    k.d = lim - 1.2 + 0.5; k.psi = 0.5; k.phi = 0.5; k.v = 40; k.wallEase = 0;
+    const lim2 = track.wallAt(k.s, 1);   // the limit where the first step left the kart
+    k.d = lim2 - 1.2 + 0.5; k.psi = 0.5; k.phi = 0.5; k.v = 40; k.wallEase = 0;
     k.update(1 / 60, gas);
-    expect(Math.abs(k.d)).toBeLessThan(lim);
+    expect(Math.abs(k.d)).toBeLessThan(lim2);
     expect(k.v).toBeLessThan(39);
     expect(k.wallT).toBeGreaterThan(0);
   });
@@ -432,6 +433,22 @@ describe('CPU driving', () => {
         worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v / 60);
       }
       expect(worst).toBeLessThan(0.6);
+    }
+  });
+  it('drives far out beside Frappe Snowland\'s route without being thrown by its wiggles', async () => {
+    // the route's tangent wiggled up to 0.1-0.5 rad from sample to sample, and 34-38 out the frame's lateral lines
+    // crossed: a kart at (20, -210) or (-125, 60) was thrown 1.6-3.6 in a frame (now averaged over 3 samples)
+    const track = await makeTrack('frappe');
+    for (const c of [{ s: 769.22, d: -38.05, psi: -2.8, v: 19.3 }, { s: 236, d: -38, psi: 0.05, v: 19 }, { s: 236, d: -34, psi: 0.05, v: 30 }]) {
+      const k = makeKart(track, { isPlayer: true, s: c.s, d: 0 });
+      k.d = c.d; k.psi = k.phi = c.psi; k.v = c.v; k.syncMesh(0);
+      let worst = 0;
+      for (let i = 0; i < 60; i++) {
+        const x = k.world.x, z = k.world.z, v = Math.abs(k.v);
+        k.update(1 / 60, gas, [k]);
+        worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v / 60);
+      }
+      expect(worst).toBeLessThan(0.4);
     }
   });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {

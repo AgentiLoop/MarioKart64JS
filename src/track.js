@@ -892,6 +892,19 @@ export class Track {
       this.pos.push(this.curve.getPointAt(i / n));
       this.T.push(this.curve.getTangentAt(i / n).normalize());
     }
+    // Native courses: the tangent averaged over 3 samples either side (weights 4-3-2-1). The spline through MK64's path
+    // points (0.1 apart across, ~2 along) wiggles its tangent up to 0.1-0.5 rad from one sample to the next, and the
+    // frame's lateral lines swung with it: a kart 12-38 out had them crossing under it (Frappe Snowland at (20, -210)
+    // and (-125, 60), 38 out: thrown 1.6-3.2 a frame, and no foot of the perpendicular for Kart.routeStep), its frame
+    // step and curvature off. A steady bend keeps its tangent (the average is symmetric); the positions are the spline's.
+    if (this.def.native) {
+      const raw = this.T.map(v => v.clone()), W = 3;
+      for (let i = 0; i < n; i++) {
+        const v = this.T[i].set(0, 0, 0);
+        for (let k = -W; k <= W; k++) v.addScaledVector(raw[(i + k + n) % n], W + 1 - Math.abs(k));
+        v.normalize();
+      }
+    }
     // horizontal curvature -> bank angle (smoothed)
     let bank = new Array(n).fill(0);
     for (let i = 0; i < n; i++) {
