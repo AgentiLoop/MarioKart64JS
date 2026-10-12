@@ -165,6 +165,7 @@ const KART_RADIUS = [5.5, 5.5, 5.5, 5.5, 5.5, 6.0, 5.5, 6.0].map(r => r * 0.1); 
 // sprite's 4.5 scale, halved: Mario 38 px -> 1.34, Bowser 48 px -> 1.69 (CHARACTER_ID order)
 const KART_HALF_WIDTH = [38, 38, 38, 40, 42, 38, 38, 48].map(px => px / 64 * 4.5 / 2);
 const WALL_SLOW = 18 / 320 * MAX_SPEED;   // player_decelerate_alternative(18) on currentSpeed (top ~320)
+const EASE_RATE = 30;      // a kart past a closing route limit is eased in this fast (/s; 0.5 a 60 Hz frame)
 const WALL_CLEAR = 0.1;   // a kart pushed out of a wall is left this far off it, not touching (assumption: tuned value)
 const _bRight = new THREE.Vector3(), _bCam = new THREE.Vector3(), _bX = new THREE.Vector3(), _bZ = new THREE.Vector3();
 const _bUp = new THREE.Vector3(0, 1, 0), _bS = new THREE.Vector3(), _bM = new THREE.Matrix4(), _bR = new THREE.Matrix4();
@@ -836,8 +837,10 @@ export class Kart {
     // is the eased edge's |d|, not its distance past the limit: where the limit keeps closing in over a few samples
     // (at (41, 225), s972) that distance shrank with it and still snapped the kart in by 5. (A quarter of the way a
     // frame dragged a kart out on Mario Raceway's hills, 22 past the limit at (110, -55), 5.5 a frame sideways.)
+    // The 0.5 is a 60 Hz frame's (EASE_RATE dt): taken per update call, the game's two physics steps a frame made it 1
+    // a frame, and with the kart's own sideways move 2.2 (Bowser's Castle at (108, 55), s1196).
     const lim = this.wallEase > 0 ? this.wallEase : out > 1 ? Math.abs(this.d) : 0;
-    const ease = out > 0 ? Math.max(0, Math.min(out, lim - 0.5 - wall)) : 0;
+    const ease = out > 0 ? Math.max(0, Math.min(out, lim - EASE_RATE * dt - wall)) : 0;
     // ... but not into the ground: where the limit closes in over a mound (Koopa Troopa Beach's rock at (31, 250),
     // no steep faces, driven over in MK64, which has no route limit) a step of up to 6 carried the kart in under
     // its top, on the route plane inside the rock or falling through its floorless inside to Lakitu. Such a step is
@@ -847,8 +850,14 @@ export class Kart {
     // with a steep face anywhere between it and the limit, here or 4 ahead: on the grass beside Mario Raceway's road
     // at (102, 46) the limit drops from 19.5 to 6 at the mouth of the pipe ahead (s821, its sides 11 out), and a
     // kart 18 out was dragged 2.3 a frame sideways into the pipe before its side came level with it.
+    // And so is a kart whose limit closes in ahead of a face across its lane: the limit is the narrowest of its
+    // neighbours (Track tighten), so at Bowser's Castle's wall across the outside of the road at (105, 50-60)
+    // (s1199) it closes from 14.5 to 4.5 over s1196-1197.5, 2.5 short of the face; a kart driving at the wall was
+    // snapped sideways 1.1 a step (2.2 a frame), out < 1 so not even eased, instead of meeting the face. Held, the
+    // face stops it (routeWallPush).
     const ahead = this.s + (this.v < 0 ? -4 : 4);
-    const held = ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)) ||
+    const faceAhead = out > 0 && this.faceAlong(t, this.v < 0 ? -4 : 4);
+    const held = (ease > 0 || out > Math.abs(lateral) + 0.05) && faceAhead || ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)) ||
       this.wallBetween(t, this.d, sgn * wall) || this.wallBetween(t, this.d, sgn * wall, ahead));
     this.wallEase = held ? Math.abs(this.d) : ease > 0 ? wall + ease : 0;
     if (held) { /* stays out past the limit */ }
@@ -949,6 +958,15 @@ export class Kart {
     const f = t.frameAt(s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
     const y = this.air ? this.y : this.groundY ?? f.pos.y;
     return !!t.sweep(f.pos.x + f.R.x * d0, f.pos.z + f.R.z * d0, f.pos.x + f.R.x * d1, f.pos.z + f.R.z * d1, y);
+  }
+
+  // Is there a steep face across the kart's lane (its d) within ds along the route, at its body height?
+  faceAlong(t, ds) {
+    if (!t.sweep) return false;
+    const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const y = this.air ? this.y : this.groundY ?? f.pos.y, x0 = f.pos.x + f.R.x * this.d, z0 = f.pos.z + f.R.z * this.d;
+    t.frameAt(this.s + ds, f);
+    return !!t.sweep(x0, z0, f.pos.x + f.R.x * this.d, f.pos.z + f.R.z * this.d, y);
   }
 
   // Race courses: Track.wallPush on the kart's world spot, the correction mapped back to (s, d) along the route; of

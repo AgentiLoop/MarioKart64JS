@@ -569,6 +569,24 @@ describe('CPU driving', () => {
     expect(a.s).toBe(straight); expect(b.s).toBeCloseTo(straight + 0.2, 9);
     expect(b.d - a.d).toBeGreaterThan(2);
   });
+  // the route limit is the narrowest of its neighbours, so it closes in 2.5 short of Bowser's Castle's wall across the
+  // outside of the road at x 105 (z 50-60, s1199): a kart driving at the wall was snapped sideways 1.1 a physics step,
+  // 2.2 a frame at the game's two steps, instead of meeting the face; and the eased limit took 0.5 a step, not a frame
+  it('meets a wall across its lane instead of being snapped sideways by the limit closing in ahead of it', async () => {
+    const t = await makeTrack('bowser');
+    const k = makeKart(t, { isPlayer: true, s: 1194, d: 0 });
+    Object.assign(k, { d: -12, psi: 0, phi: 0, v: 30 });
+    k.syncMesh(0);
+    let worst = 0;
+    for (let i = 0; i < 40; i++) {
+      const x = k.world.x, z = k.world.z, v = Math.abs(k.v);
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: 0, drift: false });
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: 0, drift: false });
+      worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v / 60);
+      expect(k.world.x).toBeGreaterThan(105.5);
+    }
+    expect(worst).toBeLessThan(0.6);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];
