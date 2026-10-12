@@ -758,6 +758,7 @@ export class Kart {
     t.frameAt(this.s, this.frame);
     const k = this.frame.k;
     const dsActual = this.v * dt;
+    this.stepLen = Math.abs(dsActual);   // routeWallPush: a world step longer than this came from the route frame / limit
     const along = dsActual * Math.cos(this.phi);
     const lateral = dsActual * Math.sin(this.phi);
     const denom = Math.max(0.3, 1 - k * this.d);
@@ -792,8 +793,10 @@ export class Kart {
     // ... but not into the ground: where the limit closes in over a mound (Koopa Troopa Beach's rock at (31, 250),
     // no steep faces, driven over in MK64, which has no route limit) a step of up to 6 carried the kart in under
     // its top, on the route plane inside the rock or falling through its floorless inside to Lakitu. Such a step is
-    // held (the kart stays out, as in MK64) until the limit opens again or the way in is level.
-    const held = ease > 0 && this.intoGround(t, sgn * (wall + ease));
+    // held (the kart stays out, as in MK64) until the limit opens again or the way in is level. So is a step through
+    // a steep face: a kart out in the open beside a barrier where the limit closes in behind it (Wario Stadium's at
+    // (-46, 148), Royal Raceway's at (116, -230)) was carried through the barrier onto the road.
+    const held = ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)));
     this.wallEase = held ? Math.abs(this.d) : ease > 0 ? wall + ease : 0;
     if (held) { /* stays out past the limit */ }
     else if (ease > 0) this.d = sgn * (wall + ease);
@@ -847,6 +850,14 @@ export class Kart {
     return !!top && top.y > y + 1;
   }
 
+  // Is there a steep face between lateral offsets d0 and d1 at the kart's s, at its body height?
+  wallBetween(t, d0, d1) {
+    if (!t.sweep || this.air) return false;
+    const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const y = this.groundY ?? f.pos.y;
+    return !!t.sweep(f.pos.x + f.R.x * d0, f.pos.z + f.R.z * d0, f.pos.x + f.R.x * d1, f.pos.z + f.R.z * d1, y);
+  }
+
   // Race courses: Track.wallPush on the kart's world spot, the correction mapped back to (s, d) along the route; of
   // the velocity, the part along the face stays and the part into it bounces back at half (wallBounce). The body is
   // the sprite's half-width, or with the 3D kart a capsule (kart3d.js userData.capsule): a circle over each axle, so
@@ -861,8 +872,16 @@ export class Kart {
     // ground below, so the lip's own back face is not in its body
     const cap = this.model?.userData.capsule, gy = g ? Math.max(g.y, y0) : y0, px = this.prevX ?? x, pz = this.prevZ ?? z;
     let wx = x, wz = z, nx = 0, nz = 0, turn = 0, touched = 0, fn = null;
+    // a frame's step that went right through a face (wallPush only looks 1.6 behind one) is taken back to the face,
+    // which then pushes the body out on the side it came from: the route frame's step on the inside of a tight bend
+    // far out (1 - k d down to 0.3: 3.8 a frame at Bowser's Castle's (36, -139)) or the route limit snapping the kart
+    // in from beside a narrow stretch (3.2 at Royal Raceway's (116, -230)) carried karts through walls. Only a step
+    // well past the kart's own move: every step taken back to the face pinned karts at the faces wallPush lets
+    // them pass (ramp sides, lips), where they lost the slide along it and stuck
+    const sw = t.sweep && !this.air && Math.hypot(x - px, z - pz) > (this.stepLen ?? 0) + 0.6 ? t.sweep(px, pz, x, z, gy) : null;
+    if (sw) { const k = Math.max(0, sw.k - 0.02); wx = px + (x - px) * k; wz = pz + (z - pz) * k; touched = 1; nx = sw.nx; nz = sw.nz; fn = sw; }
     if (!cap) {
-      const h = t.wallPush(px, pz, x, z, gy, this.visualHalfWidth);
+      const h = t.wallPush(px, pz, wx, wz, gy, this.visualHalfWidth);
       // pushed WALL_CLEAR past the surface, so the next frame doesn't start touching (and slowing) again
       if (h) { wx = h.x + h.nx * WALL_CLEAR; wz = h.z + h.nz * WALL_CLEAR; nx = h.nx; nz = h.nz; touched = 1; }
     } else for (let pass = 0; pass < 2; pass++) {

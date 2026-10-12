@@ -448,6 +448,40 @@ export class Track {
     };
     // does the segment (x0,z0)->(x1,z1) at kart body height above ground y hit a steep face? (arena karts)
     this.blocked = blocked;
+    // The nearest crossing of the step (x0,z0)->(x1,z1) at body height (0.6 and 2 over ground y) with a steep face:
+    // { k: 0..1 along the step, nx, nz: the face's horizontal normal toward (x0, z0) }, or null. Race karts: a step
+    // that went all the way through a face (more than the 1.6 wallPush looks behind it) is taken back to it.
+    this.sweep = (x0, z0, x1, z1, y) => {
+      const dx = x1 - x0, dz = z1 - z0, seen = new Set();
+      let best = null;
+      for (let cx = Math.floor(Math.min(x0, x1) / CELL); cx <= Math.floor(Math.max(x0, x1) / CELL); cx++)
+        for (let cz = Math.floor(Math.min(z0, z1) / CELL); cz <= Math.floor(Math.max(z0, z1) / CELL); cz++)
+          for (const t of wallGrid.get(cx * 65536 + cz) || []) {
+            if (seen.has(t)) continue;
+            seen.add(t);
+            const [a, b, c] = walls[t];
+            const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+            for (const lift of [0.6, 2]) {
+              const h = [-dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1]];
+              const det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+              if (Math.abs(det) < 1e-9) continue;
+              const s = [x0 - a[0], y + lift - a[1], z0 - a[2]];
+              const u = (s[0] * h[0] + s[1] * h[1] + s[2] * h[2]) / det;
+              if (u < 0 || u > 1) continue;
+              const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]];
+              const v = (dx * q[0] + dz * q[2]) / det;
+              if (v < 0 || u + v > 1) continue;
+              const k = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det;
+              if (k < 0 || k > 1 || (best && k >= best.k)) continue;
+              let nx = e1[1] * e2[2] - e1[2] * e2[1], nz = e1[0] * e2[1] - e1[1] * e2[0];
+              const l = Math.hypot(nx, nz);
+              if (l < 1e-9) continue;
+              if (nx * dx + nz * dz > 0) { nx = -nx; nz = -nz; }
+              best = { k, nx: nx / l, nz: nz / l };
+            }
+          }
+      return best;
+    };
     // Faces the route itself drives through are no walls: Mario Raceway's hill is drawn with a grass fan across
     // both tunnel mouths (course_vertices 999,22,716 / 1000,-50,649 / 1000,-50,549), which held every kart that
     // reached them below full speed (CPUs piled up at the exit). Dropped from the grid, kept out of wallTris.
