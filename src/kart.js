@@ -1442,10 +1442,13 @@ export class Kart {
         // back in under its top, and a boosted flight at its hill at (24, 216) went in under the rising slope; both
         // fell through the floorless inside (or past the inner faces) and Lakitu fished them out. MK64 pushes a kart
         // out of a surface it is in (check_collision_zx), so it is put on top, as a landing - where there is no floor
-        // under it, or it has just come in from the open (not under the surface a frame ago: not under a bridge deck)
+        // under it, or it has just come in from the open (not under the surface a frame ago: not under a bridge deck).
+        // A frame ago is looked up to the surface's height, not just 3 over the kart: on Choco Mountain at (-78, 27)
+        // a drawn-only hump lies up to 4 over the collision floor; a kart that rode the floor in under it and jumped its
+        // crest fell back down past the hump's 3 and was snapped 3.2 up onto it in one frame (jumps physics)
         const top = t.groundBelow(x, z, this.y + 3);
         if (top && top.y > this.y + 0.5 && top.normal.y > 0.5) {
-          const was = t.groundBelow(px, pz, this.y + 3);
+          const was = t.groundBelow(px, pz, Math.max(this.y + 3, top.y + 1));
           if (!g || !(was && was.y > this.y)) { g = top; this.y = top.y; this.vy = Math.max(0, this.vy); }
         }
       } else {

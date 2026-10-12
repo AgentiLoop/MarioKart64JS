@@ -39,7 +39,8 @@ const present = draw => { draw(); if (HD.presetId() === '2x') sharpen(); };   //
 const scene = new THREE.Scene();
 const params = new URLSearchParams(location.search);
 const trackId = params.get('track');
-const playerChar = params.get('char') || localStorage.getItem('mk64char') || 'mario';
+const playerChar = [params.get('char'), localStorage.getItem('mk64char')]   // an unknown id (?char=dk) left no player kart
+  .find(c => ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'donkeykong', 'wario', 'bowser'].includes(c)) || 'mario';
 const trackDef = TRACKS.find(t => t.id === trackId) || null;   // null -> show the track menu
 const battle = !!(trackDef && trackDef.battle);   // battle arena: balloons, no laps (rules below)
 // Engine class from the GAME SELECT cc rows (?cc=50|100|150|extra, gCCSelection); links without one race 150cc.

@@ -724,6 +724,23 @@ describe('CPU driving', () => {
     // driven into the face (0.35 a step) it still pushes the overlap out
     expect(dist(t.wallPush(-6.5, 13.75, -6.795, 13.563, 4.266, 1.688), -6.795, 13.563)).toBeGreaterThan(0.8);
   });
+  it('is not snapped up onto Choco Mountain\'s drawn-only hump at (-70, 43) it falls under after a jump (jumps physics)', async () => {
+    // the hump at (-78, 27)..(-68, 45) is drawn 2-4 over the collision floor and has no collision of its own; Bowser
+    // rode the floor in under it, jumped its crest and fell back past the hump's height + 3: the in-flight "inside a
+    // mound" rule took the hump within 3 over him as just come in under (a frame ago it was over 3 up) - 3.2 in a frame
+    const t = await makeTrack('choco'), glue = PHYSICS.glue;
+    PHYSICS.glue = false;
+    try {
+      const k = makeKart(t, { character: 'bowser' });
+      Object.assign(k, { s: 498.8792, d: 11.1415, psi: -0.5741, phi: -0.5992, v: 19.37, y: 3.9475, vy: -20.9266, groundY: 3.9475,
+        prevX: -69.2362, prevZ: 43.0291, air: true, ticks: 0, dac: 1, airTicks: 27, lead: 0, groundN: new THREE.Vector3(0.382, 0.871, -0.308) });
+      const inp = { throttle: 0, brake: 0, steer: 0, drift: true };
+      let py = k.y, max = 0;
+      for (let i = 0; i < 24; i++) { k.update(1 / 120, inp); max = Math.max(max, Math.abs(k.mesh.position.y - py)); py = k.mesh.position.y; }
+      expect(max).toBeLessThan(0.5);
+      expect(k.mesh.position.y).toBeLessThan(3);   // on the collision floor (~2), not the hump (~5)
+    } finally { PHYSICS.glue = glue; }
+  });
   it('is not shoved sideways off Koopa Troopa Beach\'s rock face when its ground drops beside it', async () => {
     // eased in past the limit down the rock at (-48, 184), the ground fell 1.4 in a frame: the 73 deg face (top 3.9,
     // not a low face, too steep for the slope rule) now cut the body 1.2 deep at a kart backing away from it, and
