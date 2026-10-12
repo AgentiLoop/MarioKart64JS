@@ -652,6 +652,15 @@ export class Track {
       return [n[0] / l, n[1] / l, n[2] / l, e1, e2];
     });
     const wallTop = walls.map(tri => Math.max(tri[0][1], tri[1][1], tri[2][1]));
+    const wallFoot = walls.map(tri => Math.min(tri[0][1], tri[1][1], tri[2][1]));
+    // (x, z) lies inside face t's outline seen from above
+    const overFace = (t, x, z) => {
+      const [a, b, c] = walls[t];
+      const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
+      if (Math.abs(area) < 1e-9) return false;
+      const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area, v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
+      return u >= 0 && v >= 0 && u + v <= 1;
+    };
     // horizontally nearest point to (px, pz) of the triangle's outline where it stands within the kart's body,
     // y0..y1, so sloped edges count too (the sides of Bowser's Castle's ramp at (138, -268) rise from the road).
     // (mx, mz): the kart's move this step, r its body radius, behind: its centre is behind the face's plane, offTop:
@@ -759,7 +768,16 @@ export class Track {
               for (const lift of [0.6, 1.2, 2]) {
                 const p = [x - a[0], y + lift - a[1], z - a[2]];
                 const d = p[0] * nx + p[1] * ny + p[2] * nz, d0 = (x0 - a[0]) * nx + (yp + lift - a[1]) * ny + (z0 - a[2]) * nz;
-                const side = d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
+                // a slope facing up (45-70 deg) that rises from the ground the kart stands on to under the body's top (2)
+                // leaves no room under it for a kart: a body behind its plane is inside the bank, not under an overhang
+                // (Choco Mountain's leans over the road at (-17, -53), 12 high), and is pushed out over the slope. D.K.'s
+                // Jungle Parkway's river floor (-3.4) runs on under the 49 deg bank at (100, -188), 1.7 high; the Wii 3D
+                // kart come down the bank onto that floor had its tail circle behind the bank's plane, held there (pushed
+                // on back into the bank) while the nose circle was pushed out: at full throttle it crept 0.02 a frame
+                // (only over or under the slope, where it was or is: past its top, the far side of a berm, the kart is on
+                // open ground)
+                const inHill = Math.abs(ny) > 0.35 && wallFoot[t] > y - 0.3 && wallFoot[t] < y + 0.3 && wallTop[t] < y + 2 && (overFace(t, x, z) || overFace(t, x0, z0));
+                const side = inHill ? Math.sign(ny) : d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
                 if (depth <= 1e-4 || side * d < -1.6) continue;
                 // a low face (a step's riser, at most 1.25 over the ground) the body already overlapped where it was
                 // last frame (it came down off its top: Bowser's Castle's stairs at (158..133, -79), 1 high every 5,

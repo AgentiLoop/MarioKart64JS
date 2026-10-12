@@ -807,6 +807,17 @@ describe('CPU driving', () => {
     const h = t.wallPush(-56.652, 168.824, -56.376, 169.107, 1.204, 1.477, 1.204);
     expect(h ? Math.hypot(h.x + 56.376, h.z - 169.107) : 0).toBeLessThan(0.4);
   });
+  it('is not held inside D.K.\'s Jungle Parkway\'s river bank at (100, -188) from the floor that runs on under it', async () => {
+    // the river floor (-3.4) runs on under the 49 deg bank (1.7 high); the Wii 3D kart come down the bank onto it had
+    // its tail circle (r 1.25) behind the bank's plane, and each step its move out (0.53 toward the river) was pushed
+    // back into the bank, 0.68 (+ 0.15): held there at full throttle, creeping 0.02 a frame
+    const t = await makeTrack('dk');
+    const h = t.wallPush(100.763, -188.917, 100.799, -188.383, -3.4, 1.252, -3.4);
+    expect(h ? h.z : -188.383).toBeGreaterThan(-188.4);
+    // ... and the nose circle at the bank's foot is still pushed out toward the river, not into the bank
+    const n = t.wallPush(100.901, -187.621, 100.937, -187.087, -3.4, 1.252, -3.4);
+    expect(n ? n.z : -187.087).toBeGreaterThan(-187.1);
+  });
   it('is not thrown off the tip of a Frappe Snowland bank face it crosses in front of on the ground', async () => {
     // the face at (-108, -105) rises from a tip on the ground; Bowser crossing past the tip was behind its plane
     // there, read as coming off a ramp's top, and the edge's whole line pushed him 1.6 in one step
