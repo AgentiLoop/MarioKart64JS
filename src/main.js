@@ -1385,8 +1385,9 @@ function cinematicCamera(dt, v, k) {
 // Not in MK64: a chase camera that would sit behind a course face (Sherbet Land's ice walls with the kart against one,
 // Frappe Snowland's snow banks on the outside of a turn) is pulled in along its line to the kart until the camera and
 // all four corners of its near plane are CAM_GAP short of every drawn face, so no part of the view starts behind one
-// (a double wall, or a slit of dark void along the screen edge)
-const CAM_GAP = 0.25, CORNERS = [[0, 0, 0], [1, -1, -1], [1, 1, -1], [1, -1, 1], [1, 1, 1]];
+// (a double wall, or a slit of dark void along the screen edge). It never comes closer than CAM_NEAR to the kart's
+// eye (a kart scraping into Wario Stadium's wall signs, which have no collision, would put it inside the kart).
+const CAM_GAP = 0.25, CAM_NEAR = 3, CORNERS = [[0, 0, 0], [1, -1, -1], [1, 1, -1], [1, -1, 1], [1, 1, 1]];
 const _eye = new THREE.Vector3(), _d = new THREE.Vector3(), _q = new THREE.Vector3(), _o = new THREE.Vector3();
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();
 function keepInside(camera, k, v) {
@@ -1404,7 +1405,8 @@ function keepInside(camera, k, v) {
     for (const [n, x, y] of CORNERS) {
       _o.copy(_f).multiplyScalar(n * camera.near).addScaledVector(_r, x * hw).addScaledVector(_u, y * hh).add(_q);
       const hit = track.sightHit(_eye, _o);
-      if (hit !== null) next = Math.min(next, s * hit - CAM_GAP / len);
+      if (hit === null) continue;
+      next = Math.min(next, Math.max(s * hit - CAM_GAP / len, Math.min(s, CAM_NEAR / len)));
     }
     if (next === s) break;
     s = Math.max(0, next);
