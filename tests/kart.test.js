@@ -395,6 +395,22 @@ describe('CPU driving', () => {
     }
     expect(over).toEqual([]);
   });
+  it('brakes a CPU still in Sherbet Land\'s first hairpin on full lock instead of powering it into the outside wall', async () => {
+    // the bend at (47, -67), s84-95 (k -0.13), past the end of the corner brake's lookahead (s+6..14): the karts
+    // powered out on full lock with the bend still under them and slid onto the outside wall (wR 6.5) at d 5.2
+    const track = await makeTrack('sherbet');
+    const hit = [];
+    for (const s0 of [55, 60, 65, 70]) for (const d0 of [-2, 2]) for (const off of [0, 4.8]) for (const v0 of [35, 42]) {
+      const cpu = makeKart(track, { name: 'Wario', character: 'wario', s: s0, d: d0 });
+      cpu.aiOffset = off; cpu.v = v0;
+      let n = 0;
+      const wb = cpu.wallBounce.bind(cpu); cpu.wallBounce = (...a) => { if (cpu.s > 75 && cpu.s < 110) n++; return wb(...a); };
+      for (let i = 0; i < 60 * 3; i++) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
+      if (n) hit.push([s0, d0, off, v0, n]);
+      expect(cpu.s).toBeGreaterThan(s0 + 60);
+    }
+    expect(hit).toEqual([]);
+  });
   it('lifts a CPU sliding out of Banshee Boardwalk\'s hairpin onto its outside limit', async () => {
     // out of the hairpin at (-5, -210) (k 0.21) the karts powered away on full lock with the travel 0.26 rad outward
     // of the route, slid 2 units across and hit the outside limit (wR 5.5) 20-30 times a race

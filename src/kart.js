@@ -708,10 +708,12 @@ export class Kart {
     // a racing CPU brakes where the bend just ahead turns the route faster than full steer turns the nose (k v over
     // 1.9 * speedFactor rad/s): held at full speed it slid wide across its lane. Koopa Troopa Beach's bend into the
     // ramp pair at (-4, 69) / (-4, 48) (k ~0.045 at v 43, steer pinned at 1) carried the karts 5 units over, off the
-    // first ramp's left half and onto the second one's left side face (5-13 hits a race)
+    // first ramp's left half and onto the second one's left side face (5-13 hits a race). On full lock the bend under
+    // it now (kv, s+2..8) counts too: the lookahead alone runs past the end of a hairpin while the kart is still in it,
+    // so in Sherbet Land's at (47, -67) (s84-95, k -0.13) it powered out on full lock and slid onto the outside wall
     if (!this.finished && !this.air && this.v > 0 && sf > 0.05) {
       const kn = (t.frameAt(this.s + 6, this.ffFrame).k + t.frameAt(this.s + 10, this.ffFrame).k + t.frameAt(this.s + 14, this.ffFrame).k) / 3;
-      const need = Math.abs(kn) * this.v / (1.9 * sf);
+      const need = Math.max(Math.abs(kn), Math.abs(steer) >= 1 ? Math.abs(kv) : 0) * this.v / (1.9 * sf);
       if (need > 1) return { throttle: 0, brake: Math.min(1, (need - 1) * 2), steer, drift: false };
       // and lifts while full steer still leaves it sliding onto the wall limit within half a second: out of Banshee
       // Boardwalk's hairpin at (-5, -210) the karts powered away with the travel 0.2 rad outward of the nose (slip,
