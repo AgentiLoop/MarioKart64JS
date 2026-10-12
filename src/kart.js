@@ -737,7 +737,7 @@ export class Kart {
     }
     // steering
     let steer = input.steer;
-    if (this.drift) steer = this.drift * 0.52 + steer * 0.68;   // neutral stick 0.43 of full lock (MK64: 3.5 / (4.63 + 3.5))
+    if (this.drift) steer = this.drift * 0.3 + steer * 0.7;   // into the drift 1.0, neutral 0.3, counter-steer -0.4 (straightens / turns out)
     // against a wall (wallT) some steering stays at a standstill, so the nose can be turned off it
     const speedFactor = Math.max(this.wallT > 0 ? 0.35 : 0, THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90));
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
@@ -999,7 +999,7 @@ export class Kart {
       }
     }
     let steer = input.steer;
-    if (this.drift) steer = this.drift * 0.52 + steer * 0.68;   // neutral stick 0.43 of full lock (MK64: 3.5 / (4.63 + 3.5))
+    if (this.drift) steer = this.drift * 0.3 + steer * 0.7;   // into the drift 1.0, neutral 0.3, counter-steer -0.4 (straightens / turns out)
     const speedFactor = Math.max(this.wallT > 0 ? 0.35 : 0, THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90));   // as in update()
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
     const dir = this.v >= 0 ? 1 : -1;
