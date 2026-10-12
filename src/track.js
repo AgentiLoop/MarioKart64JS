@@ -776,7 +776,15 @@ export class Track {
                 // on back into the bank) while the nose circle was pushed out: at full throttle it crept 0.02 a frame
                 // (only over or under the slope, where it was or is: past its top, the far side of a berm, the kart is on
                 // open ground)
-                const inHill = Math.abs(ny) > 0.35 && wallFoot[t] > y - 0.3 && wallFoot[t] < y + 0.3 && wallTop[t] < y + 2 && (overFace(t, x, z) || overFace(t, x0, z0));
+                // The slope need not start at the kart's ground, only be over it where the body is: riding up Koopa Troopa
+                // Beach's mound at (-15, 15) along the edge its 50 deg face rises from (foot 0.1, top 3.7), the face's
+                // plane lies 0.57 over the kart's ground (3.0) under its nose; eased back down off the top by the route
+                // limit, the body came in from behind the plane and was pushed on into the mound while the limit eased it
+                // out, shuttling 0.45 a frame half in the face (tools/test-walls.mjs WII3D koopa 48-50%). Where the step
+                // ended counts too (X, Z: a pass's push out moves the body to where the plane is under its ground, and
+                // the next pass, back on the old side, squeezed it halfway back)
+                const hillOver = (px, pz) => overFace(t, px, pz) && a[1] - ((px - a[0]) * nx + (pz - a[2]) * nz) / ny > y - 0.3;
+                const inHill = Math.abs(ny) > 0.35 && wallFoot[t] < y + 0.3 && wallTop[t] < y + 2 && (hillOver(x, z) || hillOver(X, Z) || hillOver(x0, z0));
                 const side = inHill ? Math.sign(ny) : d0 !== 0 ? Math.sign(d0) : Math.sign(d) || 1, depth = r - side * d;
                 if (depth <= 1e-4 || side * d < -1.6) continue;
                 // a low face (a step's riser, at most 1.25 over the ground) the body already overlapped where it was

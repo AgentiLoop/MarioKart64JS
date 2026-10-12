@@ -818,6 +818,15 @@ describe('CPU driving', () => {
     const n = t.wallPush(100.901, -187.621, 100.937, -187.087, -3.4, 1.252, -3.4);
     expect(n ? n.z : -187.087).toBeGreaterThan(-187.1);
   });
+  it('is not pushed on into Koopa Troopa Beach\'s mound at (-15, 15) by its 50 deg face rising from the edge it rides', async () => {
+    // the face (foot 0.1, top 3.7) rises from the edge of the 0.82 slope up the mound; eased back down off the top by
+    // the route limit, the Wii 3D kart's nose circle came in from behind the face's plane, 0.57 over its ground there,
+    // and was pushed on into the mound (0.54) while the limit eased it out: it shuttled half its width in the face
+    const t = await makeTrack('koopa');
+    const h = t.wallPush(-15.743, 14.806, -15.248, 14.561, 3.254, 1.252, 3.254);
+    expect(h.nx).toBeGreaterThan(0.9);
+    expect(h.x).toBeGreaterThan(-15.25);
+  });
   it('is not thrown off the tip of a Frappe Snowland bank face it crosses in front of on the ground', async () => {
     // the face at (-108, -105) rises from a tip on the ground; Bowser crossing past the tip was behind its plane
     // there, read as coming off a ramp's top, and the edge's whole line pushed him 1.6 in one step
