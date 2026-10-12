@@ -593,4 +593,36 @@ describe('Kart in a battle arena', () => {
     a.reverse = 0; a.v = 0;
     for (let i = 0; i < 100; i++) a.think(0.02, [a, b]);
   });
+  // player fuzz in the arenas (random spots, random inputs): a kart rolling off a block was put on the floor 4.7 below
+  // in a frame, one scraping a wall at a few degrees stopped dead, and Skyscraper's 59 deg bridge sides let a kart in
+  // under their roofs (a tunnel along the bridge at (0, 36): floor x +-5.4, roof 3.9 up at x +-3.4)
+  it('falls off a ledge, slides along a wall and is kept out of a covered bridge', async () => {
+    const put = (k, o) => { Object.assign(k, { vy: 0, air: false, drift: 0, slip: 0, wallT: 0, hitWall: 0, prevX: undefined, prevZ: undefined }, o); k.syncFree(0); };
+    const fort = await makeTrack('block-fort');
+    const k = new Kart(fort, { color: 1, s: 0, d: 0, isPlayer: true, spawn: battleSpawn('block-fort', 0) });
+    put(k, { x: 63, z: -22.1, y: 4.7, h: 1.4677, v: 34 });
+    expect(k.y).toBeCloseTo(4.7, 1);
+    let y = k.y, maxStep = 0, flew = false;
+    for (let i = 0; i < 40; i++) {
+      k.update(1 / 60, gas);
+      if (!k.air) maxStep = Math.max(maxStep, Math.abs(k.y - y));
+      flew ||= k.air; y = k.y;
+    }
+    expect(flew).toBe(true);
+    expect(maxStep).toBeLessThan(1);
+    expect(k.y).toBeCloseTo(0, 1);
+    put(k, { x: 74.5, z: -40, y: 0, h: 0.17, v: 40 });
+    for (let i = 0; i < 90; i++) k.update(1 / 60, gas);
+    expect(k.v).toBeGreaterThan(20);
+    expect(k.z).toBeGreaterThan(-15);
+    const sky = await makeTrack('skyscraper');
+    const s = new Kart(sky, { color: 1, s: 0, d: 0, isPlayer: true, spawn: battleSpawn('skyscraper', 0) });
+    put(s, { x: -3, z: 28, y: 48, h: -0.15, v: 25 });
+    for (let i = 0; i < 60; i++) {
+      s.update(1 / 60, gas);
+      const top = sky.groundBelow(s.x, s.z, s.y + 3);
+      expect(top.y - s.y).toBeLessThan(1);
+    }
+    expect(s.z).toBeGreaterThan(36);
+  }, 30000);
 });

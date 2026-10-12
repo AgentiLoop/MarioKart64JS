@@ -444,14 +444,15 @@ export class Track {
     // listed (Koopa Troopa Beach's arrow signs at (-93, -136) / (-34, -119), the scenery rocks at (-50, -115), palm
     // trunks) has no collision in MK64, and its faces held and turned the karts here. The ground stays what is drawn
     // (stacked visual surfaces, below). Without the list every drawn batch supplies the walls (battle courses).
-    // ny: the largest |normal.y| that still blocks. The collision list's faces block from 45 deg (MK64 files a face
-    // whose normal is more horizontal than vertical as a wall, collision.c; groundAt never climbs onto them, FLOOR_NY):
-    // at 75 the 45-75 deg rock faces of Koopa Troopa Beach were neither ground nor wall and karts drove into them.
-    const steep = (a, b, c, ny = 0.26) => {
+    // ny: the largest |normal.y| that still blocks. Faces block from 45 deg (MK64 files a face whose normal is more
+    // horizontal than vertical as a wall, collision.c; groundAt never climbs onto them, FLOOR_NY): at 75 the 45-75 deg
+    // rock faces of Koopa Troopa Beach were neither ground nor wall and karts drove into them, and in Skyscraper the
+    // 59 deg sides of the four covered bridges at (+-4, +-36) / (+-36, +-4) let a kart drive in under their roofs.
+    const steep = (a, b, c, ny = 0.7) => {
       const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
       const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
       const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-      return Math.abs(area) < ny * Math.hypot(nx, area, nz);   // drawn batches: only near-vertical faces (> 75 deg from up)
+      return Math.abs(area) < ny * Math.hypot(nx, area, nz);
     };
     const addWall = (a, b, c) => {
       const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];

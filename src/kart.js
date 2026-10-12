@@ -1092,9 +1092,10 @@ export class Kart {
     let nx = this.x + Math.sin(a) * step, nz = this.z + Math.cos(a) * step;
     // walls, in the air too (func_8003F734 / func_8002A5F4 / func_8002C954): the kart's body is pushed back out of
     // the face; of the velocity, the part along the wall is kept and the part into it bounces back at half; the
-    // drift ends and the kart slows by 18 (player_decelerate_alternative). The body is the sprite's visible
-    // half-width, not gKartBoundingBoxSizeTable's 5.5 units: with that the drawn kart sank 30-50% into the
-    // walls (tools/test-walls.mjs). Kart-to-kart bumps keep boxSize.
+    // drift ends and a fresh hit slows the kart by 18 (player_decelerate_alternative; as wallBounce: every frame of
+    // contact took it, and a kart scraping Block Fort's outer wall at 3-10 deg stopped dead in half a second). The
+    // body is the sprite's visible half-width, not gKartBoundingBoxSizeTable's 5.5 units: with that the drawn kart
+    // sank 30-50% into the walls (tools/test-walls.mjs). Kart-to-kart bumps keep boxSize.
     const w = t.wallPush(this.x, this.z, nx, nz, this.y, this.visualHalfWidth);
     if (w) {
       nx = w.x; nz = w.z; this.wallT = 0.6;
@@ -1102,7 +1103,7 @@ export class Kart {
       if (vn < 0) {
         const bx = mx - 1.5 * vn * w.nx, bz = mz - 1.5 * vn * w.nz;
         // keep the nose: the new motion becomes speed (backwards if it points behind the kart) plus slip
-        let rel = Math.atan2(bx, bz) - this.h, sp = Math.max(0, Math.hypot(bx, bz) - WALL_SLOW);
+        let rel = Math.atan2(bx, bz) - this.h, sp = Math.max(0, Math.hypot(bx, bz) - (this.hitWall > 0 ? 0 : WALL_SLOW));
         rel = Math.atan2(Math.sin(rel), Math.cos(rel));
         if (Math.abs(rel) > Math.PI / 2) { sp = -sp; rel = Math.atan2(Math.sin(rel + Math.PI), Math.cos(rel + Math.PI)); }
         this.v = sp; this.slip = rel; this.drift = 0; this.hitWall = 0.25;
@@ -1131,7 +1132,9 @@ export class Kart {
     else if (this.air) {
       this.vy += accel() * dt; this.y += this.vy * dt;
       if (g && this.y <= g.y) { this.air = false; this.y = g.y; this.vy = 0; }
-    } else if (g) this.rideGround(g, this.slopeRate(g, x - px, z - pz, dt), accel, dt);
+    // ground more than GLUE_DROP down is fallen onto, not snapped to: off the edge of Block Fort's blocks (4.7 up)
+    // the kart was put on the floor below in one frame
+    } else if (g && g.y >= this.y - GLUE_DROP) this.rideGround(g, this.slopeRate(g, x - px, z - pz, dt), accel, dt);
     else { this.air = true; this.arc = null; this.vy += accel() * dt; this.y += this.vy * dt; }
     if (this.y <= t.fallY + 0.3 && dt) { this.rescue = 1.5; this.air = false; this.vy = 0; this.invuln = Math.max(this.invuln, 2.5); }   // fell into the lava / off the arena
     this.world.set(x, this.y, z);
