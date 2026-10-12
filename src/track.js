@@ -477,7 +477,7 @@ export class Track {
         bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp, lakitu]) - 1);
       }
     }
-    let hitNormal = null, hitRamp = null;
+    let hitNormal = null, hitRamp = null, hitLakitu = false;
     // Stacked surfaces (Wario Stadium's visible dirt lumps over its lower collision dirt): stay on top of the
     // highest one at most CLIMB above yRef, so the kart rides what is drawn; otherwise the nearest within 3.
     // A surface steeper than 45 deg is not climbed onto: MK64 files a triangle whose normal is more horizontal than
@@ -486,24 +486,24 @@ export class Track {
     // where it bounced from one into the other a quarter of its width deep (tools/test-walls.mjs).
     const CLIMB = 0.6, FLOOR_NY = 0.7;
     const height = (x, z, yRef) => {
-      let best = null, top = null, topN = null, topR = null;
+      let best = null, top = null, topN = null, topR = null, topL = false;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal, ramp] = tris[t];
+        const [a, b, c, area, normal, ramp, lakitu] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; }
-        if (y - yRef > -3 && y - yRef <= CLIMB && (y - yRef <= 0.05 || normal.y >= FLOOR_NY) && (top === null || y > top)) { top = y; topN = normal; topR = ramp; }
+        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; hitLakitu = lakitu; }
+        if (y - yRef > -3 && y - yRef <= CLIMB && (y - yRef <= 0.05 || normal.y >= FLOOR_NY) && (top === null || y > top)) { top = y; topN = normal; topR = ramp; topL = lakitu; }
       }
-      if (top !== null) { hitNormal = topN; hitRamp = topR; return top; }
+      if (top !== null) { hitNormal = topN; hitRamp = topR; hitLakitu = topL; return top; }
       return best;
     };
-    // Ground under (x, z) nearest to yRef: { y, normal, ramp } or null. Used by karts to ride slopes.
+    // Ground under (x, z) nearest to yRef: { y, normal, ramp, lakitu } or null. Used by karts to ride slopes.
     this.groundAt = (x, z, yRef) => {
       const y = height(x, z, yRef);
-      return y === null ? null : { y, normal: hitNormal, ramp: hitRamp };
+      return y === null ? null : { y, normal: hitNormal, ramp: hitRamp, lakitu: hitLakitu };
     };
     // Highest ground at or below yTop under (x, z): { y, normal, ramp, lakitu } or null. Used by airborne karts.
     this.groundBelow = (x, z, yTop) => {

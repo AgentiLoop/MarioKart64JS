@@ -1364,8 +1364,10 @@ export class Kart {
         else if (!g && this.y < f.pos.y - 30) this.fell = { kind: 'drop', base: this.y };   // fell into the void
       } else if (g) {
         const fall = this.y + (this.vy + accel() * dt) * dt;
-        // glued: only a BOOST_RAMP_* lip or a real drop (ground gone GLUE_DROP below) takes off; crests and seams don't
-        if (g.y < fall - 0.05 && (this.ramp || g.y < this.y - GLUE_DROP)) { this.air = true; this.airTicks = 0; this.vy += accel() * dt; this.y = fall; }
+        // glued: only a BOOST_RAMP_* lip or a real drop (ground gone GLUE_DROP below) takes off; crests and seams don't.
+        // Nor is Lakitu ground (a chasm's flagged face) glued to: off Wario Stadium's jump lip at (-146, 55) the pit's
+        // face starts 0.8 under the lip, and a kart climbing off it on that frame was snapped down onto it and fished out
+        if (g.y < fall - 0.05 && (this.ramp || g.lakitu && this.vy > 0 || g.y < this.y - GLUE_DROP)) { this.air = true; this.airTicks = 0; this.vy += accel() * dt; this.y = fall; }
         else {
           this.vy = this.slopeRate(g, x - px, z - pz, dt); this.y = g.y;
           if (!g.ramp) this.ramp = null;
@@ -1391,7 +1393,10 @@ export class Kart {
       }
       const adrift = !t.arena && Math.abs(this.d) > t.wallAt(this.s, Math.sign(this.d)) - 0.7 && !(below && below.y > this.y - 2);
       this.overLakitu = (below?.lakitu || adrift) && !g && !this.air ? (this.overLakitu || 0) + dt : 0;
-      if (below?.lakitu && this.y - below.y <= 0.3 || this.overLakitu > 0.25) this.fell = { kind: 'drop', base: this.y };
+      // (not a kart still climbing off a lip: the flagged face of Wario Stadium's pit at (-146, 55) rises to 0.2 under
+      // the lip and fished out a kart in its first frame of flight)
+      const rising = this.air && this.vy > 0;
+      if (below?.lakitu && this.y - below.y <= 0.3 && !rising || this.overLakitu > 0.25) this.fell = { kind: 'drop', base: this.y };
     }
     this.stepBounce(dt);
     if (g && !this.air) {

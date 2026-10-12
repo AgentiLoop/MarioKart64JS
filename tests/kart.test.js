@@ -357,6 +357,25 @@ describe('CPU driving', () => {
     expect(maxD).toBeLessThan(track.wallAt(290, 1) - 1.4);
     expect(cpu.s).toBeGreaterThan(300);
   });
+  it('flies off Wario Stadium\'s jump lip instead of gluing onto the pit face below it', async () => {
+    // the pit's Lakitu-flagged face starts 0.8 under the lip at (-146, 55): a kart leaving the lip on the wrong frame
+    // was glued down onto it and fished out (3 karts in one full race), or, rising 0.2 over it in its first frame of
+    // flight, fished out at once
+    const track = await makeTrack('wario');
+    let fell = 0, n = 0;
+    const starts = [];
+    for (let s0 = 2270.56; s0 < 2270.75; s0 += 0.035) for (const d0 of [-0.5, 0.5]) starts.push([s0, d0, 0, 42.6]);
+    for (let s0 = 2283; s0 < 2285; s0 += 0.11) for (const d0 of [-2.6, 0, 2.6]) for (const ph of [-0.25, 0.25]) starts.push([s0, d0, ph, 41]);
+    for (const [s0, d0, ph, v0] of starts) {
+      const cpu = makeKart(track, { name: 'Wario', character: 'wario', s: s0, d: d0 });
+      cpu.v = v0; cpu.psi = cpu.phi = ph; cpu.aiOffset = d0; n++;
+      for (let i = 0; i < 60 && !cpu.fell; i++) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
+      if (cpu.fell) fell++;
+      else expect(cpu.s).toBeGreaterThan(2300);
+    }
+    expect(n).toBeGreaterThan(8);
+    expect(fell).toBe(0);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];
