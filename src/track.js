@@ -357,6 +357,12 @@ export class Track {
       const [a, b, c] = [0, 1, 2].map(k => course.vertices[ci[i + k]].slice(0, 3).map(v => v * S));
       if (steep(a, b, c, 0.7)) addWall(a, b, c);
     }
+    // Rock faces drawn but left out of the collision list (Koopa Troopa Beach's scenery rocks at (-50, -115), which
+    // MK64 drives through) block too: course.extraWalls (extract-course.py rockWalls), steep CLIFF-textured faces
+    const xw = course.extraWalls || [];
+    for (let i = 0; i + 2 < xw.length; i += 3) {
+      addWall(...[0, 1, 2].map(k => course.vertices[xw[i + k]].slice(0, 3).map(v => v * S)));
+    }
     for (const batch of course.batches) {
       for (let i = 0; i + 2 < batch.indices.length; i += 3) {
         const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));

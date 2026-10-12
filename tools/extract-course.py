@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 import re
 import struct
@@ -24,7 +25,7 @@ COURSES = {
     # collision: lists course_generate_collision_mesh (render_courses.c) adds besides the TrackSections table (1P)
     'mario_raceway': dict(name='Mario Raceway', prefix='gMRTexture', root='6928', edge=['450', '240', 'E0', '160'], collision=['1140', '8E8']),
     'moo_moo_farm': dict(name='Moo Moo Farm', prefix='gMMFTexture', root='6730', edge=['10C0']),
-    'koopa_troopa_beach': dict(name='Koopa Troopa Beach', prefix='gKTBTexture', root='B2B0', edge=['2C0']),
+    'koopa_troopa_beach': dict(name='Koopa Troopa Beach', prefix='gKTBTexture', root='B2B0', edge=['2C0'], rockWalls=True),
     'kalimari_desert': dict(name='Kalimari Desert', prefix='gKDTexture', root='A670', edge=['998', '270']),
     'toads_turnpike': dict(name="Toad's Turnpike", prefix='gTTTexture', root='6B08', edge=['0', '68', 'D8']),
     'frappe_snowland': dict(name='Frappe Snowland', prefix='gFSTexture', root='6638', edge=[]),
@@ -451,6 +452,39 @@ def convert(source, rom, course_id):
                         vertices[i][5:] = [red, green, blue, alpha] if red else [*vertices[i][5:8], alpha]
         provenance.setdefault('vertexColourLists', []).append([dl + name, alpha, red, green, blue])
     extra = {}
+    # Rock faces drawn but left out of the collision list (Koopa Troopa Beach's scenery rocks at (-500, -1150)):
+    # MK64 drives through them, here they block (Track._nativeBounds). "extraWalls" holds the vertex index triples of
+    # the drawn triangles steeper than 45 deg and of at least 20 square units, in the textures most of whose listed
+    # triangles are CLIFF surfaces.
+    if cfg.get('rockWalls'):
+        key = lambda t: tuple(sorted(t))
+        surface_of, p = {}, 0
+        for s in collision['sections']:
+            for _ in range(s['count']):
+                surface_of[key(collision['indices'][p:p + 3])] = s['surface']
+                p += 3
+        listed, cliff = {}, {}
+        for b in batches.values():
+            for i in range(0, len(b['indices']) - 2, 3):
+                s = surface_of.get(key(b['indices'][i:i + 3]))
+                if s:
+                    listed[b['texture']] = listed.get(b['texture'], 0) + 1
+                    cliff[b['texture']] = cliff.get(b['texture'], 0) + (s == 'CLIFF')
+        walls = []
+        for b in batches.values():
+            if not b['texture'] or cliff.get(b['texture'], 0) * 2 <= listed.get(b['texture'], 0):
+                continue
+            for i in range(0, len(b['indices']) - 2, 3):
+                t = b['indices'][i:i + 3]
+                if key(t) in surface_of:
+                    continue
+                a, c, d = (vertices[j] for j in t)
+                u, v = [c[k] - a[k] for k in range(3)], [d[k] - a[k] for k in range(3)]
+                n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+                length = math.hypot(*n)
+                if length / 2 >= 20 and abs(n[1]) < 0.7 * length:
+                    walls.extend(t)
+        extra['extraWalls'] = walls
     if cfg.get('battle'):
         provenance['battle'] = True
         # Item box actors (course_data.c d_course_<course>_item_box_spawns): [x, y, z, quadrant]
