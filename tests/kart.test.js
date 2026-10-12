@@ -326,6 +326,24 @@ describe('CPU driving', () => {
     expect(cpu.s).toBeGreaterThan(450);
     expect(cpu.v).toBeGreaterThan(30);
   });
+  it('has Lakitu fish out a CPU wedged beside Royal Raceway\'s ramp', async () => {
+    // a CPU 10 out at the foot of the ramp at (125, -230), where the limit drops from 40 to 4.5, is held out by the
+    // ramp's side face and drives into the grass wedge where it meets the barrier at (70, -196) (s1061); it stayed
+    // there for the rest of a 150cc race (1 race in 3)
+    const track = await makeTrack('royal');
+    const cpu = makeKart(track, { name: 'Luigi', character: 'luigi', s: 980, d: -10 });
+    cpu.d = -10; cpu.v = 40;
+    let t = 0;
+    for (; t < 12 && !cpu.fell; t += 1 / 60) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
+    expect(cpu.fell).toBeTruthy();
+    expect(cpu.s).toBeGreaterThan(1040);
+    expect(cpu.s).toBeLessThan(1070);
+    // a CPU driving on is not fished out
+    const ok = makeKart(track, { name: 'Mario', s: 980, d: 0 });
+    ok.v = 40;
+    for (let i = 0; i < 60 * 8; i++) ok.update(1 / 60, ok.think(1 / 60, [ok]), [ok]);
+    expect(ok.fell).toBeFalsy();
+  });
   it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
     // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
     const track = await makeTrack('dk');

@@ -589,6 +589,17 @@ export class Kart {
       this.stuckT = adv < dt * 3 && !(this.spin > 0) && !this.tumble && !this.rescue ? (this.stuckT || 0) + dt : 0;
       if (this.stuckT > 0.8) { this.stuckT = 0; this.reverse = 0.9; }
     }
+    // a racing CPU that has not got 8 along the route in 4 s (spun out, tumbling, in flight or in Lakitu's hands aside)
+    // is wedged where its driver cannot steer out: Lakitu fishes it out (src/lakitu.js) and drops it on the route at
+    // its last ground spot. Not in MK64, whose CPUs keep to their path; here a kart pushed out wide beside Royal
+    // Raceway's ramp at (125, -230) was held out by the ramp's side face, drove into the grass wedge where that face
+    // meets the barrier at (70, -196) and stayed there for the rest of the race (about 1 race in 3)
+    if (!this.finished) {
+      let adv = this.s - (this.watchS ??= this.s);
+      if (adv < -t.length / 2) adv += t.length; else if (adv > t.length / 2) adv -= t.length;
+      if (adv > 8 || this.spin > 0 || this.tumble || this.air || this.rescue) { this.watchS = this.s; this.watchT = 0; }
+      else if ((this.watchT = (this.watchT || 0) + dt) > 4 && !this.fell) { this.watchT = 0; this.fell = { kind: 'drop', base: this.y ?? this.world.y }; }
+    }
     for (const o of karts) { // dodge slower karts ahead
       if (o === this) continue;
       let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
