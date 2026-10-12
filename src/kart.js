@@ -735,8 +735,8 @@ export class Kart {
     this.throttle = input.throttle > 0;   // kartProps THROTTLE (exhaust smoke rate)
     // longitudinal
     if (input.throttle > 0) {
-      this.v += (14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2;
-      if (this.boost > 0) this.v += 40 * dt;
+      const dv = (14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2 + (this.boost > 0 ? 40 * dt : 0);
+      this.phi = this.psi + this.thrust(dv, this.phi - this.psi);
     }
     if (input.brake > 0) this.v -= (this.v > 0 ? 55 : 14) * input.brake * dt;
     // coasting drag fades out with the throttle: at full throttle it held the kart at 88% of max, below the
@@ -1043,6 +1043,21 @@ export class Kart {
     if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
   }
 
+  // the throttle's dv pushes along the nose; returns the new slip (travel minus nose). With the travel far off the
+  // nose (over 0.5 rad: only after a wall hit, a drift's slide is 0.35) dv was added to the speed along the travel:
+  // a kart stopped nose-first against a wall (Double Deck's wall at (-17, 37), Block Fort's at (-33, 7)) was
+  // bounced to travel along the wall at +-1.3-1.4 rad off the nose, and the throttle then pushed it sideways, the
+  // other way each frame - pinned with the throttle held for good (arena fuzz stalls). It now goes to the motion in
+  // the world, so the push along the wall stays and the kart scrapes off along it.
+  thrust(dv, slip) {
+    if (Math.abs(slip) <= 0.5) { this.v += dv; return slip; }
+    const mt = this.v * Math.cos(slip) + dv, mr = this.v * Math.sin(slip);
+    let rel = Math.atan2(mr, mt), sp = Math.hypot(mt, mr);
+    if (Math.abs(rel) > Math.PI / 2) { sp = -sp; rel = Math.atan2(Math.sin(rel + Math.PI), Math.cos(rel + Math.PI)); }
+    this.v = sp;
+    return rel;
+  }
+
   // Arena driving: the same speed / drift model, heading h integrated directly; the course collision mesh
   // gives the ground (slopes, ramps, upper decks) and steep faces are walls. Off an edge the kart falls; below
   // the course's fall height (lava, the void) it is put back on its start spot after a short rescue.
@@ -1071,8 +1086,7 @@ export class Kart {
     if (this.tumble) { this.tumbleUpdate(dt); input = { throttle: 0, brake: 0, steer: 0, drift: false }; }
     this.throttle = input.throttle > 0;
     if (input.throttle > 0) {
-      this.v += (14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2;
-      if (this.boost > 0) this.v += 40 * dt;
+      this.slip = this.thrust((14 + 10 * (1 - this.v / max)) * Math.max(0, 1 - this.v / max) * input.throttle * dt * 2.2 + (this.boost > 0 ? 40 * dt : 0), this.slip);
     }
     if (input.brake > 0) this.v -= (this.v > 0 ? 55 : 14) * input.brake * dt;
     this.v -= Math.sign(this.v) * 4 * dt * (1 - Math.max(0, input.throttle));   // as in update()

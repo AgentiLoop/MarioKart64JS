@@ -652,4 +652,19 @@ describe('Kart in a battle arena', () => {
     }
     expect(s.z).toBeGreaterThan(36);
   }, 30000);
+  // arena fuzz with boosts: a kart stopped nose-first against a wall a few degrees off square was bounced to travel
+  // along it at +-1.2-1.4 rad off the nose, and the throttle, added to the speed along that travel, pushed it sideways
+  // the other way each frame: pinned with the throttle held (Block Fort's wall at (-33, 7), Double Deck's at (-17, 37))
+  it('scrapes off a wall it is stopped against nose-first with the throttle held', async () => {
+    for (const [id, o, input] of [['block-fort', { x: -33.461, z: 7.0641, y: 0, h: 0.1221, v: -0.728, slip: 1.2193 }, gas],
+      ['double-deck', { x: -16.942, z: 37.0641, y: 3, h: -0.0485, v: -0.78, slip: 1.4004 }, { throttle: 1, brake: 0, steer: 0.15, drift: true }]]) {
+      const t = await makeTrack(id);
+      const k = new Kart(t, { color: 1, s: 0, d: 0, isPlayer: true, spawn: battleSpawn(id, 0) });
+      Object.assign(k, { vy: 0, air: false, drift: 0, wallT: 0.5, hitWall: 0.1, prevX: undefined, prevZ: undefined }, o);
+      k.syncFree(0);
+      for (let i = 0; i < 180; i++) k.update(1 / 60, input);
+      expect(Math.hypot(k.x - o.x, k.z - o.z)).toBeGreaterThan(3);
+      expect(Math.abs(k.v)).toBeGreaterThan(1.2);
+    }
+  }, 30000);
 });
