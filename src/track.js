@@ -739,6 +739,7 @@ export class Track {
     };
     this.wallPush = (x0, z0, x, z, y, r, yp = y) => {
       let hit = null, steep, off;
+      const across = new Set();   // faces an eased push took the body on across the plane of (below)
       // off the ground it rode (offEdge), the direction a sloped edge is met end-on in (rim) is the kart's own move, not
       // the passes' pushes: pushed 0.15 off the side of Koopa Troopa Beach's wedge ramp at (-6, 71), Bowser's move
       // turned 40 deg from along its rising edge and the cut point ahead hit him head-on, 30 -> -18
@@ -783,6 +784,12 @@ export class Track {
                 // ... and so does any face but such a slope (side * normal y up to 0.35) moved into: Bowser left 1.5 into
                 // Koopa's rock face at (-48, 184) by his ground dropping, eased out a step, then turned 0.1 into it and was
                 // thrown the whole overlap (1.7 a frame). From outside a face (no overlap where it was) it all still goes
+                // An eased push off the face's edge that takes the body on across the face's plane (the side of Koopa
+                // Troopa Beach's wedge ramp at (-56, 169), the kart's centre just off the top's edge, pushed on off it)
+                // leaves it deeper in plane terms each pass, and each pass eased out the extra again (0.28 + 0.4 + 0.77,
+                // 1.45 in a step): a low face's edge has had its eased push across the plane for the step (rim, below).
+                // Not a slope's: at the foot of D.K.'s Jungle Parkway's river bank at (100, -188) the upright body cuts
+                // the bank on both sides of its plane, and the Wii 3D kart was held in it at full throttle
                 const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
                 const upSlope = side * ny > 0.35 && (!into || steepUnder());
                 const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope || side * ny <= 0.35);
@@ -814,7 +821,9 @@ export class Track {
                     const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
                   }
-                  c = { depth: Math.min(r - dh, cap), nx: dx / dh, nz: dz / dh };
+                  const acr = low && cap === most && most < Infinity && side * (dx * nx + dz * nz) < 0;
+                  if (acr && across.has(t)) cap = 0;
+                  c = { depth: Math.min(r - dh, cap), nx: dx / dh, nz: dz / dh, t, across: acr };
                 } else c = { depth: Math.min(depth / h, mostIn), nx: side * nx / h, nz: side * nz / h };
                 if (!deepest || c.depth > deepest.depth) deepest = c;
               }
@@ -826,6 +835,7 @@ export class Track {
           hit = { x: x + deepest.nx * deepest.depth / 2, z: z + deepest.nz * deepest.depth / 2, nx: hit.nx, nz: hit.nz };
           break;
         }
+        if (deepest.across) across.add(deepest.t);
         x += deepest.nx * deepest.depth; z += deepest.nz * deepest.depth;
         hit = { x, z, nx: deepest.nx, nz: deepest.nz };
       }

@@ -799,6 +799,14 @@ describe('CPU driving', () => {
     // off the foot of the start ramp at (-180, 17), 0.36 up, the side still pushes the whole overlap (else 37% sank in)
     expect(dist(t.wallPush(-179.615, 16.212, -179.637, 16.676, 0.434, 1.688, 0.434), -179.637, 16.676)).toBeGreaterThan(1);
   });
+  it('is not eased off the side of Koopa Troopa Beach\'s wedge ramp at (-56, 169) once per pass, deeper each time', async () => {
+    // Donkey Kong riding up the ramp along its side, his centre 0.03 past the top's edge: the side's edge pushed him off
+    // across the face's plane, deeper into it each pass, and each of the 3 passes eased out the extra again (0.28 + 0.4
+    // + 0.77, 1.45 in one step). The eased part is the face's over all passes
+    const t = await makeTrack('koopa');
+    const h = t.wallPush(-56.652, 168.824, -56.376, 169.107, 1.204, 1.477, 1.204);
+    expect(h ? Math.hypot(h.x + 56.376, h.z - 169.107) : 0).toBeLessThan(0.4);
+  });
   it('is not thrown off the tip of a Frappe Snowland bank face it crosses in front of on the ground', async () => {
     // the face at (-108, -105) rises from a tip on the ground; Bowser crossing past the tip was behind its plane
     // there, read as coming off a ramp's top, and the edge's whole line pushed him 1.6 in one step
