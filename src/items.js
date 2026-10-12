@@ -327,8 +327,11 @@ export class Items {
 
   place(mesh, s, d, h, yaw = 0) {
     if (this.arena) { mesh.position.set(s, h, d); mesh.quaternion.identity(); if (yaw) mesh.rotateY(yaw); return; }   // (x, z, y)
-    const f = this.track.frameAt(s, this.fr);
-    mesh.position.copy(f.pos).addScaledVector(f.R, d).addScaledVector(f.U, h);
+    const t = this.track, f = t.frameAt(s, this.fr), p = mesh.position.copy(f.pos).addScaledVector(f.R, d);
+    // on the ground the karts ride at that x, z (Track.groundAt, as Kart.update), not the route's smoothed banked
+    // plane, which is up to 3 over or under it on banks, kerbs and dips (Royal Raceway, D.K.'s Jungle Parkway)
+    const g = t.groundAt && (t.groundAt(p.x, p.z, p.y) || t.groundBelow(p.x, p.z, p.y + 3));
+    if (g) p.y = g.y + h; else p.addScaledVector(f.U, h);
     mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.R, f.U, f.T.clone().negate()));
     if (yaw) mesh.rotateY(yaw);
   }

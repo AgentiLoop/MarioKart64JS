@@ -222,6 +222,28 @@ describe('Items on a race course', () => {
     }
   });
 
+  it('sits bananas and shells on the ground the karts ride, not on the route\'s banked plane', () => {
+    // Mario Raceway: the smoothed route plane runs ~3 under the road at (92, -43) (s204, d -11.6) and ~3 over it at
+    // (195, -2) (s310, d 17.5)
+    expect(track.groundAt).toBeTruthy();
+    const f = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3() };
+    for (const [s, d] of [[204, -11.6], [310, 17.5]]) {
+      const fr = track.frameAt(s, f), plane = fr.pos.clone().addScaledVector(fr.R, d);
+      const g = track.groundAt(plane.x, plane.z, plane.y) || track.groundBelow(plane.x, plane.z, plane.y + 3);
+      expect(Math.abs(plane.y - g.y)).toBeGreaterThan(2);
+      player.s = s + 4; player.d = d;
+      items.drop(player, 'banana', { s, d });
+      const b = items.hazards.at(-1);
+      items.update(1 / 60, [player]);
+      expect(b.mesh.position.y).toBeCloseTo(g.y + 0.05, 3);
+      expect(Math.hypot(b.mesh.position.x - plane.x, b.mesh.position.z - plane.z)).toBeLessThan(1e-6);
+      items.hazards.length = 0;   // a shell on the banana would take it out
+      items.shots.push({ kind: 'green_shell', s, d, dir: 1, speed: 0, owner: player, safe: 9, ttl: 9, mesh: items.makeMesh('green_shell'), t: 0, top: 60 });
+      items.update(1 / 60, [player]);
+      expect(items.shots.at(-1).mesh.position.y).toBeCloseTo(g.y + 0.05, 3);
+    }
+  });
+
   it('triple green shell fires three in turn, and expires at the ttl', () => {
     player.item = 'triple_green_shell'; items.use(player, karts);
     expect(player.trail.meshes).toHaveLength(3);
