@@ -570,6 +570,32 @@ export class Track {
       }
     }
     this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
+    // Not in MK64: the nearest crossing (0..1 along it) of the 3D segment p -> q with a steep face, or null. The chase
+    // camera stops short of it so it never ends up behind a wall looking at its culled back (Sherbet Land's ice walls)
+    this.sightHit = (p, q) => {
+      const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, seen = new Set();
+      let best = null;
+      for (let cx = Math.floor(Math.min(p.x, q.x) / CELL); cx <= Math.floor(Math.max(p.x, q.x) / CELL); cx++)
+        for (let cz = Math.floor(Math.min(p.z, q.z) / CELL); cz <= Math.floor(Math.max(p.z, q.z) / CELL); cz++)
+          for (const t of wallGrid.get(cx * 65536 + cz) || []) {
+            if (seen.has(t)) continue;
+            seen.add(t);
+            const [a, b, c] = walls[t];
+            const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+            const h = [dy * e2[2] - dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1] - dy * e2[0]];
+            const det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+            if (Math.abs(det) < 1e-9) continue;
+            const s = [p.x - a[0], p.y - a[1], p.z - a[2]];
+            const u = (s[0] * h[0] + s[1] * h[1] + s[2] * h[2]) / det;
+            if (u < 0 || u > 1) continue;
+            const r = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]];
+            const v = (dx * r[0] + dy * r[1] + dz * r[2]) / det;
+            if (v < 0 || u + v > 1) continue;
+            const k = (e2[0] * r[0] + e2[1] * r[1] + e2[2] * r[2]) / det;
+            if (k >= 0 && k <= 1 && (best === null || k < best)) best = k;
+          }
+      return best;
+    };
     // Kart against the wall faces, as check_bounding_collision + func_8003F734 do it: a sphere of radius r at body
     // height whose centre projects inside a face and is closer than r to it (or up to 16 MK64 units = 1.6 past
     // it) is pushed back out along the face normal by the overlap, onto the side the kart came from (x0, z0).

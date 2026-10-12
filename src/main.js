@@ -1376,11 +1376,22 @@ function cinematicCamera(dt, v, k) {
   v.up.lerp(c.up, 1 - Math.exp(-dt * 4)).normalize();
   const look = k.world.clone().addScaledVector(c.up, 1.4).addScaledVector(c.fwd, lookAhead);
   if (!v.init) { v.look.copy(look); camera.fov = fov; } else v.look.lerp(look, 1 - Math.exp(-dt * 10));
-  camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.position.copy(v.pos); if (target) keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
   v.init = true;
   if (k === player) followSun(k.world);
+}
+// Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's ice walls, with the kart against one) is
+// pulled in along its line to the kart until it is CAM_GAP in front of the face, so the culled back is never seen
+const CAM_GAP = 1, _eye = new THREE.Vector3();
+function keepInside(pos, k) {
+  if (!track.sightHit) return;
+  _eye.copy(k.world).addScaledVector(k.up, 1.6);
+  const hit = track.sightHit(_eye, pos);
+  if (hit === null) return;
+  const len = pos.distanceTo(_eye);
+  pos.lerpVectors(_eye, pos, Math.max(0, hit - CAM_GAP / len));
 }
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
@@ -1394,7 +1405,7 @@ function updateCamera(dt, v) {
   v.pos.lerp(target, a);
   v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
   v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
-  camera.position.copy(v.pos); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.position.copy(v.pos); keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
   v.init = true;
