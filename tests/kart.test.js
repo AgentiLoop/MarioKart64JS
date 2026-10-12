@@ -587,6 +587,24 @@ describe('CPU driving', () => {
     }
     expect(worst).toBeLessThan(0.6);
   });
+  it('is eased in, not slid along at 4x its move, where the limit closes in steeply along Bowser\'s Castle\'s ledge', async () => {
+    // the limit beside the ledge over the lava at (68, 35-55) closes 4 in per 1 along (s1233-1238): under the 1-unit
+    // ease threshold every step, the snap carried a kart on the limit 1.4 a frame along the edge at 22 (0.37 a frame)
+    const t = await makeTrack('bowser');
+    for (const [s, d, v, steer] of [[1233.0, 15.4, 22.5, 0.42], [1231.8, 3.2, 44, 0], [1234.2, -4.4, 34.3, 0]]) {
+      const k = makeKart(t, { isPlayer: true, s: 1200, d: 0 });
+      Object.assign(k, { s, d, psi: Math.sign(d) * 0.1, phi: Math.sign(d) * 0.1, v });
+      k.syncMesh(0);
+      let worst = 0;
+      for (let i = 0; i < 20 && !k.fell; i++) {
+        const x = k.world.x, z = k.world.z, v0 = Math.abs(k.v);
+        k.update(1 / 120, { throttle: 1, brake: 0, steer, drift: false });
+        k.update(1 / 120, { throttle: 1, brake: 0, steer, drift: false });
+        worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v0 / 60);
+      }
+      expect(worst).toBeLessThan(0.7);
+    }
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

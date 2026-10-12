@@ -838,8 +838,12 @@ export class Kart {
     // (at (41, 225), s972) that distance shrank with it and still snapped the kart in by 5. (A quarter of the way a
     // frame dragged a kart out on Mario Raceway's hills, 22 past the limit at (110, -55), 5.5 a frame sideways.)
     // The 0.5 is a 60 Hz frame's (EASE_RATE dt): taken per update call, the game's two physics steps a frame made it 1
-    // a frame, and with the kart's own sideways move 2.2 (Bowser's Castle at (108, 55), s1196).
-    const lim = this.wallEase > 0 ? this.wallEase : out > 1 ? Math.abs(this.d) : 0;
+    // a frame, and with the kart's own sideways move 2.2 (Bowser's Castle at (108, 55), s1196). Any closing in under
+    // the kart faster than that is eased, not only steps over 1: along Bowser's Castle's ledge over the lava at (68, 35-55)
+    // (s1233-1238) the limit closes 4 in per 1 along, 0.7 a step, and snapping the kart in slid it along the edge at
+    // 4x its own move (1.0-1.5 a frame); the kart's own sideways move into the limit is still met as a wall below.
+    const closing = out - Math.max(0, sgn * lateral);
+    const lim = this.wallEase > 0 ? this.wallEase : out > 1 || closing > EASE_RATE * dt ? Math.abs(this.d) : 0;
     const ease = out > 0 ? Math.max(0, Math.min(out, lim - EASE_RATE * dt - wall)) : 0;
     // ... but not into the ground: where the limit closes in over a mound (Koopa Troopa Beach's rock at (31, 250),
     // no steep faces, driven over in MK64, which has no route limit) a step of up to 6 carried the kart in under
