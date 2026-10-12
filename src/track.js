@@ -430,6 +430,7 @@ export class Track {
     for (let i = 0; i + 2 < xw.length; i += 3) {
       addWall(...[0, 1, 2].map(k => course.vertices[xw[i + k]].slice(0, 3).map(v => v * S)));
     }
+    const sightGrid = new Map(), sightTris = [];   // every drawn face, for the chase camera (sightHit)
     for (const batch of course.batches) {
       for (let i = 0; i + 2 < batch.indices.length; i += 3) {
         const [a, b, c] = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
@@ -437,6 +438,7 @@ export class Track {
         const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
         const nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
         const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
+        bucket(sightGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), sightTris.push([a, b, c]) - 1);
         // embankments and banked turns are drivable
         if (!course.collision && steep(a, b, c)) addWall(a, b, c);
         if (Math.abs(area) < 1e-4) continue;   // vertical faces carry no ground height
@@ -570,17 +572,18 @@ export class Track {
       }
     }
     this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
-    // Not in MK64: the nearest crossing (0..1 along it) of the 3D segment p -> q with a steep face, or null. The chase
-    // camera stops short of it so it never ends up behind a wall looking at its culled back (Sherbet Land's ice walls)
+    // Not in MK64: the nearest crossing (0..1 along it) of the 3D segment p -> q with a drawn course face, or null. The
+    // chase camera stops short of it so it never ends up behind a wall or under a snow bank looking at its back or into
+    // the void past it (Sherbet Land's ice walls, Frappe Snowland's banks)
     this.sightHit = (p, q) => {
       const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, seen = new Set();
       let best = null;
       for (let cx = Math.floor(Math.min(p.x, q.x) / CELL); cx <= Math.floor(Math.max(p.x, q.x) / CELL); cx++)
         for (let cz = Math.floor(Math.min(p.z, q.z) / CELL); cz <= Math.floor(Math.max(p.z, q.z) / CELL); cz++)
-          for (const t of wallGrid.get(cx * 65536 + cz) || []) {
+          for (const t of sightGrid.get(cx * 65536 + cz) || []) {
             if (seen.has(t)) continue;
             seen.add(t);
-            const [a, b, c] = walls[t];
+            const [a, b, c] = sightTris[t];
             const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
             const h = [dy * e2[2] - dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1] - dy * e2[0]];
             const det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];

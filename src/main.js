@@ -1376,22 +1376,40 @@ function cinematicCamera(dt, v, k) {
   v.up.lerp(c.up, 1 - Math.exp(-dt * 4)).normalize();
   const look = k.world.clone().addScaledVector(c.up, 1.4).addScaledVector(c.fwd, lookAhead);
   if (!v.init) { v.look.copy(look); camera.fov = fov; } else v.look.lerp(look, 1 - Math.exp(-dt * 10));
-  camera.position.copy(v.pos); if (target) keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.position.copy(v.pos); if (target) keepInside(camera, k, v); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
   v.init = true;
   if (k === player) followSun(k.world);
 }
-// Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's ice walls, with the kart against one) is
-// pulled in along its line to the kart until it is CAM_GAP in front of the face, so the culled back is never seen
-const CAM_GAP = 1, _eye = new THREE.Vector3();
-function keepInside(pos, k) {
+// Not in MK64: a chase camera that would sit behind a course face (Sherbet Land's ice walls with the kart against one,
+// Frappe Snowland's snow banks on the outside of a turn) is pulled in along its line to the kart until the camera and
+// all four corners of its near plane are CAM_GAP short of every drawn face, so no part of the view starts behind one
+// (a double wall, or a slit of dark void along the screen edge)
+const CAM_GAP = 0.25, CORNERS = [[0, 0, 0], [1, -1, -1], [1, 1, -1], [1, -1, 1], [1, 1, 1]];
+const _eye = new THREE.Vector3(), _d = new THREE.Vector3(), _q = new THREE.Vector3(), _o = new THREE.Vector3();
+const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();
+function keepInside(camera, k, v) {
   if (!track.sightHit) return;
+  const pos = camera.position;
   _eye.copy(k.world).addScaledVector(k.up, 1.6);
-  const hit = track.sightHit(_eye, pos);
-  if (hit === null) return;
-  const len = pos.distanceTo(_eye);
-  pos.lerpVectors(_eye, pos, Math.max(0, hit - CAM_GAP / len));
+  _d.subVectors(pos, _eye);
+  const len = _d.length(), hh = camera.near * Math.tan(camera.fov * Math.PI / 360), hw = hh * camera.aspect;
+  if (len < 1e-3) return;
+  let s = 1;
+  for (let it = 0; it < 4 && s > 0; it++) {
+    _q.copy(_eye).addScaledVector(_d, s);
+    _f.subVectors(v.look, _q).normalize(); _r.crossVectors(_f, v.up).normalize(); _u.crossVectors(_r, _f);
+    let next = s;
+    for (const [n, x, y] of CORNERS) {
+      _o.copy(_f).multiplyScalar(n * camera.near).addScaledVector(_r, x * hw).addScaledVector(_u, y * hh).add(_q);
+      const hit = track.sightHit(_eye, _o);
+      if (hit !== null) next = Math.min(next, s * hit - CAM_GAP / len);
+    }
+    if (next === s) break;
+    s = Math.max(0, next);
+  }
+  pos.copy(_eye).addScaledVector(_d, s);
 }
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
@@ -1405,7 +1423,7 @@ function updateCamera(dt, v) {
   v.pos.lerp(target, a);
   v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
   v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
-  camera.position.copy(v.pos); keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.position.copy(v.pos); keepInside(camera, k, v); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
   v.init = true;
