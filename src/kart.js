@@ -719,6 +719,18 @@ export class Kart {
       const side = Math.sign(this.phi), lat = this.v * Math.sin(this.phi) * 0.5;
       if (Math.abs(steer) >= 1 && Math.sign(steer) === -side && Math.abs(this.phi) > 0.1
         && side * (this.d + lat) > t.wallAt(this.s + this.v * 0.5, side) - 1.2) return { throttle: 0, brake: 0.5, steer, drift: false };
+      // and brakes where the route limit closes in ahead behind a steep face it is still out beside, its sideways move
+      // not getting it in by then: out wide of the bend before Royal Raceway's ramp (k 0.03 at (160, -255)) the karts
+      // came to the ramp's foot at (125, -230) 5-6 out, its limit 4.5, were held out by its side face and drove along
+      // it into the grass wedge where it meets the barrier at (70, -196), for Lakitu (3 races in 6)
+      const sg = Math.sign(this.d) || 1;
+      if (sg * this.d < t.wallAt(this.s, sg) - 1.2) {
+        for (let a = 2; a <= 6 + this.v * 0.6; a += 2) {
+          const need = sg * this.d - (t.wallAt(this.s + a, sg) - 1.5);
+          if (need > -sg * Math.tan(THREE.MathUtils.clamp(this.phi, -1, 1)) * a && this.wallBetween(t, this.d, sg * (t.wallAt(this.s + a, sg) - 1.5), this.s + a))
+            return { throttle: 0, brake: 1, steer, drift: false };
+        }
+      }
     }
     // regulate_cpu_speed: under the class minimum always accelerate; at or above the target speed decelerate 2
     if (this.v >= CPU_MIN_SPEED[this.cc] * MK_UNIT) {

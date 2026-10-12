@@ -329,10 +329,11 @@ describe('CPU driving', () => {
   it('has Lakitu fish out a CPU wedged beside Royal Raceway\'s ramp', async () => {
     // a CPU 10 out at the foot of the ramp at (125, -230), where the limit drops from 40 to 4.5, is held out by the
     // ramp's side face and drives into the grass wedge where it meets the barrier at (70, -196) (s1061); it stayed
-    // there for the rest of a 150cc race (1 race in 3)
+    // there for the rest of a 150cc race (1 race in 3). (From 980, 10 out, the CPU now brakes and takes the ramp: it
+    // starts beside the ramp, on the ground under its side.)
     const track = await makeTrack('royal');
-    const cpu = makeKart(track, { name: 'Luigi', character: 'luigi', s: 980, d: -10 });
-    cpu.d = -10; cpu.v = 40;
+    const cpu = makeKart(track, { name: 'Luigi', character: 'luigi', s: 1010, d: -6 });
+    cpu.d = -6; cpu.v = 40; cpu.groundY = 0; cpu.y = undefined; cpu.syncMesh(0);
     let t = 0;
     for (; t < 12 && !cpu.fell; t += 1 / 60) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
     expect(cpu.fell).toBeTruthy();
@@ -343,6 +344,19 @@ describe('CPU driving', () => {
     ok.v = 40;
     for (let i = 0; i < 60 * 8; i++) ok.update(1 / 60, ok.think(1 / 60, [ok]), [ok]);
     expect(ok.fell).toBeFalsy();
+  });
+  it('brakes a CPU out wide of the bend before Royal Raceway\'s ramp so it gets onto the ramp, not beside it', async () => {
+    // out of the bend at (160, -255) 3-9 out and heading further out, the karts came to the ramp's foot at (125, -230)
+    // 5-6 out (its limit 4.5), were held out by its side face and drove along it into the grass wedge at (70, -196)
+    const track = await makeTrack('royal');
+    const beside = [];
+    for (const s0 of [960, 970]) for (const d0 of [-3, -5, -7, -9]) for (const ps of [-0.3, -0.15]) {
+      const cpu = makeKart(track, { name: 'Luigi', character: 'luigi', s: s0, d: d0 });
+      cpu.d = d0; cpu.v = 46; cpu.psi = cpu.phi = ps; cpu.aiOffset = -4.8;
+      for (let i = 0; i < 60 * 3 && !cpu.fell; i++) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
+      if (cpu.world.y < 1 && cpu.s < 1075) beside.push([s0, d0, ps, +cpu.s.toFixed(1), +cpu.d.toFixed(1)]);
+    }
+    expect(beside).toEqual([]);
   });
   it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
     // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
