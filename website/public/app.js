@@ -13,6 +13,22 @@
   document.getElementById('hero-dl').href = card.href;
 })();
 
+// Scale the hero card up to fill the viewport when there's room (never below 1x).
+(() => {
+  const card = document.querySelector('.mk-card');
+  if (!card) return;
+  const fit = () => {
+    card.style.zoom = 1;
+    const vw = document.documentElement.clientWidth;
+    if (vw <= 900) return;
+    const s = Math.min((vw - 44) / card.offsetWidth, (innerHeight - 220) / card.offsetHeight);
+    if (s > 1) card.style.zoom = s;
+  };
+  addEventListener('resize', fit);
+  addEventListener('load', fit);
+  fit();
+})();
+
 // Screenshot lightbox.
 document.querySelectorAll('.gallery a').forEach((a) => a.addEventListener('click', (e) => {
   e.preventDefault();

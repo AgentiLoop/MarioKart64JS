@@ -6,7 +6,7 @@ export { Lobby } from "./lobby.js";
 
 // /download/<plat> -> 302 to that platform's asset on the latest (non-pre-release) GitHub release,
 // so the site never needs editing for a new version. Asset names carry the version, so match by suffix.
-export const REPO = "AgentiLoop/MarioKart64JS";
+const REPO = "AgentiLoop/MarioKart64JS";
 const DOWNLOADS = {
   mac: "-mac-webkit-universal.zip",
   win: "-win-x64.zip",
