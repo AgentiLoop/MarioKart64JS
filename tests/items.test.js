@@ -251,6 +251,37 @@ describe('Items on a race course', () => {
   });
 
 
+  it('flies a red shell straight on, then straight at the racer one place ahead in the world; a wall smashes it', () => {
+    // Mario Raceway s297 down the middle, as the green shell below: in its first 0.5 s (MOVING_SHELL) it runs straight
+    // on into the wall at (210, -21) and is smashed there (func_802B4104). Homing in (s, d) it slid round the bend.
+    player.s = 297; player.d = 0; player.psi = 0; player.v = 1.4 * (player.top || 60); cpu.s = 380; cpu.d = 0;
+    items.launch(player, 'red_shell', karts);   // at 1.2 x the kart's speed, there in ~23 frames
+    player.v = 0;
+    let o = items.shots[0];
+    for (let i = 0; i < 60 && items.shots.includes(o); i++) items.update(1 / 60, karts);
+    expect(items.shots).not.toContain(o);
+    expect(cpu.tumble || cpu.invuln > 0).toBeFalsy();
+    expect(items.debris.length).toBe(1);   // smashed, not just gone
+    // 2nd place: after 0.5 s RED_SHELL_LOCK_ON, straight at 1st in x, z at 8 MK64 units a frame, and it hits
+    player.s = 520; player.d = -15; cpu.s = 590; cpu.d = 10;
+    items.launch(player, 'red_shell', karts);
+    o = items.shots.at(-1);
+    const f = track.frameAt(cpu.s, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3() });
+    const cx = f.pos.x + f.R.x * cpu.d, cz = f.pos.z + f.R.z * cpu.d, top = player.top || 60;
+    let locked = 0;
+    for (let i = 0; i < 180 && items.shots.includes(o); i++) {
+      const x = o.x, z = o.z;
+      items.update(1 / 60, karts);
+      if (o.mode !== 'lock' || !items.shots.includes(o)) continue;
+      locked++;
+      const dx = o.x - x, dz = o.z - z, l = Math.hypot(cx - x, cz - z);
+      expect((dx * (cx - x) + dz * (cz - z)) / Math.hypot(dx, dz) / l).toBeGreaterThan(0.9999);
+      expect(Math.hypot(dx, dz) * 60).toBeCloseTo(8 / 5.885 * top, 6);
+    }
+    expect(locked).toBeGreaterThan(5);
+    expect(cpu.tumble || cpu.invuln > 0).toBeTruthy();
+  });
+
   it('sits bananas and shells on the ground the karts ride, not on the route\'s banked plane', () => {
     // Mario Raceway: the smoothed route plane runs ~3 under the road at (92, -43) (s204, d -11.6) and ~3 over it at
     // (195, -2) (s310, d 17.5)
@@ -267,7 +298,7 @@ describe('Items on a race course', () => {
       expect(b.mesh.position.y).toBeCloseTo(g.y + 0.05, 3);
       expect(Math.hypot(b.mesh.position.x - plane.x, b.mesh.position.z - plane.z)).toBeLessThan(1e-6);
       items.hazards.length = 0;   // a shell on the banana would take it out
-      items.shots.push({ kind: 'green_shell', s, d, dir: 1, speed: 0, owner: player, safe: 9, ttl: 9, mesh: items.makeMesh('green_shell'), t: 0, top: 60 });
+      items.shots.push({ kind: 'green_shell', s, d, a: 0, dir: 1, speed: 0, owner: player, safe: 9, ttl: 9, mesh: items.makeMesh('green_shell'), t: 0, top: 60 });
       items.update(1 / 60, [player]);
       expect(items.shots.at(-1).mesh.position.y).toBeCloseTo(g.y + 0.05, 3);
     }

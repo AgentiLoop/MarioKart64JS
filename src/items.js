@@ -349,7 +349,7 @@ export class Items {
   }
   touch(k, p, r) {
     if (this.arena) return Math.abs(k.x - p.x) < r && Math.abs(k.z - p.z) < r && Math.abs(k.y - p.y) < 2.5;
-    if (p.vx !== undefined) {   // a race green shell (moveGreen) is in the world: the kart's spot there, near along the route
+    if (p.vx !== undefined) {   // a race green / red shell (moveGreen / moveRed) is in the world: the kart's spot there, near along the route
       if (Math.abs(this.delta(k.s, p.s)) > 30) return false;
       const f = this.track.frameAt(k.s, this.fr);
       return Math.abs(f.pos.x + f.R.x * k.d - p.x) < r && Math.abs(f.pos.z + f.R.z * k.d - p.z) < r;
@@ -463,7 +463,7 @@ export class Items {
     const speed = Math.max(SHELL_MIN * (kart.top || 60), 1.2 * Math.abs(kart.v));
     this.shots.push({ kind, ...p, h: kart.h + (back ? Math.PI : 0), dir: back ? -1 : 1, speed, owner: kart, safe: 0.6, mesh,
       ttl: kind === 'green_shell' ? 8 : kind === 'blue_shell' ? Infinity : 12, t: 0, top: kart.top || 60,
-      ...(kind === 'green_shell' && !this.arena && { a: (kart.psi || 0) + (back ? Math.PI : 0) }) });
+      ...((kind === 'green_shell' || kind === 'red_shell') && !this.arena && { a: (kart.psi || 0) + (back ? Math.PI : 0) }) });
     this.snd(kart, SND_FIRE); this.voice(kart, V_THROW);
   }
 
@@ -816,7 +816,7 @@ export class Items {
     }
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const o = this.shots[i]; o.ttl -= dt; o.safe -= dt;
-      let gone = o.ttl <= 0 || (this.arena ? this.moveArenaShot(o, karts, dt) : this.moveShot(o, karts, dt)), smash = false;
+      let gone = o.ttl <= 0 || (this.arena ? this.moveArenaShot(o, karts, dt) : this.moveShot(o, karts, dt)), smash = gone === 'wall';
       for (const k of karts) {
         if (gone || (k === o.owner && o.safe > 0) || k.out) continue;
         if (this.touch(k, o, 2.3)) {
@@ -835,6 +835,7 @@ export class Items {
   }
   near(a, b, r) {
     if (this.arena) return Math.abs(a.x - b.x) < r && Math.abs(a.z - b.z) < r && Math.abs(a.y - b.y) < 2.5;
+    if (a.vx !== undefined) return this.touch(b, a, r);   // a race green / red shell in the world: the hazard's spot there
     return Math.abs(this.delta(a.s, b.s)) < r && Math.abs(a.d - b.d) < r;
   }
 
@@ -947,22 +948,7 @@ export class Items {
       }
       return false;
     }
-    if (o.kind === 'green_shell' && o.a !== undefined) return this.moveGreen(o, dt);
-    let target = null;
-    if (o.kind === 'red_shell') {
-      let best = 120; target = null;
-      for (const k of karts) {
-        if (k === o.owner || k.out) continue;
-        const ds = this.delta(k.s, o.s);
-        if (ds > -2 && ds < best) { best = ds; target = k; }
-      }
-    }
-    o.s = (o.s + (o.dir || 1) * o.speed * dt + L) % L;
-    if (target) o.d += THREE.MathUtils.clamp(target.d - o.d, -18 * dt, 18 * dt);
-    // kept on the road between its walls (as karts, 1.2 in), not a fixed +-10 band
-    const t = this.track;
-    o.d = THREE.MathUtils.clamp(o.d, -(t.wallAt(o.s, -1) - 1.2), t.wallAt(o.s, 1) - 1.2);
-    return false;
+    return o.kind === 'red_shell' ? this.moveRed(o, karts, dt) : this.moveGreen(o, dt);
   }
   // Green shell on a race course (update_actor_green_shell MOVING_SHELL): it flies on in a straight line in the
   // world (x, z, velocity vx, vz) at the heading it left the kart with (a, off the route's) and is reflected off the
@@ -971,15 +957,8 @@ export class Items {
   // Kart.routeStep's split), for the hits and drawing. Riding the route frame in (s, d) instead ran it backwards
   // past the centre of a bend (1 - k d under 0).
   moveGreen(o, dt) {
-    const t = this.track, L = t.length;
-    if (o.vx === undefined) {
-      const f = t.frameAt(o.s, this.fr), c = Math.cos(o.a), sn = Math.sin(o.a);
-      const hx = f.T.x * c + f.R.x * sn, hz = f.T.z * c + f.R.z * sn, l = Math.hypot(hx, hz) || 1, y = f.pos.y + f.R.y * o.d;
-      o.vx = hx / l * o.speed; o.vz = hz / l * o.speed;
-      o.x = f.pos.x + f.R.x * o.d; o.z = f.pos.z + f.R.z * o.d;
-      const g = t.groundAt(o.x, o.z, y) || t.groundBelow(o.x, o.z, y + 3);
-      o.y = g ? g.y : y;
-    }
+    const t = this.track;
+    this.inWorld(o);
     let dx = o.vx * dt, dz = o.vz * dt;
     const hit = t.sweep(o.x, o.z, o.x + dx, o.z + dz, o.y);
     if (hit) {   // stopped at the face, just off it, and bounced
@@ -988,18 +967,8 @@ export class Items {
     }
     const px = o.x, pz = o.z, ps = o.s, pd = o.d;
     o.x += dx; o.z += dz;
-    const f = this.fr;
-    // at most 6 along a step (its 1.6 over the frame's 0.3 floor): past the centre of a bend the foot is ambiguous
-    // and the search jumped 30-70 to the far leg
-    for (let i = 0, moved = 0; i < 5; i++) {
-      t.frameAt(o.s, f);
-      const ex = o.x - f.pos.x, ez = o.z - f.pos.z, det = f.T.x * f.R.z - f.T.z * f.R.x;
-      const u = (ex * f.R.z - ez * f.R.x) / det;
-      o.d = (f.T.x * ez - f.T.z * ex) / det;
-      const step = THREE.MathUtils.clamp(u / Math.max(0.3, 1 - f.k * o.d), -6 - moved, 6 - moved);
-      if (Math.abs(u) < 0.01 || Math.abs(step) < 1e-6) break;
-      o.s = (o.s + step + L) % L; moved += step;
-    }
+    const f = this.foot(o), L = t.length;
+
     // past the route limit: bounced off the limit's line, (T den, R side dl) in the world - a limit closing in across
     // the road (Mario Raceway's bridge, s822: 17.7 -> 6 in 2 along) is a wall across it - and the step taken back
     const side = Math.sign(o.d);
@@ -1024,6 +993,72 @@ export class Items {
     const u = o.top / 5.885, v = Math.hypot(o.vx, o.vz);
     if (v > 4.5 * u || v < 3.5 * u) { o.vx *= 4 * u / v; o.vz *= 4 * u / v; }
     return true;
+  }
+  // a race-course shell leaving the kart: its spot in the world and velocity at the heading it left with (a, off the route's)
+  inWorld(o) {
+    if (o.vx !== undefined) return;
+    const t = this.track, f = t.frameAt(o.s, this.fr), c = Math.cos(o.a), sn = Math.sin(o.a);
+    const hx = f.T.x * c + f.R.x * sn, hz = f.T.z * c + f.R.z * sn, l = Math.hypot(hx, hz) || 1, y = f.pos.y + f.R.y * o.d;
+    o.vx = hx / l * o.speed; o.vz = hz / l * o.speed;
+    o.x = f.pos.x + f.R.x * o.d; o.z = f.pos.z + f.R.z * o.d;
+    const g = t.groundAt(o.x, o.z, y) || t.groundBelow(o.x, o.z, y + 3);
+    o.y = g ? g.y : y;
+  }
+  // (s, d): the route spot square across from the shell's x, z (as Kart.routeStep's split); leaves this.fr there.
+  // At most 6 along a step (its 1.6 over the frame's 0.3 floor): past the centre of a bend the foot is ambiguous
+  // and the search jumped 30-70 to the far leg
+  foot(o) {
+    const t = this.track, L = t.length, f = this.fr;
+    for (let i = 0, moved = 0; i < 5; i++) {
+      t.frameAt(o.s, f);
+      const ex = o.x - f.pos.x, ez = o.z - f.pos.z, det = f.T.x * f.R.z - f.T.z * f.R.x;
+      const u = (ex * f.R.z - ez * f.R.x) / det;
+      o.d = (f.T.x * ez - f.T.z * ex) / det;
+      const step = THREE.MathUtils.clamp(u / Math.max(0.3, 1 - f.k * o.d), -6 - moved, 6 - moved);
+      if (Math.abs(u) < 0.01 || Math.abs(step) < 1e-6) break;
+      o.s = (o.s + step + L) % L; moved += step;
+    }
+    return f;
+  }
+  // Red shell on a race course (update_actor_red_blue_shell): MOVING_SHELL straight on in the world for someTimer
+  // 0x1E updates (0.5 s), then after the racer one place ahead (gPlayerPositionLUT[rank - 1]): from 2nd-5th
+  // RED_SHELL_LOCK_ON (func_802B3E7C), straight at them in x, z at 8 units an update; from 6th down along the path
+  // (GREEN_SHELL_HIT_A_RACER, func_802B3B44, 6 an update) until within 200 units (20 here); the leader's runs on along
+  // the path (TRIPLE_GREEN_SHELL) for 600 updates. Off the path a steep face it meets smashes it (func_802B4104),
+  // and so does its target's boo. Homing in (s, d) instead slid it sideways along the road at 18 a second, round
+  // every bend and through the walls. Returns 'wall' when smashed.
+  moveRed(o, karts, dt) {
+    const t = this.track, L = t.length;
+    this.inWorld(o);
+    o.t += dt;
+    if (o.t >= 0.5 && o.mode === undefined) {
+      const order = karts.filter(k => !k.out).sort((a, b) => b.progress - a.progress), i = order.indexOf(o.owner);
+      o.target = i > 0 ? order[i - 1] : null;
+      o.mode = i <= 0 ? 'path' : i >= 5 ? 'chase' : 'lock';
+      if (i <= 0) o.ttl = 600 / ACTOR_HZ;
+    }
+    const k = o.target, kf = k && t.frameAt(k.s, this.fr);
+    const kx = k && kf.pos.x + kf.R.x * k.d, kz = k && kf.pos.z + kf.R.z * k.d;
+    if (o.mode === 'chase' && Math.hypot(kx - o.x, kz - o.z) < 20) o.mode = 'lock';
+    if (o.mode === 'path' || o.mode === 'chase') {   // the path runs down the middle of the road
+      o.s = (o.s + 6 / 5.885 * o.top * dt) % L;
+      o.d += THREE.MathUtils.clamp(-o.d, -18 * dt, 18 * dt);
+      const f = t.frameAt(o.s, this.fr);
+      o.x = f.pos.x + f.R.x * o.d; o.z = f.pos.z + f.R.z * o.d;
+    } else {
+      if (o.mode === 'lock') {
+        if (k.boo > 0) return 'wall';
+        const l = Math.hypot(kx - o.x, kz - o.z), v = SHELL_MIN * o.top;
+        if (l > 1e-6) { o.vx = (kx - o.x) / l * v; o.vz = (kz - o.z) / l * v; }
+      }
+      const dx = o.vx * dt, dz = o.vz * dt;
+      if (t.sweep(o.x, o.z, o.x + dx, o.z + dz, o.y)) return 'wall';
+      o.x += dx; o.z += dz;
+      this.foot(o);
+    }
+    const g = t.groundAt(o.x, o.z, o.y) || t.groundBelow(o.x, o.z, o.y + 0.5);
+    if (g) { o.y = g.y; o.fall = 0; } else { o.y -= 20 * dt; if ((o.fall = (o.fall || 0) + 20 * dt) > 30) return true; }
+    return false;
   }
 
   // Battle: shells fly along their heading and follow the floor; green ones bounce off walls, red ones home on the
