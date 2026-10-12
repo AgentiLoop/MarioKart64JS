@@ -742,12 +742,15 @@ export class Kart {
     const speedFactor = Math.max(this.wallT > 0 ? 0.35 : 0, THREE.MathUtils.clamp(Math.abs(this.v) / 10, 0, 1) / (1 + Math.abs(this.v) / 90));
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
     const dir = this.v >= 0 ? 1 : -1;
-    this.psi += steer * (this.drift ? 2.3 : 1.9) * speedFactor * dt * dir;
+    // drift turn: full lock into a drift (1.2 * 1.6) matches normal full lock, as in MK64 (player_controller.c: drift
+    // unk_078 = 53 * (var + 3.5) * 0.65 ~ 280 vs normal 53 * var * 1.4 ~ 287 at 150cc top speed); 2.3 turned 45% more
+    this.psi += steer * (this.drift ? 1.6 : 1.9) * speedFactor * dt * dir;
     // the player can turn all the way round (detect_wrong_player_direction -> Lakitu's reverse sign), wrapped to
     // +-180 degrees with phi alongside; CPU karts keep to +-83 degrees of the course
     if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
     else if (Math.abs(this.psi) > Math.PI) { const w = Math.sign(this.psi) * 2 * Math.PI; this.psi -= w; this.phi -= w; }
-    const grip = this.drift ? 1.6 : 9;
+    // less drift grip with the smaller drift turn keeps the slide angle (turn / grip): the kart slides, not spins
+    const grip = this.drift ? 1.1 : 9;
     this.phi += (this.psi - this.phi) * Math.min(1, grip * dt);
     if (this.drift) this.v -= 2 * dt;
 
@@ -1001,7 +1004,7 @@ export class Kart {
     this.steerVis += (input.steer - this.steerVis) * Math.min(1, dt * 12);
     const dir = this.v >= 0 ? 1 : -1;
     // right = fwd x up = (-cos h, 0, sin h): steering right turns h negative
-    this.h -= steer * (this.drift ? 2.3 : 1.9) * speedFactor * dt * dir;
+    this.h -= steer * (this.drift ? 1.6 : 1.9) * speedFactor * dt * dir;
     // the nose points into the drift while the kart slides a little wide
     this.slip += ((this.drift ? this.drift * 0.35 : 0) - this.slip) * Math.min(1, (this.drift ? 1.6 : 9) * dt);
     if (this.drift) this.v -= 2 * dt;
