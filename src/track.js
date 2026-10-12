@@ -175,6 +175,7 @@ export async function loadNativeCourse(def) {
   if (!res.ok) throw new Error(`Course data ${def.dir}: HTTP ${res.status}`);
   def.native = await res.json();
   if (def.id === 'yoshi') widenYoshiBridge(def.native.vertices);
+  if (def.id === 'sherbet') widenSherbetPassages(def.native.vertices);
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
   return def;
 }
@@ -193,6 +194,46 @@ function widenYoshiBridge(vertices) {
     const push = (W - 1) * e * (a <= IN ? a : IN * (OUT - a) / (OUT - IN));
     v[0] = Math.round(v[0] - tz * Math.sign(n) * push);
     v[2] = Math.round(v[2] + tx * Math.sign(n) * push);
+  }
+}
+
+// Sherbet Land's two ice passages are the course's narrowest stretches: the cave (path points 288-336) is 78-84
+// between its walls, the passage after it (480-512) 93-99, against two karts side by side of up to 68 (Bowser 34).
+// Not in MK64: a port change like widenYoshiBridge, along each passage's centre line (course units, midway between
+// its walls; the route runs off-centre in places and is unchanged): 1.4x within 55 of it, easing to none 130 out to
+// the sides (other track is 289 or more away) and 100 beyond its ends.
+const SHERBET_PASSAGES = [
+  [[-2450, 7], [-2469, 85], [-2493, 161], [-2521, 236], [-2548, 311], [-2581, 386], [-2623, 453], [-2666, 522],
+    [-2709, 590], [-2767, 645], [-2826, 699], [-2886, 754], [-2932, 820]],
+  [[-2412, 654], [-2361, 591], [-2311, 527], [-2243, 481], [-2173, 440], [-2104, 400], [-2045, 346], [-1985, 289],
+    [-1909, 257]],
+];
+function widenSherbetPassages(vertices) {
+  const W = 1.4, IN = 55, OUT = 130, EASE = 100;
+  for (const line of SHERBET_PASSAGES) {
+    const segs = [];
+    let len = 0;
+    for (let k = 0; k + 1 < line.length; k++) {
+      const [x0, z0] = line[k], dx = line[k + 1][0] - x0, dz = line[k + 1][1] - z0, l = Math.hypot(dx, dz);
+      segs.push({ x0, z0, tx: dx / l, tz: dz / l, l, s: len });
+      len += l;
+    }
+    const moves = [];
+    for (const v of vertices) {
+      let best = null;
+      segs.forEach((g, k) => {   // nearest point on the centre line, its first/last segment run on by EASE
+        const px = v[0] - g.x0, pz = v[2] - g.z0;
+        const u = Math.min(Math.max(px * g.tx + pz * g.tz, k ? 0 : -EASE), k < segs.length - 1 ? g.l : g.l + EASE);
+        const d = Math.hypot(px - g.tx * u, pz - g.tz * u);
+        if (!best || d < best.d) best = { d, g, t: g.s + u, n: pz * g.tx - px * g.tz };
+      });
+      const { g, t, n } = best, a = Math.abs(n);
+      if (t <= -EASE || t >= len + EASE || a >= OUT) continue;
+      const e = THREE.MathUtils.smoothstep(t < 0 ? t + EASE : len + EASE - t, 0, EASE);
+      const push = (W - 1) * e * (a <= IN ? a : IN * (OUT - a) / (OUT - IN));
+      moves.push([v, -g.tz * Math.sign(n) * push, g.tx * Math.sign(n) * push]);
+    }
+    for (const [v, dx, dz] of moves) { v[0] = Math.round(v[0] + dx); v[2] = Math.round(v[2] + dz); }
   }
 }
 // Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
