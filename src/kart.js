@@ -1030,7 +1030,10 @@ export class Kart {
         // height the lip's own back face was in its body and threw the kart back (40 -> 18)
         // (a slope's eased 0.15 creep is taken once a step, in the first pass: both passes took it, see the sum below)
         const go = t.groundAt(wx + hx * o, wz + hz * o, gy), gyo = go ? Math.max(go.y, gy) : gy;
-        const h = t.wallPush(px + hx * o, pz + hz * o, wx + hx * o, wz + hz * o, gyo, cap.r, y0 + gyo - gy, pass || settle ? 0 : 0.15);
+        // (and the ground under the circle where it was: off the side of a ramp the centre comes down first, the nose
+        // still on the ramp's top, Track.wallPush rode)
+        const qx = px + hx * o, qz = pz + hz * o, yp = y0 + gyo - gy, gp = this.air ? null : t.groundAt(qx, qz, y0);
+        const h = t.wallPush(qx, qz, wx + hx * o, wz + hz * o, gyo, cap.r, yp, pass || settle ? 0 : 0.15, gp ? Math.max(gp.y, yp) : yp);
         if (!h) return [0, 0];
         nx += h.nx; nz += h.nz; touched |= 1 << i; fn ??= h;
         const mx = h.x + h.nx * WALL_CLEAR - wx - hx * o, mz = h.z + h.nz * WALL_CLEAR - wz - hz * o;

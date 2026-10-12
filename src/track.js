@@ -757,8 +757,10 @@ export class Track {
       }
       return best;
     };
-    this.wallPush = (x0, z0, x, z, y, r, yp = y, creep = 0.15) => {
-      let hit = null, steep, off, drop;
+    // rode: the ground the body itself stood on where it was, when the caller knows it to be over yp (a Wii 3D capsule
+    // circle still on a ramp's top after the kart's centre came down off its side)
+    this.wallPush = (x0, z0, x, z, y, r, yp = y, creep = 0.15, rode = yp) => {
+      let hit = null, steep, off, drop, left;
       const across = new Set();   // faces an eased push took the body on across the plane of (below)
       // off the ground it rode (dropped: the ground under the step's end lower than where it was), the direction a
       // sloped edge is met end-on in (rim) is the kart's own move, not the passes' pushes: pushed 0.15 off the side of
@@ -770,6 +772,7 @@ export class Track {
       const X = x, Z = z, mv = () => dropped() ? [X - x0, Z - z0] : [x - x0, z - z0];
       const dropped = () => drop ??= (g => g !== null && g < yp - 0.05)(height(X, Z, yp));
       const offEdge = () => off ??= (g => g !== null && g < yp - 0.4)(height(X, Z, yp));
+      const leftTop = () => left ??= rode > yp + 0.05 && !dropped() && (g => g !== null && g < rode - 0.05)(height(X, Z, rode));
       const steepUnder = () => steep ??= (g => g !== null && Math.abs(g - yp) < 0.3 && hitNormal.y < FLOOR_NY)(height(x0, z0, yp));
       for (let pass = 0; pass < 3; pass++) {   // a corner touches two faces: resolve them in turn
         let deepest = null;
@@ -869,7 +872,12 @@ export class Track {
                     // its side, his centre 0.05 past the side's edge, was thrown his whole overlap off the side in one
                     // step, 1.63, the edge having been his ramp top's a step before; and its cut point ahead out of reach
                     // there takes nothing from the line off the top: Mario off the ramp at (-6, 52), 1.24 in a step)
-                    const e0 = rim(x0, z0, yp + 0.55, yp + 2, walls[t], ...mv(), r, d0 < 0, d0 < 0, offEdge());
+                    // (a body that left a ramp's top over this side on its own, the kart's centre already down on the road
+                    // (leftTop): its band came down with its ground and took in the side's sloped edge it rode over, so
+                    // its overlap where it was counts at the height it is now. Off Koopa Troopa Beach's ramp at (-6, 52)
+                    // Bowser's Wii 3D nose circle, its ground 0.39 lower, was thrown its whole overlap, 1.37 in a step)
+                    const e0 = d0 < 0 && d > 0 && Math.abs(ny) < 0.35 && leftTop() ? rim(x0, z0, y + 0.55, y + 2, walls[t], ...mv(), r, true, true, true)
+                      : rim(x0, z0, yp + 0.55, yp + 2, walls[t], ...mv(), r, d0 < 0, d0 < 0, offEdge());
                     const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
                   }

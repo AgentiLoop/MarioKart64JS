@@ -907,6 +907,15 @@ describe('CPU driving', () => {
     const h = t.wallPush(-6.966, 8.937, -6.962, 9.181, 7.051, 1.495, 7.225, 0);
     expect(h ? Math.hypot(h.x + 6.962, h.z - 9.181) : 0).toBeLessThan(0.3);
   });
+  it('is not thrown off the side of Koopa Troopa Beach\'s wedge ramp at (-6, 52) as its nose drops off it', async () => {
+    // Bowser's Wii 3D kart driving off the ramp's side at full speed: the centre came down onto the road (0.1) first,
+    // then the nose circle left the ramp's top (0.49 under it) over the side's 0.1-2.1 face. Measured at the road the
+    // body band took in the face's sloped edge it had ridden over, and the whole overlap went, 1.37 in one step (1.65 a
+    // frame; player fuzz WII3D koopa bowser seed 46). Its overlap where it was counts at the height it is now
+    const t = await makeTrack('koopa');
+    const h = t.wallPush(-5.662, 52.424, -5.927, 52.129, 0.1, 1.495, 0.1, 0.15, 0.492);
+    expect(h ? Math.hypot(h.x + 5.927, h.z - 52.129) : 0).toBeLessThan(0.5);
+  });
   it('is not shuttled between Royal Raceway\'s mound foot and the route limit easing it in', async () => {
     // Bowser 23 out past the limit at (-116, 8), eased in (wallEase) at a standstill against the mound's 53 deg foot:
     // the face pushed him out past the eased edge, and the edge snapped him back in from where it had eased to,
