@@ -4,6 +4,7 @@ import { Kart, kartSpriteFrame, buildKartMesh, ccSpeedScale, CC_INDEX, CC_BATTLE
   togglePhysics, physicsLabel, pickRivals, cpuSpeedControl } from '../src/kart.js';
 import { makeTrack, makeKart, run, idle, gas, flush } from './helpers.js';
 import { battleSpawn } from '../src/track.js';
+import { fluidAt, fluidLevel } from '../src/lakitu.js';
 
 describe('kart helpers', () => {
   it('ccSpeedScale is 1 for 150cc Mario and smaller for 50cc', () => {
@@ -323,6 +324,25 @@ describe('CPU driving', () => {
     for (let i = 0; i < 60 * 3; i++) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
     expect(cpu.s).toBeGreaterThan(450);
     expect(cpu.v).toBeGreaterThan(30);
+  });
+  it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
+    // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
+    const track = await makeTrack('dk');
+    track.fluidY = fluidLevel(track); track.fluidAt = (x, z) => fluidAt(track, x, z);   // as Lakitu sets them
+    for (let s = 600; s <= 630; s += 5) {
+      expect(track.wallAt(s, -1)).toBeGreaterThan(30);
+      expect(track.dryAt(s, -1)).toBeLessThan(7);
+    }
+    expect(track.dryAt(600, 1)).toBe(track.wallAt(600, 1));
+    // a CPU landed 30 out right of the route, swinging back across for its lane -4.8 (a 150cc race slid it down the
+    // bank into the water at s620): it settles inside the dry limit
+    const cpu = makeKart(track, { name: 'Toad', character: 'toad', s: 571.2, d: 30.6 });
+    cpu.aiOffset = -4.8; cpu.psi = -0.24; cpu.phi = -0.12; cpu.v = 35;
+    let minD = 0;
+    for (let i = 0; i < 60 * 3 && !cpu.fell; i++) { cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]); minD = Math.min(minD, cpu.d); }
+    expect(cpu.fell).toBeFalsy();
+    expect(minD).toBeGreaterThan(-4.5);
+    expect(cpu.s).toBeGreaterThan(625);
   });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');

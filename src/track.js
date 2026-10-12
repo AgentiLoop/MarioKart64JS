@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as HD from './hd.js';
+import { fluidAt, fluidLevel } from './lakitu.js';
 
 export const NATIVE_SCALE = 0.1;   // MK64 course units -> scene units
 
@@ -387,7 +388,18 @@ export class Track {
   // Lateral wall distance at arc-length s on side sgn (+1 right, -1 left).
   wallAt(s, sgn) {
     const b = sgn > 0 ? this.wallR : this.wallL;
-    if (!b) return WALL_D;
+    return b ? this._lerpBound(b, s) : WALL_D;
+  }
+
+  // Not in MK64: wallAt, or nearer where the ground beside the route goes under the course's fluid level first (the
+  // bank down into D.K.'s Jungle Parkway's river at (92, -188), which wallAt runs on across). CPUs keep their lane in
+  // from it (Kart.think); the player can still drive into the water.
+  dryAt(s, sgn) {
+    const b = sgn > 0 ? this.dryR : this.dryL;
+    return b ? this._lerpBound(b, s) : this.wallAt(s, sgn);
+  }
+
+  _lerpBound(b, s) {
     const n = this.n, f = (((s % this.length) + this.length) % this.length) / this.ds;
     const i = Math.floor(f) % n, t = f - Math.floor(f);
     return b[i] * (1 - t) + b[(i + 1) % n] * t;
@@ -725,7 +737,8 @@ export class Track {
       return hit;
     };
     if (this.arena) return;
-    const STEP = 0.5, MAX = 40, RAMP = 8, GAP = 5, raw = { [-1]: [], [1]: [] };
+    const STEP = 0.5, MAX = 40, RAMP = 8, GAP = 5, raw = { [-1]: [], [1]: [] }, dry = { [-1]: [], [1]: [] };
+    const fluidY = fluidLevel(this), wetAt = (x, z, y) => y < fluidAt({ def: this.def, fluidY }, x, z);   // ground under the fluid (dryAt)
     // ground d out from route sample j (side sgn) nearest to yRef
     const across = (j, d, sgn, yRef) => {
       const q = this.pos[(j + this.n) % this.n], Q = this.R[(j + this.n) % this.n];
@@ -773,7 +786,8 @@ export class Track {
       const p = this.pos[i], R = this.R[i];
       const y0 = routeY[i];
       for (const sgn of [-1, 1]) {
-        let prev = y0, d = STEP, passed = 0;
+        // (not where the route's own ground is under it: no bank to keep off)
+        let prev = y0, d = STEP, passed = 0, wet = wetAt(p.x, p.z, y0) ? -Infinity : Infinity;
         for (; d <= MAX; d += STEP) {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn, x1 = p.x + R.x * (d - STEP) * sgn, z1 = p.z + R.z * (d - STEP) * sgn;
           const hit = d > 1.5 && blocked(x1, z1, x, z, prev);   // the route itself may graze ramp sides
@@ -782,6 +796,7 @@ export class Track {
           // bound pinned the karts driving past a ramp onto its side face, where they stuck and piled up (wallPush
           // still holds their bodies off its faces)
           if (y === null) break;
+          if (wet === Infinity && wetAt(x, z, y)) wet = d;
           // ... and so does a climb steeper than 45 deg, which groundAt never takes a kart up (FLOOR_NY): the bound
           // went up the 49 deg front of Koopa Troopa Beach's rock at (-171, 11) and on to 38, so CPUs steered into
           // the 3-wide gap between it and the ramp beside it, where Bowser wedged crosswise for 40 s
@@ -819,11 +834,13 @@ export class Track {
         // (-172, 14), 3 wide, karts wedged against the ramp's side for whole races, steering for the route beyond it
         if (d <= MAX && passed && d - passed < GAP) d = passed;
         raw[sgn].push(Math.max(2.5, d - STEP));
+        dry[sgn].push(Math.max(2.5, Math.min(d, wet < 0 ? Infinity : wet) - STEP));
       }
     }
     // a wall is only as open as its narrowest neighbour (no slipping through single-sample gaps)
     const tighten = b => b.map((_, i) => Math.min(...[-2, -1, 0, 1, 2].map(k => b[(i + k + this.n) % this.n])));
     this.wallL = tighten(raw[-1]); this.wallR = tighten(raw[1]);
+    this.dryL = tighten(dry[-1]); this.dryR = tighten(dry[1]);
   }
 
   // analyze_track_sections / analyze_curved_path (cpu_vehicles_camera_path/path_calc.inc.c): a path point is a curve

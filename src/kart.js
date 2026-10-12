@@ -596,9 +596,11 @@ export class Kart {
     }
     // the lane is kept clear of the narrowest wall limit just ahead too: where the limit closes in (beside Koopa
     // Troopa Beach's narrow ramp at (10, 277) it drops from 40 to 3.5) the clamp snapped the karts still out wide
-    // in by a few units at once and bounced them off it
-    let wl = t.wallAt(this.s, -1), wr = t.wallAt(this.s, 1);
-    for (let a = 2; a <= 10 + Math.max(0, this.v) * 0.3; a += 2) { wl = Math.min(wl, t.wallAt(this.s + a, -1)); wr = Math.min(wr, t.wallAt(this.s + a, 1)); }
+    // in by a few units at once and bounced them off it. The limit is the dry one (Track.dryAt): beside D.K.'s Jungle
+    // Parkway's river at (92, -188) the wall limit runs 40 out across the water, the lane (aiOffset -4.8) reached the
+    // bank's edge and a kart a race slid down it into the river
+    let wl = t.dryAt(this.s, -1), wr = t.dryAt(this.s, 1);
+    for (let a = 2; a <= 10 + Math.max(0, this.v) * 0.3; a += 2) { wl = Math.min(wl, t.dryAt(this.s + a, -1)); wr = Math.min(wr, t.dryAt(this.s + a, 1)); }
     const lo = -Math.min(HALF_WIDTH, wl) + 2.5, hi = Math.min(HALF_WIDTH, wr) - 2.5;
     target = THREE.MathUtils.clamp(target, lo, hi);
     this.dbgT = target;
