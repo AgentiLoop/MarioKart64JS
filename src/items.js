@@ -922,7 +922,7 @@ export class Items {
     }
   }
 
-  // Track: green shells run straight along the course, kept on the road; red shells home on the racer
+  // Track: green shells fly straight on in the world (moveGreen); red shells home on the racer
   // ahead; the blue shell chases the leader. Returns true when the shell is spent.
   // Blue shell (update_actor_red_blue_shell): MOVING_SHELL straight on for someTimer 0x1E updates (0.5 s, its owner
   // safe), then BLUE_SHELL_LOCK_ON along the path (func_802B3B44, at most 6 units an update) after whoever is first
