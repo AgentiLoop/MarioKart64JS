@@ -653,6 +653,11 @@ export class Track {
     });
     const wallTop = walls.map(tri => Math.max(tri[0][1], tri[1][1], tri[2][1]));
     const wallFoot = walls.map(tri => Math.min(tri[0][1], tri[1][1], tri[2][1]));
+    // faces t and u lie in one plane (within 0.15, either winding): a rock's side split into triangles is one face
+    const coplanar = (t, u) => {
+      const [nx, ny, nz] = wallN[u], a = walls[u][0], m = wallN[t];
+      return Math.abs(m[0] * nx + m[1] * ny + m[2] * nz) > 0.99 && walls[t].every(v => Math.abs((v[0] - a[0]) * nx + (v[1] - a[1]) * ny + (v[2] - a[2]) * nz) < 0.15);
+    };
     // (x, z) lies inside face t's outline seen from above
     const overFace = (t, x, z) => {
       const [a, b, c] = walls[t];
@@ -825,6 +830,8 @@ export class Track {
                 // Troopa Beach's wedge ramp at (-56, 169), the kart's centre just off the top's edge, pushed on off it)
                 // leaves it deeper in plane terms each pass, and each pass eased out the extra again (0.28 + 0.4 + 0.77,
                 // 1.45 in a step): a low face's edge has had its eased push across the plane for the step (rim, below).
+                // Its plane, not the triangle: coplanar triangles take turns (Koopa's rock prow at (-48.4, 185.2), its 81 deg
+                // side split in two, pushed Donkey Kong 0.36 then 0.62 more on across it after the 0.32 off the face beside)
                 // Not a slope's: at the foot of D.K.'s Jungle Parkway's river bank at (100, -188) the upright body cuts
                 // the bank on both sides of its plane, and the Wii 3D kart was held in it at full throttle
                 const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
@@ -859,7 +866,7 @@ export class Track {
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
                   }
                   const acr = low && cap === most && most < Infinity && side * (dx * nx + dz * nz) < 0;
-                  if (acr && across.has(t)) cap = 0;
+                  if (acr && [...across].some(u => coplanar(t, u))) cap = 0;
                   c = { depth: Math.min(r - dh, cap), nx: dx / dh, nz: dz / dh, t, across: acr };
                 } else c = { depth: Math.min(depth / h, mostIn), nx: side * nx / h, nz: side * nz / h };
                 if (!deepest || c.depth > deepest.depth) deepest = c;

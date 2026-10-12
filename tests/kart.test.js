@@ -817,6 +817,15 @@ describe('CPU driving', () => {
     const h = t.wallPush(-56.652, 168.824, -56.376, 169.107, 1.204, 1.477, 1.204);
     expect(h ? Math.hypot(h.x + 56.376, h.z - 169.107) : 0).toBeLessThan(0.4);
   });
+  it('is not eased across Koopa Troopa Beach\'s rock prow at (-48.4, 185.2) once per triangle of its split side', async () => {
+    // Donkey Kong falling off the rock's tip: pushed 0.32 off the face beside him, then on across the prow's 81 deg
+    // side, split in two nearly coplanar triangles, by each in turn (0.36 + 0.62): 1.3 in one step (1.05 a frame).
+    // The eased push across a face's plane is done for the step for every triangle in that plane
+    const t = await makeTrack('koopa');
+    const h = t.wallPush(-48.477, 185.228, -48.371, 185.376, 3.07, 1.477, 3.07);
+    expect(h).not.toBeNull();
+    expect(Math.hypot(h.x + 48.371, h.z - 185.376)).toBeLessThan(0.8);
+  });
   it('is not held inside D.K.\'s Jungle Parkway\'s river bank at (100, -188) from the floor that runs on under it', async () => {
     // the river floor (-3.4) runs on under the 49 deg bank (1.7 high); the Wii 3D kart come down the bank onto it had
     // its tail circle (r 1.25) behind the bank's plane, and each step its move out (0.53 toward the river) was pushed
