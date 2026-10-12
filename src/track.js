@@ -738,7 +738,8 @@ export class Track {
       return best;
     };
     this.wallPush = (x0, z0, x, z, y, r, yp = y) => {
-      let hit = null;
+      let hit = null, steep;
+      const steepUnder = () => steep ??= (g => g !== null && Math.abs(g - yp) < 0.3 && hitNormal.y < FLOOR_NY)(height(x0, z0, yp));
       for (let pass = 0; pass < 3; pass++) {   // a corner touches two faces: resolve them in turn
         let deepest = null;
         const seen = new Set();
@@ -770,8 +771,13 @@ export class Track {
                 // body 1.2 deep and shoved it out sideways in one step. Beside a face its plane says nothing of the rim:
                 // its overlap where the kart was, and whether the kart moves toward it, are the rim's own (driving past a
                 // face's end, Koopa's at (-61, 168), moves off the plane and onto the corner)
+                // ... and so does such a slope under a kart riding steep ground itself (normal y under FLOOR_NY where it
+                // was), even turning into it: Choco Mountain's drawn 52 deg slope at (5, 96) lies 0.85 over its collision
+                // face, so the body always overlapped the face ~0.5, and Mario driving across it, turned 0.14 a step
+                // uphill, was shoved its whole overlap down the slope every step (1.3 a frame at v 10)
                 const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
-                const low = wallTop[t] < y + 1.25, most = eased(low || (side * ny > 0.35 && !into)), mostIn = eased(low || !into);
+                const upSlope = side * ny > 0.35 && (!into || steepUnder());
+                const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope);
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];

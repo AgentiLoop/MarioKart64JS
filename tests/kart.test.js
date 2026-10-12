@@ -700,6 +700,19 @@ describe('CPU driving', () => {
     const in3 = t.wallPush(x + 0.3, z, x, z, y, 1.336);
     expect(Math.hypot(in3.x - x, in3.z - z)).toBeGreaterThan(1);
   });
+  it('is not shoved down Choco Mountain\'s 52 deg slope at (5, 96) turning uphill across it', async () => {
+    // the drawn slope Mario rides (normal y 0.62) lies 0.85 over its collision face (0.67), so the body overlaps the
+    // face ~0.5 wherever it is on the slope; turned 0.14 a step uphill that counted as driven in and the whole overlap
+    // was pushed out down the slope every step (0.63 a step, 1.3 a frame at v 10). Riding steep ground, only the move
+    // in plus 0.15 goes
+    const t = await makeTrack('choco');
+    const h = t.wallPush(5.47, 96.0721, 5.7337, 95.9754, 2.1945, 1.3359);
+    expect(h).not.toBeNull();
+    expect(Math.hypot(h.x - 5.7337, h.z - 95.9754)).toBeLessThan(0.35);
+    // from the floor at its foot, driven into it, it still pushes the whole overlap out
+    const foot = t.wallPush(6.5647, 97.7737, 6.8363, 97.7162, 0.0809, 1.3359, 0.0511);
+    expect(Math.hypot(foot.x - 6.8363, foot.z - 97.7162)).toBeGreaterThan(0.6);
+  });
   it('is not shoved off the side of Choco Mountain\'s 58 deg slope at (-7, 14) creeping beside it', async () => {
     // Bowser eased in onto the slope below the ledge, beside the 58 deg face's sloped edge, creeping 0.008-0.024 a step:
     // the edge's whole line beside him (end-on rule, as if driven along the edge) pushed where the cut point he was
