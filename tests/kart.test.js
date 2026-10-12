@@ -729,6 +729,13 @@ describe('CPU driving', () => {
     const end = t.wallPush(-145.36, -79.955, -145.145, -79.766, 3.171, 1.688);
     expect(end ? Math.hypot(end.x + 145.145, end.z + 79.766) : 0).toBeLessThan(0.3);
   });
+  it('is not thrown off the tip of a Frappe Snowland bank face it crosses in front of on the ground', async () => {
+    // the face at (-108, -105) rises from a tip on the ground; Bowser crossing past the tip was behind its plane
+    // there, read as coming off a ramp's top, and the edge's whole line pushed him 1.6 in one step
+    const t = await makeTrack('frappe');
+    const step = t.wallPush(-107.946, -105.115, -108.61, -105.475, -4.809, 1.688);
+    expect(step ? Math.hypot(step.x + 108.61, step.z + 105.475) : 0).toBeLessThan(1);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

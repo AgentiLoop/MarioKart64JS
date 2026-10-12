@@ -684,7 +684,11 @@ export class Track {
           if (m > 1e-6 && (mx * ex + mz * ez) * Math.sign(ey) > 0.7 * m * Math.sqrt(hh)) {
             cut = Math.hypot(A[0] + ex * s - px, A[2] + ez * s - pz);
             if (cut >= r) continue;
-            if (offTop) cut = 0;
+            // (off the top: last step's centre was beside the edge, not past its low end: Frappe Snowland's bank face
+            // at (-108, -105) rises from a tip on the ground, behind which the kart is only past the tip, and Bowser
+            // crossing in front of the tip there was thrown the full line, 1.6 in a step)
+            const u0 = ((px - mx - A[0]) * ex + (pz - mz - A[2]) * ez) / hh;
+            if (offTop && (ey > 0 ? u0 > 0 : u0 < 1)) cut = 0;
             s = Math.max(0, Math.min(1, u));
           }
         }
