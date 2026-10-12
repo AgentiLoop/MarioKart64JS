@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>AgentiLoop &amp; The GoKart Ecosystem: Project Architecture</title>
+<meta name="description" content="How the AgentiLoop development loop built GoKart (Godot 4) and MarioKart64JS (JavaScript &amp; WebGL): the game projects, engine physics and the AgentiLoop client architecture.">
+<meta name="author" content="AgentiLoop">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#1a0b2e">
+<meta property="og:title" content="AgentiLoop &amp; The GoKart Ecosystem">
+<meta property="og:description" content="Autonomous AI generation &amp; evolution project: GoKart, MarioKart64JS and the AgentiLoop client architecture.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://mk64js.gokart.games/architecture">
+<link rel="icon" type="image/png" href="/favicon.png?v=2">
+<link rel="canonical" href="https://mk64js.gokart.games/architecture">
+<style>
+:root{--ink:#f6f3e8;--mut:#c9c2dc;--line:rgba(255,255,255,.12);--rb:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444)}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);font:17px/1.6 ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparent 60%),radial-gradient(90% 60% at 100% 40%,rgba(34,211,238,.14),transparent 60%),repeating-linear-gradient(45deg,rgba(255,255,255,.018) 0 14px,transparent 14px 28px),linear-gradient(160deg,#1a0b2e,#0b1026 55%,#071a2b);background-attachment:fixed;min-height:100vh}
+a{color:#38d2ff}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;max-width:1040px;margin:0 auto;padding:18px 22px}
+.back{color:var(--mut);text-decoration:none;font-weight:700}
+.back:hover{color:#fff}
+.brand{font-weight:900;font-size:20px;background:var(--rb);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 4s linear infinite;text-decoration:none}
+.wrap{max-width:1040px;margin:0 auto;padding:10px 22px 60px}
+@property --ang{syntax:"<angle>";initial-value:0deg;inherits:false}
+.card{position:relative;padding:44px 46px;border-radius:24px;overflow:hidden;isolation:isolate;box-shadow:0 30px 80px -20px rgba(236,72,153,.45),0 0 0 1px rgba(255,255,255,.06) inset}
+.card::before{content:"";position:absolute;inset:0;z-index:-2;border-radius:inherit;background:conic-gradient(from var(--ang),#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#3b82f6,#8b5cf6,#ec4899,#ef4444);animation:spin 6s linear infinite}
+.card::after{content:"";position:absolute;inset:3px;z-index:-1;border-radius:21px;background:radial-gradient(120% 90% at 0% 0%,rgba(236,72,153,.25),transparent 55%),radial-gradient(120% 90% at 100% 100%,rgba(34,211,238,.2),transparent 55%),repeating-linear-gradient(45deg,rgba(255,255,255,.025) 0 14px,transparent 14px 28px),linear-gradient(160deg,rgba(26,11,46,.96),rgba(11,16,38,.96) 60%,rgba(7,26,43,.96))}
+@keyframes spin{to{--ang:360deg}}
+@keyframes shine{to{background-position:200% center}}
+@keyframes lights{0%{background:#ef4444}33%{background:#facc15}66%{background:#22c55e}}
+.tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fde68a;background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.35);padding:6px 13px;border-radius:999px}
+.dot{width:8px;height:8px;border-radius:50%;background:#ef4444;animation:lights 1.8s steps(1) infinite}
+h1{font-size:clamp(34px,5.4vw,58px);line-height:1.05;letter-spacing:-.025em;margin:18px 0 10px;font-weight:900;color:#fff}
+.rainbow{background:var(--rb);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 4s linear infinite;filter:drop-shadow(0 0 18px rgba(236,72,153,.45))}
+.subtitle{margin:0 0 18px;font-weight:800;text-transform:uppercase;letter-spacing:.16em;font-size:14px;color:#f7df1e;text-shadow:0 0 22px rgba(247,223,30,.45)}
+p{color:var(--mut);margin:0 0 22px}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{font-size:14px;font-weight:800;padding:8px 15px;border-radius:10px;color:#fff;transform:skewX(-8deg);box-shadow:0 8px 20px -8px currentColor}
+.a{background:linear-gradient(135deg,#ef4444,#f97316)}
+.b{background:linear-gradient(135deg,#22c55e,#0ea5e9)}
+.c{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+h2{font-size:clamp(24px,3.4vw,34px);line-height:1.15;margin:56px 0 18px;letter-spacing:-.01em;display:inline-block;padding-bottom:8px;border-bottom:4px solid transparent;border-image:var(--rb) 1}
+.tbl{border-radius:18px;padding:2px;background:linear-gradient(135deg,rgba(236,72,153,.7),rgba(250,204,21,.5),rgba(34,211,238,.7));box-shadow:0 24px 60px -24px rgba(236,72,153,.5)}
+.s2 .tbl{background:linear-gradient(135deg,rgba(34,197,94,.7),rgba(34,211,238,.6),rgba(59,130,246,.7));box-shadow:0 24px 60px -24px rgba(34,211,238,.45)}
+.s3 .tbl{background:linear-gradient(135deg,rgba(139,92,246,.75),rgba(236,72,153,.6),rgba(249,115,22,.7));box-shadow:0 24px 60px -24px rgba(139,92,246,.5)}
+table{width:100%;border-collapse:collapse;border-radius:16px;overflow:hidden;background:linear-gradient(160deg,rgba(26,11,46,.96),rgba(11,16,38,.96))}
+th{text-align:left;padding:15px 18px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#fde68a;background:rgba(255,255,255,.05);border-bottom:1px solid var(--line)}
+td{padding:16px 18px;vertical-align:top;color:#e2dcf0;border-bottom:1px solid rgba(255,255,255,.07)}
+tr:last-child td{border-bottom:0}
+tbody tr{transition:background .2s}
+tbody tr:hover{background:linear-gradient(90deg,rgba(236,72,153,.14),rgba(34,211,238,.08))}
+td strong{color:#fff}
+td:first-child strong{background:var(--rb);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent}
+.badge{display:inline-block;font-size:13px;font-weight:800;padding:6px 12px;border-radius:9px;color:#fff;transform:skewX(-8deg);white-space:nowrap;text-decoration:none;box-shadow:0 8px 20px -8px currentColor}
+.badge:hover{filter:brightness(1.15)}
+.stack{display:inline-block;font-size:14px;font-weight:700;color:#7dd3fc}
+footer{margin-top:60px;padding-top:22px;text-align:center;font-size:14px;color:#8f86ab;border-top:1px solid var(--line)}
+@media(max-width:720px){.card{padding:30px 22px}thead{display:none}table,tbody,tr,td{display:block;width:100%}tr{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.1)}td{border:0;padding:6px 18px}td[data-l]::before{content:attr(data-l);display:block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#fde68a}}
+@media(prefers-reduced-motion:reduce){.card::before,.rainbow,.dot,.brand,td:first-child strong{animation:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="back" href="/">&larr; Back to home</a>
+  <a class="brand" href="https://agentiloop.ai">AgentiLoop</a>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <span class="tag"><span class="dot"></span>Project Architecture</span>
+    <h1><span class="rainbow">AgentiLoop</span> &amp; The GoKart Ecosystem</h1>
+    <p class="subtitle">Autonomous AI Generation &amp; Evolution Project</p>
+    <p>This architecture document details the technical environment and product execution of the AgentiLoop development loop, highlighting how autonomous systems can successfully build, patch, and deploy production-ready codebases.</p>
+    <div class="chips">
+      <span class="chip a">Godot 4</span>
+      <span class="chip b">JavaScript &amp; WebGL</span>
+      <span class="chip c">Swift 6.2 &middot; Rust &middot; Go</span>
+    </div>
+  </section>
+
+  <section class="s1">
+    <h2>The Game Projects</h2>
+    <div class="tbl"><table>
+      <thead><tr><th style="width:25%">Project</th><th style="width:20%">Core Stack</th><th style="width:55%">Technical Implementation Details</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-l="Project"><a class="badge a" href="https://gokart.games/">gokart.games</a></td>
+          <td data-l="Core Stack"><span class="stack">Godot 4 Engine</span></td>
+          <td data-l="Details">A 100% original, royalty-free arcade racer built for cross-platform deployment (macOS, Windows, Linux). To maintain absolute autonomy, <strong>all assets are procedurally drawn directly in code</strong> via rendering loops rather than loading external source files.</td>
+        </tr>
+        <tr>
+          <td data-l="Project"><a class="badge c" href="https://mk64js.gokart.games/">mk64js.gokart.games</a></td>
+          <td data-l="Core Stack"><span class="stack">Pure JavaScript &amp; WebGL</span></td>
+          <td data-l="Details">A custom standalone rewrite utilizing classic 1996 fan assets. Instead of flat 2D billboard sprites, characters are fully modernized into <strong>dynamic 3D kart models</strong>. Features an innovative, automatic split-screen layout for peer-to-peer (P2P) online multiplayer across 2-4 connections.</td>
+        </tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="s2">
+    <h2>Engine Physics &amp; Optimization</h2>
+    <div class="tbl"><table>
+      <thead><tr><th style="width:30%">System Layer</th><th style="width:70%">Refinement &amp; Architectural Approach</th></tr></thead>
+      <tbody>
+        <tr><td data-l="System Layer"><strong>Physics Alignment</strong></td><td data-l="Approach">Intentionally departs from 100% strict legacy accuracy to patch severe bugs inherited from the original console release, such as wall clipping, geometry holes, and sudden momentum drops.</td></tr>
+        <tr><td data-l="System Layer"><strong>Asset Handling</strong></td><td data-l="Approach">Eliminates asset parsing bottlenecks by using programmatic rendering structures. Code-driven meshes provide microscopic deployment footprints and near-instant processing.</td></tr>
+        <tr><td data-l="System Layer"><strong>Netcode Structure</strong></td><td data-l="Approach">Fuses the local "couch gaming" experience with real-time networking by rendering an automated split-screen canvas driven directly by synchronized peer-to-peer coordinate streams.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="s3">
+    <h2>AgentiLoop Client Architecture</h2>
+    <div class="tbl"><table>
+      <thead><tr><th style="width:25%">Component</th><th style="width:25%">Implementation Stack</th><th style="width:50%">Operational Purpose</th></tr></thead>
+      <tbody>
+        <tr><td data-l="Component"><strong>Desktop Controller</strong></td><td data-l="Stack"><span class="stack">Swift 6.2 / SwiftUI / macOS Accessibility API</span></td><td data-l="Purpose">Operates apps natively via functional OS UI layers without fragile screen-scraping or absolute coordinate tracking.</td></tr>
+        <tr><td data-l="Component"><strong>Terminal Harness</strong></td><td data-l="Stack"><span class="stack">Rust &amp; Go Binaries</span></td><td data-l="Purpose">Cross-platform CLI execution layer featuring full-screen interactive TUIs and aggressive state budgeting.</td></tr>
+        <tr><td data-l="Component"><strong>Falsification Engine</strong></td><td data-l="Stack"><span class="stack">Strict Goal-State Assertions</span></td><td data-l="Purpose">Prevents hollow task assertions by requiring explicit system evidence (compilation tokens, unit checks) before logging completion.</td></tr>
+        <tr><td data-l="Component"><strong>Risk Sentinel</strong></td><td data-l="Stack"><span class="stack">Jev Shell Advisor Checkers</span></td><td data-l="Purpose">Analyzes local script actions to calculate file-destructive scores, intercepting commands above safe operation limits.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>Generated for the AgentiLoop Project Workspace &bull; Built Natively on Device</footer>
+</main>
+</body>
+</html>
