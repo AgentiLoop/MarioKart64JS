@@ -469,6 +469,36 @@ describe('CPU driving', () => {
       expect(worst).toBeLessThan(0.4);
     }
   });
+  it('drives off a bank or a hill\'s edge beside the road without being lifted or snapped onto the route plane', async () => {
+    // y change a frame on the ground (or landing), worst rise and worst grounded jump
+    const drive = (k, input, frames) => {
+      let rise = 0, jump = 0;
+      for (let i = 0; i < frames && !k.fell; i++) {
+        const y = k.mesh.position.y, air = k.air;
+        k.update(1 / 60, input, [k]);
+        const dy = k.mesh.position.y - y;
+        if (!k.air) rise = Math.max(rise, dy);
+        if (!k.air && !air) jump = Math.max(jump, Math.abs(dy));
+      }
+      return { rise, jump };
+    };
+    // down the 48 deg bank beside Royal Raceway's road at (-48, -181) (route 0.4, its floor -6): leaving the bank at
+    // -4.3 the kart was lifted 4.8 onto the route plane (route-plane floor for flights coming down from above)
+    const royal = await makeTrack('royal');
+    const r = makeKart(royal, { isPlayer: true, s: 179.73, d: 0 });
+    r.d = -27.79; r.psi = -0.48; r.phi = -0.39; r.v = 17.8; r.syncMesh(0);
+    const rr = drive(r, { throttle: 1, brake: 0, steer: -0.58, drift: false }, 30);
+    expect(rr.rise).toBeLessThan(1);
+    // off the side of Choco Mountain's hill at (-50, 115), 11 over the road, into the void past it: it was snapped
+    // 11 down onto the route plane in a frame; it falls
+    const choco = await makeTrack('choco');
+    const c = makeKart(choco, { isPlayer: true, s: 559.22, d: 0 });
+    c.d = 28.42; c.wallEase = 28.42; c.psi = c.phi = 0.78; c.v = 19.8; c.groundY = 11.4; c.y = undefined; c.syncMesh(0);
+    expect(c.mesh.position.y).toBeGreaterThan(11);
+    const cr = drive(c, gas, 20);
+    expect(cr.jump).toBeLessThan(1);
+    expect(c.air || c.fell).toBeTruthy();
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

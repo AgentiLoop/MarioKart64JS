@@ -1270,7 +1270,7 @@ export class Kart {
     if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
     // the same fluid / void / route-plane rules as the frame-step path above, for a kart that is in the air
     const fluid = wasAir && t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
-    const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
+    const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 && this.y > f.pos.y - 1 ? f.pos.y : g.y;
     const n = floor === g?.y && g.normal.y > 0.2 ? g.normal : UP;
     this.ticks += dt / TICK;
     const count = Math.min(Math.floor(this.ticks), 8);
@@ -1380,10 +1380,14 @@ export class Kart {
         }
         // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the route-plane fallback, unless
         // that would put the kart under the ground there: knocked off the top of Koopa Troopa Beach's rock at (31, 213)
-        // (13 up, the next ground 8.7) it sat on the route plane at 0.1 inside the rock; it drops onto that ground
+        // (13 up, the next ground 8.7) it sat on the route plane at 0.1 inside the rock; it drops onto that ground.
+        // Nor off an edge well over the route: off the side of Choco Mountain's hill at (-50, 115), 11 over the road,
+        // the kart was snapped 11 down onto the route plane in one frame; it falls (and lands on the plane, above),
+        // or with no ground under it at all (off the course's outer edge there) falls into the void for Lakitu
         if (!g && this.groundY != null) {
           const gb = t.groundBelow(x, z, this.groundY + 0.5);
-          if (gb && (this.vy > 0.5 || gb.y > f.pos.y + 0.5)) g = gb;
+          if (gb && (this.vy > 0.5 || gb.y > f.pos.y + 0.5 || this.groundY > f.pos.y + GLUE_DROP)) g = gb;
+          else if (!gb && this.groundY > f.pos.y + GLUE_DROP && this.y != null && dt) { this.air = true; this.airTicks = 0; }
         }
       }
     }
@@ -1401,12 +1405,15 @@ export class Kart {
       if (this.air && !this.ramp && g && this.y - g.y >= 5) this.dac = 2 - 0.07;
       const accel = (vy = this.vy) => (-(this.ramp ? RAMP_AIR[this.ramp].gravity : KART_GRAVITY) * GRAVITY_SCALE - AIR_DRAG * vy) / this.dac;
       if (this.air) {
+        const y0 = this.y;
         this.vy += accel() * dt; this.y += this.vy * dt; this.airTicks += dt / TICK;
         // ground under the course's fluid level (water, lava: func_802AAB4C) or none at all (the void) is no landing:
         // the kart sinks / drops and Lakitu fishes it out (src/lakitu.js). Outside a ramp flight, other ground well
-        // below the route is floored at the route.
+        // below the route is floored at the route - for a kart coming down onto it from above. One already down there
+        // (off the 48 deg bank to the floor beside Royal Raceway's road at (-48, -181), route 0.4, floor -6) was lifted
+        // 4.8 onto the route plane the moment it left the bank
         const fluid = t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
-        const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 ? f.pos.y : g.y;
+        const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 && y0 > f.pos.y - 1 ? f.pos.y : g.y;
         if (this.y <= floor) {
           this.air = false; this.y = floor; this.vy = 0; this.land();
           if (floor !== g.y) g = null;   // landed on the route plane
