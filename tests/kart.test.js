@@ -799,6 +799,16 @@ describe('CPU driving', () => {
     // off the foot of the start ramp at (-180, 17), 0.36 up, the side still pushes the whole overlap (else 37% sank in)
     expect(dist(t.wallPush(-179.615, 16.212, -179.637, 16.676, 0.434, 1.688, 0.434), -179.637, 16.676)).toBeGreaterThan(1);
   });
+  it('is not thrown off the foot of Koopa Troopa Beach\'s wedge ramp at (-6, 73) by the side\'s line under its body', async () => {
+    // Bowser riding up the ramp 0.12 over the road, his centre 0.13 past the side: the edge beside him (0.37 up) is under
+    // the body's foot over the road (0.65), yet the whole line pushed, 1.56 in one step. The cut ahead pushes, sideways
+    // in every pass (a pass's move is the kart's own, else the cut point shoved him back: turned 0.6 rad, 62 -> 51)
+    const t = await makeTrack('koopa');
+    const h = t.wallPush(-6.039, 73.14, -6.23, 72.686, 0.22, 1.688, 0.22);
+    expect(h).not.toBeNull();
+    expect(Math.hypot(h.x + 6.23, h.z - 72.686)).toBeLessThan(1.1);
+    expect(Math.abs(h.nx)).toBeGreaterThan(0.99);
+  });
   it('is not eased off the side of Koopa Troopa Beach\'s wedge ramp at (-56, 169) once per pass, deeper each time', async () => {
     // Donkey Kong riding up the ramp along its side, his centre 0.03 past the top's edge: the side's edge pushed him off
     // across the face's plane, deeper into it each pass, and each of the 3 passes eased out the extra again (0.28 + 0.4
