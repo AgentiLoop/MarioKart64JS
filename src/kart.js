@@ -1280,6 +1280,24 @@ export class Kart {
         }
       } else {
         g = t.groundAt(x, z, this.groundY ?? this.world.y);
+        // ... onto a slope that rose more than CLIMB over this step (driven fast at a steep rock, Koopa Troopa Beach's at
+        // (-129, -100), 33 deg, 0.67 a frame at boost speed, or met head-on from the flat at (-11, -5), 42 deg): groundAt
+        // passed over it and the kart rode a hidden inner rock surface or the sand under it, inside the rock. A floor
+        // surface up to 2.5 over last frame's ground whose plane, followed back to last frame's spot, starts within
+        // CLIMB of that ground is the slope the kart drove onto (an overhang or a bridge deck does not reach down).
+        // Surfaces are tried from the top down: a gentler hidden one can lie just over the slope (at (-98, 104) the
+        // inner rock 0.1 over the drawn slope's foot). Pushed sideways off a wall onto another triangle of the slope
+        // (at (-45, 181)) the plane test can miss: a floor up to 1.5 over the kart is taken too when nothing was over
+        // it a frame ago (it has just come in under the surface, as in flight above)
+        if (g && this.groundY != null) {
+          const was = t.groundBelow(px, pz, this.groundY + 2.5), open = !was || was.y <= this.groundY + 0.3;
+          for (let top = this.groundY + 2.5, i = 0; i < 4; i++) {
+            const up = t.groundBelow(x, z, top), n = up?.normal;
+            if (!up || up.y <= g.y + 0.3) break;
+            if (n.y >= 0.7 && (up.y + (n.x * (x - px) + n.z * (z - pz)) / n.y <= this.groundY + 0.6 || open && up.y <= this.groundY + 1.5)) { g = up; break; }
+            top = up.y - 0.01;
+          }
+        }
         // climbing off a ramp lip over a gap: fly. Rolling off any other edge keeps the route-plane fallback, unless
         // that would put the kart under the ground there: knocked off the top of Koopa Troopa Beach's rock at (31, 213)
         // (13 up, the next ground 8.7) it sat on the route plane at 0.1 inside the rock; it drops onto that ground
