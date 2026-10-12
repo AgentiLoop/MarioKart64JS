@@ -676,6 +676,12 @@ export class Kart {
       const kn = (t.frameAt(this.s + 6, this.ffFrame).k + t.frameAt(this.s + 10, this.ffFrame).k + t.frameAt(this.s + 14, this.ffFrame).k) / 3;
       const need = Math.abs(kn) * this.v / (1.9 * sf);
       if (need > 1) return { throttle: 0, brake: Math.min(1, (need - 1) * 2), steer, drift: false };
+      // and lifts while full steer still leaves it sliding onto the wall limit within half a second: out of Banshee
+      // Boardwalk's hairpin at (-5, -210) the karts powered away with the travel 0.2 rad outward of the nose (slip,
+      // phi - psi), drifted 2 units across on full lock and hit the outside limit (20-30 times a race)
+      const side = Math.sign(this.phi), lat = this.v * Math.sin(this.phi) * 0.5;
+      if (Math.abs(steer) >= 1 && Math.sign(steer) === -side && Math.abs(this.phi) > 0.1
+        && side * (this.d + lat) > t.wallAt(this.s + this.v * 0.5, side) - 1.2) return { throttle: 0, brake: 0.5, steer, drift: false };
     }
     // regulate_cpu_speed: under the class minimum always accelerate; at or above the target speed decelerate 2
     if (this.v >= CPU_MIN_SPEED[this.cc] * MK_UNIT) {

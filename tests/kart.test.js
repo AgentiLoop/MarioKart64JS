@@ -344,6 +344,19 @@ describe('CPU driving', () => {
     expect(minD).toBeGreaterThan(-4.5);
     expect(cpu.s).toBeGreaterThan(625);
   });
+  it('lifts a CPU sliding out of Banshee Boardwalk\'s hairpin onto its outside limit', async () => {
+    // out of the hairpin at (-5, -210) (k 0.21) the karts powered away on full lock with the travel 0.26 rad outward
+    // of the route, slid 2 units across and hit the outside limit (wR 5.5) 20-30 times a race
+    const track = await makeTrack('banshee');
+    const cpu = makeKart(track, { name: 'Luigi', character: 'luigi', s: 281.0, d: 2.45 });
+    cpu.aiOffset = 4.8; cpu.psi = -0.43; cpu.phi = -0.26; cpu.v = 13.3;
+    let hits = 0, maxD = 0;
+    const wb = cpu.wallBounce.bind(cpu); cpu.wallBounce = (...a) => { hits++; return wb(...a); };
+    for (let i = 0; i < 60 * 1.5; i++) { cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]); maxD = Math.max(maxD, cpu.d); }
+    expect(hits).toBe(0);
+    expect(maxD).toBeLessThan(track.wallAt(290, 1) - 1.4);
+    expect(cpu.s).toBeGreaterThan(300);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];
