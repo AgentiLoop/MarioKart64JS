@@ -28,6 +28,7 @@ export const PATH_POINTS = { luigi: 0x2DA, moomoo: 0x230, koopa: 0x2BC, kalimari
 // Pack bands in path points, [lap * 8 + slot] at lap start, [+ 8] at lap end (D_800DCBB4: Mario Raceway D_800DCB34, rest D_800DCAF4)
 const PACK_BAND = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 50, 75, 100, 125, 150, 175, 40, 30, 60, 90, 120, 150, 180, 210, 50, 40, 80, 120, 160, 200, 240, 280];
 const PACK_BAND_MARIO = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 45, 65, 90, 115, 140, 165, 40, 3, 6, 16, 46, 49, 59, 89, 50, 30, 60, 63, 73, 78, 108, 138];
+const LAKITU_MARGIN = { frappe: 8 };   // scene units of flagged ground a kart may cross before Lakitu fishes it out (Kart.updateNative)
 const CPU_MIN_SPEED = [2.5, 10 / 3, 3.75, 10 / 3];   // regulate_cpu_speed var_f0 per gCCSelection, units/frame
 const MK_UNIT = MAX_SPEED / V_TOP;                    // one MK64 speed unit/frame (player->speed) in our speed
 // Speedometer km/h, code_80057C60.c func_8005C360((player->speed / 18) * 216): 150cc Mario tops out at 70.6.
@@ -1369,7 +1370,17 @@ export class Kart {
     // So does a kart held out past the route limit on the plane with no ground within 2 under it: beside Yoshi
     // Valley's rope bridge (limit 2.5) it rested at d 3.8 over the canyon slopes 3.7-19 down, floating, never fished
     if (dt && t.groundAt && !this.fell && !this.rescue) {
-      const below = t.groundBelow(x, z, this.y + 0.5);
+      let below = t.groundBelow(x, z, this.y + 0.5);
+      // Frappe Snowland: the flagged snow fields lie flat beside the road with no drop, so a kart that slid just off it
+      // (a wide power slide) was fished out at once. Lakitu waits until the kart is LAKITU_MARGIN past the flagged
+      // edge: flagged ground with unflagged ground within that distance back toward the route does not count.
+      // (Gameplay tweak, not MK64 behaviour.)
+      const margin = LAKITU_MARGIN[t.def?.id];
+      if (below?.lakitu && margin && this.d) {
+        const k = Math.min(margin, Math.abs(this.d)) * -Math.sign(this.d);
+        const back = t.groundBelow(x + f.R.x * k, z + f.R.z * k, this.y + 3);
+        if (back && !back.lakitu) below = { ...below, lakitu: false };
+      }
       const adrift = !t.arena && Math.abs(this.d) > t.wallAt(this.s, Math.sign(this.d)) - 0.7 && !(below && below.y > this.y - 2);
       this.overLakitu = (below?.lakitu || adrift) && !g && !this.air ? (this.overLakitu || 0) + dt : 0;
       if (below?.lakitu && this.y - below.y <= 0.3 || this.overLakitu > 0.25) this.fell = { kind: 'drop', base: this.y };
