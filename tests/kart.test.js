@@ -313,6 +313,17 @@ describe('CPU driving', () => {
     cpu.reverse = 0.5;
     expect(cpu.think(1 / 60, [cpu]).brake).toBe(1);
   });
+  it('keeps out of the gap between Koopa Troopa Beach\'s start ramp and the rock beside it', async () => {
+    // the gap (-172, 14) is 3 wide: the route limit stops at the ramp's side (Track._nativeBounds GAP), not the rock
+    const track = await makeTrack('koopa');
+    for (let s = 416; s <= 424; s += 2) expect(track.wallAt(s, -1)).toBeLessThan(4.5);
+    // Bowser on the line that wedged him there for 40 s of a 150cc race drives on over the ramp at speed
+    const cpu = makeKart(track, { character: 'bowser', name: 'Bowser', s: 409.6, d: -3.26 });
+    cpu.psi = -0.06; cpu.phi = -0.11; cpu.v = 42;
+    for (let i = 0; i < 60 * 3; i++) cpu.update(1 / 60, cpu.think(1 / 60, [cpu]), [cpu]);
+    expect(cpu.s).toBeGreaterThan(450);
+    expect(cpu.v).toBeGreaterThan(30);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

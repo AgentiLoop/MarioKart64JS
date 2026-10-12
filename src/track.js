@@ -725,7 +725,7 @@ export class Track {
       return hit;
     };
     if (this.arena) return;
-    const STEP = 0.5, MAX = 40, RAMP = 8, raw = { [-1]: [], [1]: [] };
+    const STEP = 0.5, MAX = 40, RAMP = 8, GAP = 5, raw = { [-1]: [], [1]: [] };
     // ground d out from route sample j (side sgn) nearest to yRef
     const across = (j, d, sgn, yRef) => {
       const q = this.pos[(j + this.n) % this.n], Q = this.R[(j + this.n) % this.n];
@@ -773,7 +773,7 @@ export class Track {
       const p = this.pos[i], R = this.R[i];
       const y0 = routeY[i];
       for (const sgn of [-1, 1]) {
-        let prev = y0, d = STEP;
+        let prev = y0, d = STEP, passed = 0;
         for (; d <= MAX; d += STEP) {
           const x = p.x + R.x * d * sgn, z = p.z + R.z * d * sgn, x1 = p.x + R.x * (d - STEP) * sgn, z1 = p.z + R.z * (d - STEP) * sgn;
           const hit = d > 1.5 && blocked(x1, z1, x, z, prev);   // the route itself may graze ramp sides
@@ -782,7 +782,10 @@ export class Track {
           // bound pinned the karts driving past a ramp onto its side face, where they stuck and piled up (wallPush
           // still holds their bodies off its faces)
           if (y === null) break;
-          if (Math.abs(y - prev) > 0.3 && (hit || Math.abs(y - prev) > 1.2)) {
+          // ... and so does a climb steeper than 45 deg, which groundAt never takes a kart up (FLOOR_NY): the bound
+          // went up the 49 deg front of Koopa Troopa Beach's rock at (-171, 11) and on to 38, so CPUs steered into
+          // the 3-wide gap between it and the ramp beside it, where Bowser wedged crosswise for 40 s
+          if (Math.abs(y - prev) > 0.3 && (hit || Math.abs(y - prev) > 1.2 || (y > prev && hitNormal.y < FLOOR_NY && blocked(x1, z1, x, z, prev - 0.5)))) {
             // onto or off a ramp's top, the higher side of the step, which goes on 2 more across (a barrier's top is
             // narrower: Wario Stadium's between its lanes at (-251, -102)) with no face over it
             const up = y > prev, top = up ? d : d - STEP, ty = up ? y : prev, road = ramp(i, top, sgn, ty);
@@ -808,8 +811,13 @@ export class Track {
             }
             if (!lip && !rampFace(crossed, prev)) break;
           }
+          if (hit || prev - y > 0.5) passed = d;   // through a face, or off a ramp's side edge
           prev = y;
         }
+        // a ramp face passed less than a kart's width and some room to steer (Bowser's 3.4 + 1.6) before the end: the gap between is no way
+        // through, so the bound stops at the face. Between Koopa Troopa Beach's start ramp and the rock beside it at
+        // (-172, 14), 3 wide, karts wedged against the ramp's side for whole races, steering for the route beyond it
+        if (d <= MAX && passed && d - passed < GAP) d = passed;
         raw[sgn].push(Math.max(2.5, d - STEP));
       }
     }
