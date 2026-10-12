@@ -508,6 +508,33 @@ describe('CPU driving', () => {
     expect(yr.rise).toBeLessThan(1);
     expect(y.mesh.position.y).toBeLessThan(-20);
   });
+  it('is not carried through a mound\'s side in flight or thrown past a bend\'s centre', async () => {
+    const step = (k, input, frames) => {
+      let worst = 0;
+      for (let i = 0; i < frames && !k.fell; i++) {
+        const x = k.world.x, z = k.world.z, v = Math.abs(k.v);
+        k.update(1 / 60, input, [k]);
+        worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v / 60);
+      }
+      return worst;
+    };
+    // falling past the 70 deg side of the mound beside Royal Raceway's road at (-265, -14): the closing route limit
+    // carried the kart 3.9 in one frame through the face, 6 under the mound's top (wallBetween skipped flights)
+    const royal = await makeTrack('royal');
+    const r = makeKart(royal, { isPlayer: true, s: 1437.37, d: 0 });
+    Object.assign(r, { d: 25.14, psi: 0.863, phi: 0.84, v: 44, boost: 1, wallEase: 21.79, wallT: 0.58 });
+    r.syncMesh(0);
+    Object.assign(r, { air: true, y: -0.27, vy: -14.1, groundY: -0.27 });
+    expect(step(r, { throttle: 1, brake: 0, steer: 0, drift: true }, 1)).toBeLessThan(0.6);
+    expect(r.d).toBeGreaterThan(24);
+    // 36.5 in from Mario Raceway's bend at (178, 113), radius 16-20, past its centre (1 - k d = -0.6): the frame step
+    // clamped to +0.3 ran backwards and 3x the kart's move, 2-3 a frame with the kart wrong way at 0.8 a frame
+    const mario = await makeTrack('mario');
+    const m = makeKart(mario, { isPlayer: true, s: 688.31, d: 0 });
+    Object.assign(m, { d: 36.55, psi: 3.144, phi: 3.229, v: 50.4, boost: 1 });
+    m.syncMesh(0);
+    expect(step(m, { throttle: 1, brake: 0, steer: 0, drift: false }, 20)).toBeLessThan(0.6);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

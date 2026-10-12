@@ -30,6 +30,10 @@ const PACK_BAND = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 50, 75, 100, 125, 150,
 const PACK_BAND_MARIO = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 45, 65, 90, 115, 140, 165, 40, 3, 6, 16, 46, 49, 59, 89, 50, 30, 60, 63, 73, 78, 108, 138];
 const LAKITU_MARGIN = { frappe: 20 };   // scene units of flagged ground a kart may cross before Lakitu fishes it out (Kart.updateNative)
 const CPU_MIN_SPEED = [2.5, 10 / 3, 3.75, 10 / 3];   // regulate_cpu_speed var_f0 per gCCSelection, units/frame
+// The route frame's step scale 1 - k d, kept 0.3 from 0 on its own side: past a bend's centre (far in on the inside,
+// 1 - k d < 0) the frame runs backwards under the kart, and clamping to +0.3 moved it backwards and 3x its step
+// (Mario Raceway's bend at (178, 113), a kart 36.5 in at (212, 127): 2-3 a frame at 0.8)
+const frameDen = (k, d) => { const x = 1 - k * d; return Math.abs(x) >= 0.3 ? x : x < 0 ? -0.3 : 0.3; };
 const MK_UNIT = MAX_SPEED / V_TOP;                    // one MK64 speed unit/frame (player->speed) in our speed
 // Speedometer km/h, code_80057C60.c func_8005C360((player->speed / 18) * 216): 150cc Mario tops out at 70.6.
 export const speedKmh = v => Math.abs(v) / MK_UNIT / 18 * 216;
@@ -783,7 +787,7 @@ export class Kart {
     const lateral = dsActual * Math.sin(this.phi);
     let denom = (1 - k * this.d < 0.3 && this.routeStep(t, along, lateral)) || 0;
     if (!denom) {
-      denom = Math.max(0.3, 1 - k * this.d);
+      denom = frameDen(k, this.d);
       const ds = along / denom;
       this.s += ds; this.d += lateral;
       const yaw = k * ds;                 // frame rotates under us
@@ -881,13 +885,17 @@ export class Kart {
     // the offset along the frame's T and across it on R as they lie in the plane (a sloped route's are shorter there)
     const split = (q, u, w) => { const det = q.T.x * q.R.z - q.T.z * q.R.x; return [(u * q.R.z - w * q.R.x) / det, (q.T.x * w - q.T.z * u) / det]; };
     const at = u => { const q = t.frameAt(u, g); return split(q, x - q.pos.x, z - q.pos.z); };
-    let best = Infinity, lo = 0, prev = at(this.s - 60);
+    // with no such foot (past the centre of a bend that tightens, where the offset along the tangent only touches 0:
+    // 36.5 in from Mario Raceway's bend at (178, 113) the frame step's scale flipped sign from frame to frame and the
+    // kart, at full speed, shook on the spot 2-3 a frame) the nearest foot on any leg stands in
+    let best = Infinity, lo = 0, prev = at(this.s - 60), any = Infinity, anyLo = 0;
     for (let o = -59; o <= 60; o++) {
       const c = at(this.s + o);
       if (prev[0] >= 0 && c[0] < 0 && Math.abs(c[1]) < best && g.T.x * tx + g.T.z * tz > 0) { best = Math.abs(c[1]); lo = this.s + o - 1; }
+      if (prev[0] >= 0 && c[0] < 0 && Math.abs(c[1]) < any) { any = Math.abs(c[1]); anyLo = this.s + o - 1; }
       prev = c;
     }
-    if (best === Infinity) return null;
+    if (best === Infinity) { if (any === Infinity) return null; lo = anyLo; }
     let hi = lo + 1;
     for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (at(mid)[0] >= 0) lo = mid; else hi = mid; }
     const h = [f.T.x * Math.cos(this.psi) + f.R.x * Math.sin(this.psi), f.T.z * Math.cos(this.psi) + f.R.z * Math.sin(this.psi)];
@@ -896,7 +904,7 @@ export class Kart {
     this.d = split(f, x - f.pos.x, z - f.pos.z)[1];
     const ang = v => { const [a, b] = split(f, v[0], v[1]); return Math.atan2(b, a); };
     this.psi = ang(h); this.phi = this.psi + wrapAngle(ang(m) - this.psi);
-    return Math.max(0.3, 1 - f.k * this.d);
+    return frameDen(f.k, this.d);
   }
 
   // Would the kart at lateral offset d be under the ground there? The ground it would ride (Track.groundAt from its
@@ -911,11 +919,14 @@ export class Kart {
     return !!top && top.y > y + 1;
   }
 
-  // Is there a steep face between lateral offsets d0 and d1 at the kart's s (or at s), at its body height?
+  // Is there a steep face between lateral offsets d0 and d1 at the kart's s (or at s), at its body height? In flight
+  // too, at the kart's height: falling past the 70 deg side of the mound beside Royal Raceway's road at (-265, -14)
+  // (d 22-24, s1437), the closing limit carried the kart 3.9 in one frame through the face into the mound, 6 under
+  // its top
   wallBetween(t, d0, d1, s = this.s) {
-    if (!t.sweep || this.air) return false;
+    if (!t.sweep) return false;
     const f = t.frameAt(s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
-    const y = this.groundY ?? f.pos.y;
+    const y = this.air ? this.y : this.groundY ?? f.pos.y;
     return !!t.sweep(f.pos.x + f.R.x * d0, f.pos.z + f.R.z * d0, f.pos.x + f.R.x * d1, f.pos.z + f.R.z * d1, y);
   }
 
@@ -984,7 +995,7 @@ export class Kart {
     const w = { x: wx, z: wz, nx: nx / nl, nz: nz / nl };
     // (dx, dz) = T * denom * ds + R * dd, a few Newton steps: far off a tight bend the frame turns under the kart
     for (let i = 0; i < 3; i++) {
-      const g = i ? t.frameAt(this.s, this.frame) : f, dn = i ? Math.max(0.3, 1 - g.k * this.d) : denom;
+      const g = i ? t.frameAt(this.s, this.frame) : f, dn = i ? frameDen(g.k, this.d) : denom;
       const dx = w.x - (g.pos.x + g.R.x * this.d), dz = w.z - (g.pos.z + g.R.z * this.d);
       if (i && dx * dx + dz * dz < 1e-6) break;
       const a = g.T.x * dn, b = g.R.x, c = g.T.z * dn, e = g.R.z, det = a * e - b * c;
@@ -1000,7 +1011,7 @@ export class Kart {
     const mx = fx * this.v - 1.5 * vn * w.nx, mz = fz * this.v - 1.5 * vn * w.nz;
     this.wallBounce(mx * f.T.x + mz * f.T.z, mx * f.R.x + mz * f.R.z, wedged);
     this.drift = 0;
-    if (cap) this.routeWallPush(t, Math.max(0.3, 1 - this.frame.k * this.d), true);
+    if (cap) this.routeWallPush(t, frameDen(this.frame.k, this.d), true);
   }
 
   // A wall contact's new motion (mt, mr along the frame's T / R) as speed and travel direction phi; a fresh hit slows
