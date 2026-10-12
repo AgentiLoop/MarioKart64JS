@@ -718,7 +718,11 @@ export class Track {
                 // or the side of Royal Raceway's ramp at (127, -226)) pushes out only the part the kart's own move
                 // took it further in, plus 0.15 a frame (first pass only), its top edge too: the whole overlap shoved
                 // the kart on by up to its body's width (1.7 for Bowser) in one frame, on every step
-                const was = wallTop[t] < y + 1.25 ? r - side * d0 : 0, most = was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
+                // ... and so does a slope too steep to stand on (normal y over 0.35, under 70 deg) facing up at a kart
+                // not moving into it: riding down Royal Raceway's 48 deg bank at (-78, -163) its ground sinks, so the
+                // upright body's lower circles cut the slope it is on, then the slope behind it at its foot, and it was
+                // shoved off 1-1.9 a frame. Driven into (up a bank from its foot) it pushes in full, as before
+                const was = wallTop[t] < y + 1.25 || (side * ny > 0.35 && side * ((x - x0) * nx + (z - z0) * nz) >= 0) ? r - side * d0 : 0, most = was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : 0.15) : Infinity;
                 // centre projected inside the triangle (barycentric)
                 const q = [p[0] - d * nx, p[1] - d * ny, p[2] - d * nz];
                 const d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], d12 = e1[0] * e2[0] + e1[1] * e2[1] + e1[2] * e2[2];

@@ -605,6 +605,23 @@ describe('CPU driving', () => {
       expect(worst).toBeLessThan(0.7);
     }
   });
+  it('rides down a bank too steep to stand on without being shoved off it by its own slope', async () => {
+    // Royal Raceway's 48 deg bank beside the road at (-78, -163), s369: riding down it, the upright body's lower
+    // circles cut the slope it is on (its ground sinks under it), then the slope behind it at its foot, and the face
+    // pushed it off 1-1.9 a frame at 20 (0.33 a frame)
+    const t = await makeTrack('royal');
+    const k = makeKart(t, { isPlayer: true, s: 360, d: 0 });
+    Object.assign(k, { s: 368.8, d: -23.15, psi: -1.39, phi: -1.3, v: 19.8, y: undefined, groundY: -3.2, prevX: undefined, prevZ: undefined });
+    k.syncMesh(0);
+    let worst = 0;
+    for (let i = 0; i < 20 && !k.fell; i++) {
+      const x = k.world.x, z = k.world.z, v0 = Math.abs(k.v);
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: -0.58, drift: false });
+      k.update(1 / 120, { throttle: 1, brake: 0, steer: -0.58, drift: false });
+      worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v0 / 60);
+    }
+    expect(worst).toBeLessThan(0.7);
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];
