@@ -899,6 +899,14 @@ describe('CPU driving', () => {
     const h = t.wallPush(-272.375, -54.729, -272.201, -55.002, -2.084, 1.495, -1.817);
     expect(h ? Math.hypot(h.x + 272.201, h.z + 55.002) : 0).toBeLessThan(1);
   });
+  it('is not shoved off Choco Mountain\'s 58 deg slope at (-7, 9) by its own ground sinking under it', async () => {
+    // Bowser's Wii 3D nose circle riding down beside the slope below the ledge, moving away from it: the ground under it
+    // dropped 0.17, which in plane terms reads as moving into the slope, so its whole overlap was pushed out, 0.78 in
+    // one step (1.4 a frame; player fuzz WII3D choco bowser seed 46)
+    const t = await makeTrack('choco');
+    const h = t.wallPush(-6.966, 8.937, -6.962, 9.181, 7.051, 1.495, 7.225, 0);
+    expect(h ? Math.hypot(h.x + 6.962, h.z - 9.181) : 0).toBeLessThan(0.3);
+  });
   it('is not shuttled between Royal Raceway\'s mound foot and the route limit easing it in', async () => {
     // Bowser 23 out past the limit at (-116, 8), eased in (wallEase) at a standstill against the mound's 53 deg foot:
     // the face pushed him out past the eased edge, and the edge snapped him back in from where it had eased to,

@@ -839,7 +839,10 @@ export class Track {
                 // (inHill) moved further in eases out too: riding Royal Raceway's bank at (-272, -55), the drawn ground
                 // 0.9 under its collision slope, Bowser's tail circle 1.7 in it went 0.05 deeper and was thrown its whole
                 // overlap up the slope, 2.3 in one step
-                const into = side * (d - d0) < -0.02, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : side * ny > 0.35 ? creep : 0.15) : Infinity;
+                // Moving into a face is a move toward it across the ground, not the ground sinking under a body moving
+                // away: riding down beside Choco Mountain's 58 deg slope at (-7, 9) the Wii 3D nose's ground dropped 0.17,
+                // which in plane terms read as 0.06 into the slope, and its whole overlap went, 0.78 in one step
+                const into = side * (d - d0) < -0.02 && side * ((x - x0) * nx + (z - z0) * nz) < 0, was = r - side * d0, eased = cond => cond && was > 0 ? Math.max(0, depth - was) / h + (pass ? 0 : side * ny > 0.35 ? creep : 0.15) : Infinity;
                 const upSlope = side * ny > 0.35 && (!into || steepUnder());
                 const low = wallTop[t] < y + 1.25, most = eased(low || upSlope), mostIn = eased(low || !into || upSlope || inHill || side * ny <= 0.35);
                 // centre projected inside the triangle (barycentric)
