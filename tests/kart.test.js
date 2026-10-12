@@ -415,6 +415,25 @@ describe('CPU driving', () => {
       expect(worst).toBeLessThan(0.6);
     }
   });
+  it('drives across Kalimari Desert\'s start line far out without being thrown', async () => {
+    // the path's closing point sits 0.14 from the one before it and 0.1 to the side: the route's tangent swung 0.24
+    // rad there and back, and a kart 34 out crossing the line backwards was thrown 3-5 a frame
+    const track = await makeTrack('kalimari');
+    const cases = [
+      { s: 1.0, d: 34.3, psi: -3.05, v: 19 }, { s: 1.0, d: 38.7, psi: 3.06, v: 14 }, { s: 1324, d: 34, psi: 0.05, v: 19 },
+    ];
+    for (const c of cases) {
+      const k = makeKart(track, { isPlayer: true, s: c.s, d: 0 });
+      k.d = c.d; k.psi = k.phi = c.psi; k.v = c.v; k.syncMesh(0);
+      let worst = 0;
+      for (let i = 0; i < 40; i++) {
+        const x = k.world.x, z = k.world.z, v = Math.abs(k.v);
+        k.update(1 / 60, { throttle: 1, brake: 0, steer: -0.19, drift: false }, [k]);
+        worst = Math.max(worst, Math.hypot(k.world.x - x, k.world.z - z) - v / 60);
+      }
+      expect(worst).toBeLessThan(0.6);
+    }
+  });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');
     const karts = [makeKart(track, { isPlayer: true, s: 50 })];

@@ -373,6 +373,14 @@ export class Track {
       return;
     }
     const pts = def.control.map(p => new THREE.Vector3(...p));
+    // a control point under 0.5 from the one before (the closing point of the path, 0.1-0.2 on 5 courses) is put on
+    // the line from that one to the next: a 0.1 sideways jog in so short a step swung the route's tangent 0.24 rad and
+    // back (Kalimari Desert's start line, (0, 49.4)), and the frame's lateral line with it - a kart 34 out was
+    // thrown 3-5 a frame there. The count stays, so path point i is still at curve parameter i / N.
+    for (let i = 0, m = pts.length; i < m; i++) {
+      const a = pts[(i + m - 1) % m], b = pts[(i + 1) % m], r = pts[i].distanceTo(a);
+      if (r < 0.5) pts[i].subVectors(b, a).setLength(r).add(a);
+    }
     this.curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
     if (def.native) this.curve.arcLengthDivisions = pts.length * 8;
     this.length = this.curve.getLength();
