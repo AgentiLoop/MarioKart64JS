@@ -1365,11 +1365,14 @@ export class Kart {
     }
     // func_80079860: over a 0x800 triangle (Yoshi Valley's canyon, track.groundBelow lakitu) within 3 MK64 units, Lakitu
     // fishes the kart out. A kart nudged past the edge onto the route plane over one never gets that low here (the
-    // plane holds it up, and the shrinking route limit held it out there): a quarter second on the plane will do
+    // plane holds it up, and the shrinking route limit held it out there): a quarter second on the plane will do.
+    // So does a kart held out past the route limit on the plane with no ground within 2 under it: beside Yoshi
+    // Valley's rope bridge (limit 2.5) it rested at d 3.8 over the canyon slopes 3.7-19 down, floating, never fished
     if (dt && t.groundAt && !this.fell && !this.rescue) {
       const below = t.groundBelow(x, z, this.y + 0.5);
-      this.overLakitu = below?.lakitu && !g && !this.air ? (this.overLakitu || 0) + dt : 0;
-      if (below?.lakitu && (this.y - below.y <= 0.3 || this.overLakitu > 0.25)) this.fell = { kind: 'drop', base: this.y };
+      const adrift = !t.arena && Math.abs(this.d) > t.wallAt(this.s, Math.sign(this.d)) - 0.7 && !(below && below.y > this.y - 2);
+      this.overLakitu = (below?.lakitu || adrift) && !g && !this.air ? (this.overLakitu || 0) + dt : 0;
+      if (below?.lakitu && this.y - below.y <= 0.3 || this.overLakitu > 0.25) this.fell = { kind: 'drop', base: this.y };
     }
     this.stepBounce(dt);
     if (g && !this.air) {
