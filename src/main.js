@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Track, TRACKS, loadNativeCourse, nativeSkyColors, nativeClouds, cloudScreenX, STAR_TWINKLE, NATIVE_SCALE, battleSpawn, HALF_WIDTH } from './track.js';
-import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, PATH_POINTS, speedKmh, togglePhysics, PHYSICS } from './kart.js';
+import { Kart, CC_INDEX, CC_BATTLE, ccSpeedScale, pickRivals, cpuSpeedControl, bumpKarts, PATH_POINTS, speedKmh, togglePhysics, PHYSICS } from './kart.js';
 import { AudioSys } from './audio.js';
 import { Items, ITEM_LABELS } from './items.js';
 import { createTitleFlag } from './flag.js';
@@ -1449,7 +1449,6 @@ function showRes(text = `${HD.presetLabel()} · textures ${HD.tier()}×`) {
 }
 
 function collide() {
-  const L = track.length;
   if (battle) {   // arena: push overlapping karts apart in the ground plane
     for (let i = 0; i < karts.length; i++) for (let j = i + 1; j < karts.length; j++) {
       const a = karts[i], b = karts[j];
@@ -1464,16 +1463,7 @@ function collide() {
   }
   for (let i = 0; i < karts.length; i++) for (let j = i + 1; j < karts.length; j++) {
     const a = karts[i], b = karts[j];
-    if (a.rescue || b.rescue) continue;
-    let ds = b.s - a.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
-    const dd = b.d - a.d;
-    if (Math.abs(ds) < 3.4 && Math.abs(dd) < 2.1) {
-      const push = (2.1 - Math.abs(dd)) * 0.5 * (dd >= 0 ? 1 : -1);
-      const sepS = (3.4 - Math.abs(ds)) * 0.25 * (ds >= 0 ? 1 : -1);
-      const avg = (a.v + b.v) / 2;
-      if (!a.remote) { a.d -= push; a.s -= sepS; a.v = a.v * 0.7 + avg * 0.3; }   // online: a puppet's pose is its owner's truth
-      if (!b.remote) { b.d += push; b.s += sepS; b.v = b.v * 0.7 + avg * 0.3; }
-    }
+    if (!a.rescue && !b.rescue) bumpKarts(a, b);
   }
 }
 

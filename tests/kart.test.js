@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { Kart, kartSpriteFrame, buildKartMesh, ccSpeedScale, CC_INDEX, CC_BATTLE, PATH_POINTS, speedKmh, PHYSICS,
-  togglePhysics, physicsLabel, pickRivals, cpuSpeedControl } from '../src/kart.js';
+  togglePhysics, physicsLabel, pickRivals, cpuSpeedControl, bumpKarts } from '../src/kart.js';
 import { makeTrack, makeKart, run, idle, gas, flush } from './helpers.js';
 import { battleSpawn } from '../src/track.js';
 import { fluidAt, fluidLevel } from '../src/lakitu.js';
@@ -534,6 +534,40 @@ describe('CPU driving', () => {
     Object.assign(m, { d: 36.55, psi: 3.144, phi: 3.229, v: 50.4, boost: 1 });
     m.syncMesh(0);
     expect(step(m, { throttle: 1, brake: 0, steer: 0, drift: false }, 20)).toBeLessThan(0.6);
+  });
+  // main.js collide measured the bump box in route coordinates (s, d), so it grew with 1 - k d: far out on a bend's
+  // outside karts 10-16 apart in the world bumped (Mario Raceway (185, 35), 38 out: thrown 3 in a frame), far in on
+  // its inside karts on top of each other passed through; and side by side both pushes shoved them 1.7 along the road
+  it('bumps karts that touch in the world, not in route coordinates', async () => {
+    const t = await makeTrack('mario'), a = makeKart(t), b = makeKart(t);
+    const put = (k, s, d) => { k.s = s; k.prevS = s; k.d = d; k.v = 30; k.prevX = undefined; k.prevZ = undefined; k.syncMesh(0); };
+    const dist = () => Math.hypot(a.world.x - b.world.x, a.world.z - b.world.z);
+    const fr = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+    let out = null, inn = null, straight = null;
+    for (let s = 0; s < t.length; s += 2) {
+      const k = t.frameAt(s, fr).k, side = Math.sign(k);
+      if (Math.abs(k) < 1e-3) { if (straight == null && Math.abs(t.frameAt(s + 4, fr).k) < 1e-3) straight = s; continue; }
+      const dOut = -side * (t.wallAt(s, -side) - 1.5), dIn = side * Math.min(t.wallAt(s, side) - 1.5, 0.6 / Math.abs(k));
+      if (!out && 1 - k * dOut > 1.6) out = [s, dOut];
+      if (!inn && 1 - k * dIn < 0.5) inn = [s, dIn];
+    }
+    expect(out && inn && straight != null).toBeTruthy();
+    // far out on a bend's outside: 3 along the route is well over the box's 3.4 in the world - no bump
+    put(a, out[0], out[1]); put(b, out[0] + 3, out[1]);
+    expect(dist()).toBeGreaterThan(4);
+    bumpKarts(a, b);
+    expect([a.s, a.d, b.s, b.d]).toEqual([out[0], out[1], out[0] + 3, out[1]]);
+    // far in on a bend's inside: 3.6 along the route is under 2.5 in the world - pushed apart
+    put(a, inn[0], inn[1]); put(b, inn[0] + 3.6, inn[1]);
+    const before = dist();
+    expect(before).toBeLessThan(2.5);
+    bumpKarts(a, b); a.syncMesh(0); b.syncMesh(0);
+    expect(dist()).toBeGreaterThan(before + 0.2);
+    // side by side: pushed apart across only, not shoved along the road
+    put(a, straight, 0); put(b, straight + 0.2, 1.8);
+    bumpKarts(a, b);
+    expect(a.s).toBe(straight); expect(b.s).toBeCloseTo(straight + 0.2, 9);
+    expect(b.d - a.d).toBeGreaterThan(2);
   });
   it('cpuSpeedControl assigns fast / normal / slow to CPUs', async () => {
     const track = await makeTrack('mario');

@@ -55,6 +55,27 @@ export function pickRivals(karts) {
   for (let i = 0; i < 2 && cpus.length; i++) cpus.splice(Math.floor(Math.random() * cpus.length), 1)[0].rival = i;
 }
 
+// Two racing karts touching (main.js collide): a box 3.4 long and 2.1 across along a's route frame, measured in the
+// world. Measured in (s, d) instead it grew with 1 - k d: far out on a bend's outside karts 10-16 apart bumped (Mario
+// Raceway (185, 35), 38 out: thrown 3 in a frame), on its inside karts on top of each other passed through. They are
+// pushed apart on the axis they overlap least (side by side: across only - both pushes shoved a kart beside another
+// 1.7 along the road in a frame), the s push scaled back to the route by 1 - k d; not one in flight over the other.
+export function bumpKarts(a, b) {
+  const L = a.track.length;
+  let ds = b.s - a.s; if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L;
+  if (Math.abs(ds) > 20 || Math.abs(b.world.y - a.world.y) > 2.5) return;
+  const { T, R } = a.frame, tl = Math.hypot(T.x, T.z), rl = Math.hypot(R.x, R.z);
+  const dx = b.world.x - a.world.x, dz = b.world.z - a.world.z;
+  const along = (dx * T.x + dz * T.z) / tl, across = (dx * R.x + dz * R.z) / rl;
+  const oa = 3.4 - Math.abs(along), oc = 2.1 - Math.abs(across);
+  if (oa <= 0 || oc <= 0) return;
+  let pd = 0, ps = 0;
+  if (oc * 1.6 < oa) pd = oc * 0.5 * (across >= 0 ? 1 : -1); else ps = oa * 0.25 * (along >= 0 ? 1 : -1);
+  const avg = (a.v + b.v) / 2;
+  if (!a.remote) { a.d -= pd; a.s -= ps / frameDen(a.frame.k, a.d); a.v = a.v * 0.7 + avg * 0.3; }   // online: a puppet's pose is its owner's truth
+  if (!b.remote) { b.d += pd; b.s += ps / frameDen(b.frame.k, b.d); b.v = b.v * 0.7 + avg * 0.3; }
+}
+
 // order: karts by race position. Sets k.aiSpeed ('fast' | 'normal' | 'slow') on every CPU kart.
 export function cpuSpeedControl(karts, order, track, cc) {
   const L = track.length, pts = PATH_POINTS[track.def.id];
