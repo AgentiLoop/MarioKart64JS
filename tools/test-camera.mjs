@@ -6,7 +6,10 @@
 // "line" (the autopilot's racing line) and "hug" (every 3 s the autopilot lets go for 1.5 s while the kart is steered
 // hard into the left, then the right side, so it scrapes along walls and banks).
 // usage: node tools/test-camera.mjs [course ids...]   (default sherbet frappe; SECONDS=60 per course, LIMIT=% to fail
-// above, default 1, SHOTS=dir for a screenshot of the worst frame, PLAYWRIGHT=path/to/playwright-core)
+// above, default 1, SHOTS=dir for a screenshot of the worst frame, PLAYWRIGHT=path/to/playwright-core). A crossing
+// closer than NEAR (default 3, main.js CAM_NEAR) to the eye is the kart itself in a face it drives through (Wario
+// Stadium's wall signs, Bowser's Castle's wedge sides at (135, -271): no collision in MK64): the camera may not come
+// closer than that, so those frames are counted apart and do not fail the test.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -15,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const pw = process.env.PLAYWRIGHT || '/private/tmp/mk64-browser-check/node_modules/playwright-core';
 const { chromium } = createRequire(import.meta.url)(pw);
-const SECONDS = +(process.env.SECONDS ?? 60), LIMIT = +(process.env.LIMIT ?? 1), SHOTS = process.env.SHOTS;
+const SECONDS = +(process.env.SECONDS ?? 60), LIMIT = +(process.env.LIMIT ?? 1), SHOTS = process.env.SHOTS, NEAR = +(process.env.NEAR ?? 3);
 const courses = process.argv.slice(2).length ? process.argv.slice(2) : ['sherbet', 'frappe'];
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
@@ -31,7 +34,7 @@ try {
     page.on('pageerror', e => console.log(`  page error: ${e.message}`));
     await page.goto(`http://localhost:${port}/?track=${id}&char=mario&mode=mario_gp&autopilot`);
     await page.waitForFunction(() => window.__game?.player && window.__game.track.group, null, { timeout: 90000 });
-    await page.evaluate(mode => {
+    await page.evaluate(([mode, NEAR]) => {
       const { track, camera, keys } = window.__game;
       if (mode === 'hug') {
         let tick = 0;
@@ -86,7 +89,7 @@ try {
             }
         return best;
       };
-      const eye = new V(), corner = new V(), res = window.__cam = { frames: 0, bad: 0, worst: [] };
+      const eye = new V(), corner = new V(), res = window.__cam = { frames: 0, bad: 0, kart: 0, worst: [] };
       const check = () => {
         requestAnimationFrame(check);
         const g = window.__game, k = g.player;
@@ -94,12 +97,15 @@ try {
         camera.updateMatrixWorld();
         eye.copy(k.world).addScaledVector(k.up, 1.6);
         res.frames++;
-        let hit = null, n = 0;
+        let hit = null, n = 0, near = 0;
         for (const [x, y] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
           corner.set(x, y, -1).unproject(camera);
           const c = cross(eye, corner);
-          if (c) { n++; hit = hit || c; }
+          if (!c) continue;
+          if (c.k * eye.distanceTo(corner) < NEAR) { near++; continue; }
+          n++; hit = hit || c;
         }
+        if (near && !n) res.kart++;
         if (!n) return;
         res.bad++;
         const pos = k.world;
@@ -107,7 +113,7 @@ try {
           cam: [camera.position.x, camera.position.y, camera.position.z].map(v => +v.toFixed(1)), at: hit.at, ny: hit.ny });
       };
       requestAnimationFrame(check);
-    }, mode);
+    }, [mode, NEAR]);
     const t0 = Date.now();
     let shot = 0;
     while (Date.now() - t0 < SECONDS * 1000) {
@@ -121,7 +127,7 @@ try {
     const pct = r.frames ? 100 * r.bad / r.frames : 0;
     const ok = r.frames > 0 && pct <= LIMIT;
     if (!ok) fail++;
-    console.log(`${ok ? 'PASS' : 'FAIL'} ${id} ${mode}: ${r.bad}/${r.frames} frames see behind a face (${pct.toFixed(1)}%)`);
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${id} ${mode}: ${r.bad}/${r.frames} frames see behind a face (${pct.toFixed(1)}%); ${r.kart} more with the kart itself in a face (closer than NEAR=${NEAR} to its eye)`);
     const spots = new Map();   // one line per 4-unit spot
     for (const w of r.worst) {
       const key = w.kart.map(v => Math.round(v / 4)).join();
