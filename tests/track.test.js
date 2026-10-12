@@ -173,3 +173,24 @@ describe('Track (procedural spline course)', () => {
     expect(out.R.dot(out.T)).toBeCloseTo(0, 2);
   });
 });
+
+describe('widened narrow passages (port changes, not MK64)', () => {
+  // DK's Jungle Parkway's rope bridge (widenDKBridge): 1.6x between the rails, so two karts pass on it and the
+  // posts at its mouth stand clear of the route (they piled the race up at (-138, -57))
+  it('DK\'s Jungle Parkway bridge lets two karts side by side', async () => {
+    const t = await makeTrack('dk');
+    for (let s = 1215; s <= 1280; s += 5) {
+      expect(t.wallAt(s, -1)).toBeGreaterThanOrEqual(3);
+      expect(t.wallAt(s, 1)).toBeGreaterThanOrEqual(3);
+    }
+    // the deck stays under the route all the way across, at the bridge's height
+    const f = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+    for (let s = 1210; s <= 1300; s += 10) {
+      t.frameAt(s, f);
+      for (const d of [-2.5, 0, 2.5]) {
+        const g = t.groundAt(f.pos.x + f.R.x * d, f.pos.z + f.R.z * d, f.pos.y);
+        expect(g && Math.abs(g.y - f.pos.y)).toBeLessThan(0.6);
+      }
+    }
+  });
+});

@@ -176,6 +176,7 @@ export async function loadNativeCourse(def) {
   def.native = await res.json();
   if (def.id === 'yoshi') widenYoshiBridge(def.native.vertices);
   if (def.id === 'sherbet') widenSherbetPassages(def.native.vertices);
+  if (def.id === 'dk') widenDKBridge(def.native.vertices);
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
   return def;
 }
@@ -187,6 +188,23 @@ export async function loadNativeCourse(def) {
 // the centre line and is unchanged.
 function widenYoshiBridge(vertices) {
   const X = -2179.3, Z = 743.15, tx = 0.8498, tz = 0.5270, LEN = 650, W = 1.6, IN = 40, OUT = 100, EASE = 100;
+  for (const v of vertices) {
+    const px = v[0] - X, pz = v[2] - Z, t = px * tx + pz * tz, n = pz * tx - px * tz, a = Math.abs(n);
+    if (t <= -EASE || t >= LEN + EASE || a >= OUT) continue;
+    const e = THREE.MathUtils.smoothstep(t < 0 ? t + EASE : LEN + EASE - t, 0, EASE);
+    const push = (W - 1) * e * (a <= IN ? a : IN * (OUT - a) / (OUT - IN));
+    v[0] = Math.round(v[0] - tz * Math.sign(n) * push);
+    v[2] = Math.round(v[2] + tx * Math.sign(n) * push);
+  }
+}
+
+// DK's Jungle Parkway's rope bridge over the river (course units (-1387, -600) -> 969 along (0.9525, 0.3044), the
+// route's straight line moved 7 over to midway between the rails) is 48 between its rails, with a post either side of its mouth ~40 apart: the karts' bodies
+// (Bowser's 34) filed through one at a time, a race piled up on the posts (100+ wall hits, Bowser stuck sideways at
+// (-138, -57)) and on the far end (-50, -30). Not in MK64: a port change like widenYoshiBridge, 1.6x within 40 of the
+// line, easing to none 100 out to the sides and 100 beyond its ends.
+function widenDKBridge(vertices) {
+  const X = -1387, Z = -600, tx = 0.9525, tz = 0.3044, LEN = 969, W = 1.6, IN = 40, OUT = 100, EASE = 100;
   for (const v of vertices) {
     const px = v[0] - X, pz = v[2] - Z, t = px * tx + pz * tz, n = pz * tx - px * tz, a = Math.abs(n);
     if (t <= -EASE || t >= LEN + EASE || a >= OUT) continue;
