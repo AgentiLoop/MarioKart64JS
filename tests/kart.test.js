@@ -700,6 +700,17 @@ describe('CPU driving', () => {
     const in3 = t.wallPush(x + 0.3, z, x, z, y, 1.336);
     expect(Math.hypot(in3.x - x, in3.z - z)).toBeGreaterThan(1);
   });
+  it('is not shoved off the side of Choco Mountain\'s 58 deg slope at (-7, 14) creeping beside it', async () => {
+    // Bowser eased in onto the slope below the ledge, beside the 58 deg face's sloped edge, creeping 0.008-0.024 a step:
+    // the edge's whole line beside him (end-on rule, as if driven along the edge) pushed where the cut point he was
+    // measured against last step did not - 0.97 sideways in one step (1.25 a frame)
+    const t = await makeTrack('choco');
+    const dist = (h, x, z) => h ? Math.hypot(h.x - x, h.z - z) : 0;
+    expect(dist(t.wallPush(-6.75, 13.623, -6.754, 13.616, 4.22, 1.688), -6.754, 13.616)).toBeLessThan(0.3);
+    expect(dist(t.wallPush(-6.783, 13.584, -6.795, 13.563, 4.266, 1.688), -6.795, 13.563)).toBeLessThan(0.3);
+    // driven into the face (0.35 a step) it still pushes the overlap out
+    expect(dist(t.wallPush(-6.5, 13.75, -6.795, 13.563, 4.266, 1.688), -6.795, 13.563)).toBeGreaterThan(0.8);
+  });
   it('is not shoved sideways off Koopa Troopa Beach\'s rock face when its ground drops beside it', async () => {
     // eased in past the limit down the rock at (-48, 184), the ground fell 1.4 in a frame: the 73 deg face (top 3.9,
     // not a low face, too steep for the slope rule) now cut the body 1.2 deep at a kart backing away from it, and

@@ -678,10 +678,13 @@ export class Track {
         // line, went from no contact to 1.33 deep in one step and was shoved out sideways at once (1.1 a frame). Not
         // for a kart coming off the ramp's top over that side (Koopa's at (-57, 167)): there the line holds in full,
         // else the body sank 32% into the side (tools/test-walls.mjs)
+        // A kart driving: a hair's move (under 0.02 a step) has no direction to speak of. Bowser stopped on Choco
+        // Mountain's slope below the ledge at (-7, 14), creeping 0.008 a step, read as moving along the 58 deg face's
+        // edge there, so the line beside him pushed 0.56 where the cut point last step pushed 0.84 less (1.25 a frame)
         let cut = 0;
         if (c0 > 0 && c0 < 1 && s === c0 && s !== u && ey * ey < hh) {
           const m = Math.hypot(mx, mz);
-          if (m > 1e-6 && (mx * ex + mz * ez) * Math.sign(ey) > 0.7 * m * Math.sqrt(hh)) {
+          if (m > 0.02 && (mx * ex + mz * ez) * Math.sign(ey) > 0.7 * m * Math.sqrt(hh)) {
             cut = Math.hypot(A[0] + ex * s - px, A[2] + ez * s - pz);
             if (cut >= r) continue;
             // (off the top: last step's centre was beside the edge, not past its low end: Frappe Snowland's bank face
@@ -783,7 +786,7 @@ export class Track {
                   if (dh >= r || dh < 1e-6) continue;
                   let cap = most;
                   if (cap === Infinity && (x - x0) * dx + (z - z0) * dz >= -0.02 * dh) {
-                    const e0 = rim(x0, z0, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d0 < 0);
+                    const e0 = rim(x0, z0, y + 0.55, y + 2, walls[t], x - x0, z - z0, r, d0 < 0, d0 < 0);
                     const wasR = e0 ? r - Math.hypot(x0 - e0[0], z0 - e0[1]) : 0;
                     if (wasR > 0) cap = Math.max(0, r - dh - wasR) + (pass ? 0 : 0.15);
                   }
