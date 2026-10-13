@@ -916,6 +916,14 @@ describe('CPU driving', () => {
     const h = t.wallPush(-5.662, 52.424, -5.927, 52.129, 0.1, 1.495, 0.1, 0.15, 0.492);
     expect(h ? Math.hypot(h.x + 5.927, h.z - 52.129) : 0).toBeLessThan(0.5);
   });
+  it('is not thrown down Royal Raceway\'s bank at (-270, -59) as the route limit eases it a hair back in', async () => {
+    // Bowser's Wii 3D nose circle riding the drawn bank (27 deg), 0.57 under its 48 deg collision face, past the route
+    // limit: the limit's ease drew it 0.02 back into the face, which read as driven into it from a floor, and the whole
+    // overlap went, 1.95 in one step (player fuzz WII3D royal bowser seed 46). The kart rides the slope: eased
+    const t = await makeTrack('royal');
+    const h = t.wallPush(-269.807, -58.365, -269.734, -58.296, -4.851, 1.495, -4.903, 0.15, -4.903);
+    expect(h ? Math.hypot(h.x + 269.734, h.z + 58.296) : 0).toBeLessThan(0.5);
+  });
   it('is not shuttled between Royal Raceway\'s mound foot and the route limit easing it in', async () => {
     // Bowser 23 out past the limit at (-116, 8), eased in (wallEase) at a standstill against the mound's 53 deg foot:
     // the face pushed him out past the eased edge, and the edge snapped him back in from where it had eased to,
