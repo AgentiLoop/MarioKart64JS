@@ -51,7 +51,7 @@ After the last lap, the camera orbits your kart, then cuts to roadside, crane an
   </tr>
   <tr>
     <td><img src="docs/screenshots/hires/race3d-mario.jpg" alt="Racing in 3D, Mario Raceway" width="400"></td>
-    <td><img src="docs/screenshots/hires/fly3d-orbit-bowser.jpg" alt="Finish fly-over" width="400"></td>
+    <td><img src="docs/screenshots/hires/fly3d-head-mario.jpg" alt="Finish fly-over" width="400"></td>
   </tr>
 </table>
 
