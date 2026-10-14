@@ -118,9 +118,9 @@ Add these to the game's address to skip the menus or switch settings, for exampl
 | `cc` | `50`, `100`, `150`, `extra` | Engine class. `extra` is mirror mode at 100cc speeds. Defaults to 150cc. Ignored in Time Trials and Battle. |
 | `mode` | `mario_gp`, `vs`, `time_trials`, `battle` | Game mode. Defaults to `mario_gp`. Battle courses always play as battle. |
 | `autopilot` | (no value) | The CPU drives your kart. Handy for testing. |
-| `3d` | `3d`, `2d` | Wii 3D karts on or off, like the **3** key. |
+| `3d` | `3d`, `2d` | Wii 3D karts on or off, like the **3** key. `true`, `1` and `on` also turn them on; any other value turns them off. |
 | `graphics` | `240`, `480`, `960`, `native` | Resolution, like the **G** key. `240` is 1× N64 textures, `480` is 2×, `960` is 4×, `native` matches your screen. |
-| `jump` | `jump`, `glue` | Kart physics, like the **J** key. |
+| `jump` | `jump`, `glue` | Kart physics, like the **J** key. `jumps` also works for `jump`. |
 | `showphysics` | `true`, `false` | Shows the physics bodies, like the **P** key. `?physics` also works. |
 | `players` | `2`, `3`, `4` | With `track`, joins an online race for that many players. |
 | `lobby` | a `ws://` or `wss://` URL | Uses a different online lobby server, e.g. `ws://localhost:8787/api/mp`. Kept for the browser session. |
