@@ -1383,16 +1383,25 @@ function cinematicCamera(dt, v, k) {
   v.init = true;
   if (k === player) followSun(k.world);
 }
-// Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's ice walls, with the kart against one) is
-// pulled in along its line to the kart until it is CAM_GAP in front of the face, so the culled back is never seen
-const CAM_GAP = 1, _eye = new THREE.Vector3();
+// Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's or Frappe Snowland's ice walls, with the
+// kart against or angled near one) is pulled in along its line to the kart and pushed clear of overhanging wall faces
+// and snow banks so its frustum never clips behind the wall
+const CAM_GAP = 1, _eye = new THREE.Vector3(), _lowEye = new THREE.Vector3(), _lowPos = new THREE.Vector3();
 function keepInside(pos, k) {
   if (!track.sightHit) return;
   _eye.copy(k.world).addScaledVector(k.up, 1.6);
-  const hit = track.sightHit(_eye, pos);
-  if (hit === null) return;
-  const len = pos.distanceTo(_eye);
-  pos.lerpVectors(_eye, pos, Math.max(0, hit - CAM_GAP / len));
+  _lowEye.copy(k.world).addScaledVector(k.up, 0.8);
+  _lowPos.copy(pos).addScaledVector(k.up, -0.8);
+  const h1 = track.sightHit(_eye, pos), h2 = track.sightHit(_lowEye, _lowPos);
+  const hit = h1 !== null && h2 !== null ? Math.min(h1, h2) : (h1 ?? h2);
+  if (hit !== null) {
+    const len = pos.distanceTo(_eye);
+    pos.lerpVectors(_eye, pos, Math.max(0.06, hit - CAM_GAP / len));
+  }
+  track.wallPush?.(pos, 1.6, pos.y - 0.8);
+  track.wallPush?.(pos, 1.6, k.world.y);
+  const g = track.groundAt?.(pos.x, pos.z, k.world.y) || track.groundBelow?.(pos.x, pos.z, pos.y + 1.5);
+  if (g && pos.y < g.y + 1.2) pos.y = g.y + 1.2;
 }
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;

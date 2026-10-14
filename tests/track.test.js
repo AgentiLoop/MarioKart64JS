@@ -193,4 +193,33 @@ describe('widened narrow passages (port changes, not MK64)', () => {
       }
     }
   });
+
+  // Frappe Snowland's canyon ice walls (widenFrappeWalls): non-collision low-LOD double-wall triangles are stripped
+  // and the outer snow banks behind the narrow canyon walls are widened and raised above the 5.2m underground box
+  it('Frappe Snowland canyon ice walls are widened and have no low-LOD double-wall gaps', async () => {
+    const t = await makeTrack('frappe');
+    const colSet = new Set(), ci = t.def.native.collision.indices;
+    for (let i = 0; i + 2 < ci.length; i += 3) {
+      const a = t.def.native.vertices[ci[i]].slice(0, 3).join(',');
+      const b = t.def.native.vertices[ci[i + 1]].slice(0, 3).join(',');
+      const c = t.def.native.vertices[ci[i + 2]].slice(0, 3).join(',');
+      colSet.add([a, b, c].sort().join('|'));
+    }
+    let wallTris = 0;
+    for (const b of t.def.native.batches) {
+      if (b.texture !== 'gFSTexture678118') continue;
+      for (let i = 0; i + 2 < b.indices.length; i += 3) {
+        const a = t.def.native.vertices[b.indices[i]].slice(0, 3).join(',');
+        const c = t.def.native.vertices[b.indices[i + 1]].slice(0, 3).join(',');
+        const d = t.def.native.vertices[b.indices[i + 2]].slice(0, 3).join(',');
+        expect(colSet.has([a, c, d].sort().join('|'))).toBe(true);
+        wallTris++;
+      }
+    }
+    expect(wallTris).toBe(95);
+    // Outer snow bank behind the south canyon exit wall (around x = 19, z = 41..48) is widened and raised above 5.2m
+    const g = t.groundBelow(19.1, 41.5, 10);
+    expect(g).not.toBeNull();
+    expect(g.y).toBeGreaterThanOrEqual(5.5);
+  });
 });

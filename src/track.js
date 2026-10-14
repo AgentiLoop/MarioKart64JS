@@ -178,6 +178,7 @@ export async function loadNativeCourse(def) {
   if (def.id === 'yoshi') widenYoshiBridge(def.native.vertices);
   if (def.id === 'sherbet') widenSherbetPassages(def.native.vertices);
   if (def.id === 'dk') widenDKBridge(def.native.vertices);
+  if (def.id === 'frappe') widenFrappeWalls(def.native);
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
   return def;
 }
@@ -253,6 +254,64 @@ function widenSherbetPassages(vertices) {
       moves.push([v, -g.tz * Math.sign(n) * push, g.tx * Math.sign(n) * push]);
     }
     for (const [v, dx, dz] of moves) { v[0] = Math.round(v[0] + dx); v[2] = Math.round(v[2] + dz); }
+  }
+}
+
+// Frappe Snowland's canyon ice walls (gFSTexture678118) include 36 low-LOD distant-section triangles from
+// d_course_frappe_snowland_packed_dl_B30 alongside the 95 collision triangles from 2A90, forming a narrow hollow
+// double-wall with gaps at the top where the dark [0, 0, 20] underground box (Batch 18) shows through, and the outer
+// snow banks behind the south/west canyon walls drop below the 5.2m underground box only 5.7-6.4m behind the wall.
+// Strip the non-collision low-LOD ice-wall triangles and widen/raise the outer snow banks behind the canyon walls.
+export function widenFrappeWalls(course) {
+  const colSet = new Set(), ci = course.collision.indices;
+  for (let i = 0; i + 2 < ci.length; i += 3) {
+    const a = course.vertices[ci[i]].slice(0, 3).join(',');
+    const b = course.vertices[ci[i + 1]].slice(0, 3).join(',');
+    const c = course.vertices[ci[i + 2]].slice(0, 3).join(',');
+    colSet.add([a, b, c].sort().join('|'));
+  }
+  const wallVerts = new Set(), roadVerts = new Set(), shadeVerts = new Set();
+  for (const b of course.batches) {
+    for (const idx of b.indices) {
+      const k = course.vertices[idx].slice(0, 3).join(',');
+      if (b.texture === 'gFSTexture678118') wallVerts.add(k);
+      if (b.texture === 'gFSTexture67973C' || b.texture === 'gFSTexture679258' || b.texture === 'gFSTexture66CA98') roadVerts.add(k);
+      if (!b.texture) shadeVerts.add(k);
+    }
+    if (b.texture === 'gFSTexture678118') {
+      const next = [];
+      for (let i = 0; i + 2 < b.indices.length; i += 3) {
+        const a = course.vertices[b.indices[i]].slice(0, 3).join(',');
+        const c = course.vertices[b.indices[i + 1]].slice(0, 3).join(',');
+        const d = course.vertices[b.indices[i + 2]].slice(0, 3).join(',');
+        if (colSet.has([a, c, d].sort().join('|'))) next.push(b.indices[i], b.indices[i + 1], b.indices[i + 2]);
+      }
+      b.indices = next;
+    }
+  }
+  for (const v of course.vertices) {
+    const [x, y, z] = v, k = `${x},${y},${z}`;
+    if (wallVerts.has(k) || roadVerts.has(k) || shadeVerts.has(k) || y < 0) continue;
+    let dx = 0, dy = 0, dz = 0;
+    if (x >= 50 && x <= 1750 && z >= 150 && z <= 820) {
+      const wallZ = x < 300 ? 450 + (x - 50) * (713 - 450) / 250
+        : x < 1000 ? 713 + (x - 300) * (599 - 713) / 700
+          : 599 + (x - 1000) * (817 - 599) / 450;
+      const dist = wallZ - z;
+      if (dist > 0 && dist < 400) {
+        const w = Math.sin((400 - dist) / 400 * Math.PI * 0.5) * Math.sin(Math.min(1, (x - 50) / 150) * Math.PI * 0.5);
+        dz = -Math.round(80 * w);
+        if (dist < 240 && y < 65) dy = Math.round((65 - y) * w);
+      }
+    } else if (x >= -450 && x <= -50 && z >= 350 && z <= 750) {
+      const dist = -50 - x;
+      if (dist > 0 && dist < 400) {
+        const w = Math.sin((400 - dist) / 400 * Math.PI * 0.5) * Math.sin(Math.min(1, (z - 350) / 150) * Math.PI * 0.5);
+        dx = -Math.round(80 * w);
+        if (dist < 240 && y < 65) dy = Math.round((65 - y) * w);
+      }
+    }
+    v[0] = x + dx; v[1] = y + dy; v[2] = z + dz;
   }
 }
 // Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
