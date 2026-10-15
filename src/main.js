@@ -1526,12 +1526,41 @@ let last = performance.now();
 const mkFrame = () => ({ pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
 const flyA = mkFrame(), flyB = mkFrame(), flyLook = new THREE.Vector3();
 let flyS = 0, flyInit = false;
+// Fixed 60 Hz clock: the race (karts, items, laps, cameras) steps in whole 1/60 s ticks whatever the display's refresh
+// rate, two 1/120 s physics substeps per tick as before. The drawn kart and camera poses blend between the last two
+// ticks by the leftover time (blendPoses), then go back to the tick's pose so the simulation never sees a blended one.
+// Assumption: a jump over CUT units in one tick (Lakitu's respawn, a camera cut) is a cut and is not blended across.
+const TICK = 1 / 60, CUT = 8;
+let simAcc = 0;
+function savePose(o) {   // after a tick: this tick's pose becomes the blend's end, the last one its start
+  const s = o.userData.tickPose ??= { prev: { p: new THREE.Vector3(), q: new THREE.Quaternion(), fov: 0 }, cur: { p: o.position.clone(), q: o.quaternion.clone(), fov: o.fov } };
+  [s.prev, s.cur] = [s.cur, s.prev];
+  s.cur.p.copy(o.position); s.cur.q.copy(o.quaternion); s.cur.fov = o.fov;
+  if (s.cur.p.distanceTo(s.prev.p) > CUT) { s.prev.p.copy(s.cur.p); s.prev.q.copy(s.cur.q); s.prev.fov = s.cur.fov; }
+}
+function blendPoses(objs, a) {
+  for (const o of objs) {
+    const s = o.userData.tickPose;
+    if (!s) continue;
+    o.position.lerpVectors(s.prev.p, s.cur.p, a); o.quaternion.slerpQuaternions(s.prev.q, s.cur.q, a);
+    if (o.isCamera) { o.fov = s.prev.fov + (s.cur.fov - s.prev.fov) * a; o.updateProjectionMatrix(); }
+  }
+}
+function restorePoses(objs) {
+  for (const o of objs) {
+    const s = o.userData.tickPose;
+    if (!s) continue;
+    o.position.copy(s.cur.p); o.quaternion.copy(s.cur.q);
+    if (o.isCamera) { o.fov = s.cur.fov; o.updateProjectionMatrix(); }
+  }
+}
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  const steps = 2, h = dt / steps;
+  const steps = 2, h = TICK / steps;
 
   if (!trackDef || (online && !raceGo)) {   // menu / online lobby open: fly along the road (like ../GoKart attract.gd), no race
+    simAcc = 0;
     flyS += 20 * dt;
     let target, look;
     if (track.arena) {   // circle the arena
@@ -1555,35 +1584,40 @@ function frame(now) {
     present(() => renderer.render(scene, camera));
     return;
   }
-  if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
-    for (const k of karts) { if (k.remote) puppetStep(k, now); else k.update(dt, { throttle: 0, brake: 0, steer: 0, drift: false }); }
-    if (revs && player && !autopilot) revEngine(dt, playerInput());
-  } else {
-    raceTime += dt;
-    for (const k of karts) if (k.remote) puppetStep(k, now);
-    for (let s = 0; s < steps; s++) {
-      // VS / battle have no CPU karts on the console, so the CPUs that fill online seats just drive (no bands)
-      const order = raceMode === 'mario_gp' ? rank() : null;
-      if (order) cpuSpeedControl(karts, order, track, cc);
-      for (const [id, k] of karts.entries()) {
-        if (k.remote) continue;
-        if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
-        else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
-        // a finished player becomes a CPU driver and keeps racing laps (race_logic.c: player->type |= PLAYER_CPU)
-        const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts, traffic?.spots, items.hazards);
-        if (k.isPlayer && state === 'finished' && !k.finished) { inp.throttle = 0.4; inp.brake = 0; }
-        k.update(h, inp);
-        if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }
-        if (!battle && !k.finished && k.crossings >= LAPS) {
-          k.finished = true; k.finishTime = raceTime; finishOrder.push(k);
-          if (k.isPlayer) { state = 'finished'; banner.textContent = timeTrial ? fmt(raceTime) : `${finishOrder.length}${ordinal(finishOrder.length)} PLACE!`; }   // a time trial has no places
-          if (k.isPlayer && raceMode === 'time_trials' && !online && !autopilot) saveRecord(track.def.id, raceTime, lapTimes, playerChar);   // R DATA's course records
+  for (const k of karts) if (k.remote) puppetStep(k, now);
+  for (simAcc += dt; simAcc >= TICK; simAcc -= TICK) {
+    if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
+      for (const k of karts) if (!k.remote) k.update(TICK, { throttle: 0, brake: 0, steer: 0, drift: false });
+      if (revs && player && !autopilot) revEngine(TICK, playerInput());
+    } else {
+      raceTime += TICK;
+      for (let s = 0; s < steps; s++) {
+        // VS / battle have no CPU karts on the console, so the CPUs that fill online seats just drive (no bands)
+        const order = raceMode === 'mario_gp' ? rank() : null;
+        if (order) cpuSpeedControl(karts, order, track, cc);
+        for (const [id, k] of karts.entries()) {
+          if (k.remote) continue;
+          if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
+          else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
+          // a finished player becomes a CPU driver and keeps racing laps (race_logic.c: player->type |= PLAYER_CPU)
+          const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts, traffic?.spots, items.hazards);
+          if (k.isPlayer && state === 'finished' && !k.finished) { inp.throttle = 0.4; inp.brake = 0; }
+          k.update(h, inp);
+          if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }
+          if (!battle && !k.finished && k.crossings >= LAPS) {
+            k.finished = true; k.finishTime = raceTime; finishOrder.push(k);
+            if (k.isPlayer) { state = 'finished'; banner.textContent = timeTrial ? fmt(raceTime) : `${finishOrder.length}${ordinal(finishOrder.length)} PLACE!`; }   // a time trial has no places
+            if (k.isPlayer && raceMode === 'time_trials' && !online && !autopilot) saveRecord(track.def.id, raceTime, lapTimes, playerChar);   // R DATA's course records
+          }
         }
+        collide();
+        items.update(h, karts);
       }
-      collide();
-      items.update(h, karts);
+      if (battle) battleStep();
     }
-    if (battle) battleStep();
+    for (const v of views) updateCamera(TICK, v);
+    for (const k of karts) if (!k.remote) savePose(k.mesh);
+    for (const v of views) savePose(v.cam);
   }
   if (online) { sendClock += dt; if (sendClock >= SEND_INTERVAL) { sendClock = 0; sendPose(); } }
   const win = player.win;
@@ -1609,7 +1643,6 @@ function frame(now) {
   timeEl.textContent = fmt(raceTime);
   speedEl.innerHTML = `${Math.round(speedKmh(player.v))}<small> km/h</small>`;
   audio.update(player.v / 62, player.drift !== 0, player.offroad, player.boost > 0);
-  for (const v of views) updateCamera(dt, v);
   lakitu.update(dt, karts, battle ? 0 : LAPS);
   penguins?.update(dt, views.map(v => v.cam), karts);
   props?.update(dt);
@@ -1628,7 +1661,11 @@ function frame(now) {
   exhaust.update(dt, karts, camera);
   physicsDebug.update(karts);
   drawMini();
+  // a kart Lakitu is carrying is placed by lakitu.update every frame, so it is drawn where he holds it
+  const blended = [...karts.filter(k => !k.remote && !k.rescue).map(k => k.mesh), ...views.map(v => v.cam)];
+  blendPoses(blended, simAcc / TICK);
   present(renderViews);
+  restorePoses(blended);
 }
 if (trackDef && !online) setup();
 requestAnimationFrame(frame);
