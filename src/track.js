@@ -177,6 +177,7 @@ export async function loadNativeCourse(def) {
   def.native = await res.json();
   if (def.id === 'yoshi') widenYoshiBridge(def.native.vertices);
   if (def.id === 'sherbet') widenSherbetPassages(def.native.vertices);
+  if (def.id === 'toad') widenToadOnRamp(def.native.vertices);
   if (def.id === 'dk') widenDKBridge(def.native.vertices);
   if (def.id === 'frappe') widenFrappeWalls(def.native);
   def.control = def.native.path.map(p => p.slice(0, 3).map(v => v * NATIVE_SCALE));
@@ -229,8 +230,31 @@ const SHERBET_PASSAGES = [
     [-1909, 257]],
 ];
 function widenSherbetPassages(vertices) {
-  const W = 1.4, IN = 55, OUT = 130, EASE = 100;
-  for (const line of SHERBET_PASSAGES) {
+  widenAlongLines(vertices, SHERBET_PASSAGES, 1.4, 55, 130);
+}
+
+// Toad's Turnpike's two-lane on-ramp (the last 480 m of the lap: from where the highway's left lane ends at
+// (3600, 170), round the bend, west along z 1150 and round to the merge at the finish line, (100, 20)) is 100 between
+// its barriers, two lanes to the highway's four over 150: too narrow to race eight karts and the trucks on. Not in
+// MK64: a port change like widenSherbetPassages along the road's centre line, 1.5x within 50 of it (the barriers go
+// out from +-50 to +-75: three lanes' room, the two painted lanes stretched), easing to none 130 out to the sides (the
+// building fronts 80 out move 16; the dead-end road beside the merge, 150 out, stays) and 100 beyond its ends (the
+// taper where the highway's left lane ends and the finish-line merge).
+const TOAD_ON_RAMP = [
+  [[3600, 170], [3595, 258], [3580, 359], [3552, 457], [3516, 551], [3469, 641], [3415, 727], [3353, 807],
+    [3282, 879], [3205, 944], [3122, 1001], [3033, 1049], [2940, 1090], [2843, 1120], [2744, 1139], [2643, 1148],
+    [2542, 1150], [1122, 1150], [1021, 1145], [920, 1133], [821, 1109], [725, 1077], [634, 1033], [546, 983],
+    [466, 920], [390, 854], [322, 778], [261, 697], [210, 609], [168, 517], [135, 420], [115, 320], [104, 219],
+    [100, 118], [100, 20]],
+];
+function widenToadOnRamp(vertices) {
+  widenAlongLines(vertices, TOAD_ON_RAMP, 1.5, 50, 130);
+}
+
+// Push every vertex out from the nearest point on each polyline (course units): W x within IN of it, easing to none
+// OUT to the sides and EASE beyond its ends.
+function widenAlongLines(vertices, lines, W, IN, OUT, EASE = 100) {
+  for (const line of lines) {
     const segs = [];
     let len = 0;
     for (let k = 0; k + 1 < line.length; k++) {
