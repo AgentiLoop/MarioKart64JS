@@ -146,7 +146,8 @@ try {
       const t0 = Date.now(), r = await race(id);
       r.wallSec = Math.round((Date.now() - t0) / 1000);
       results[id] = r;
-      const flat = r.shots.filter(s => s.white > 0.15 || s.black > 0.3);
+      // Banshee Boardwalk and Rainbow Road are built over the night void: black masses are the course
+      const flat = r.shots.filter(s => s.white > 0.15 || (s.black > 0.3 && !['banshee', 'rainbow'].includes(id)));
       const ok = r.finished && r.laps && r.laps.length === 3 && !r.stalls && !flat.length;
       if (!ok) fail++;
       const { player, others, cpuEvents, shots, ...rest } = r;
