@@ -2,6 +2,7 @@
 
 > **⚠️ Work in progress. This is not a finished game.** Expect bugs, missing features and rough edges.
 > Please report any problems you find at https://github.com/AgentiLoop/MarioKart64JS/issues
+> Research Project. This is for Personal and Educational use only.
 
 Mario Kart 64, rebuilt to run in a web browser. It isn't an emulator. The courses, karts, music and sounds are pulled
 out of the original N64 ROM and redrawn with Three.js.
