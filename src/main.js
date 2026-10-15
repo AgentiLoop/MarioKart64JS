@@ -1581,7 +1581,11 @@ function frame(now) {
     return;
   }
   for (const k of karts) if (k.remote) puppetStep(k, now);
-  for (simAcc += dt; simAcc >= TICK; simAcc -= TICK) {
+  // a new race's first frame can come in under a tick (a 120 Hz display, or right after the menu): run one at once
+  // so the cameras are put behind their karts, else it draws from the camera's unplaced pose (under the course)
+  simAcc += dt;
+  if (state === 'countdown' && views.some(v => !v.init)) simAcc = Math.max(simAcc, TICK);
+  for (; simAcc >= TICK; simAcc -= TICK) {
     if (state === 'countdown') {   // Lakitu's lights end it (countdownLight)
       for (const k of karts) if (!k.remote) k.update(TICK, { throttle: 0, brake: 0, steer: 0, drift: false });
       if (revs && player && !autopilot) revEngine(TICK, playerInput());
