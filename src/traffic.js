@@ -166,6 +166,7 @@ export class Traffic {
   // update_vehicle_follow_path_point
   _update(v) {
     const [ox, oy, oz] = v.pos;
+    v.prev = [ox, oy, oz, v.yaw, v.pitch];
     const lane = v.idx < 0x28A ? [-0.7, 0, 0.7][v.type] : [-0.5, -0.5, 0.5][v.type];   // func_80013C74
     if (v.factor < lane) v.factor = Math.min(lane, Math.fround(v.factor + 0.06));
     if (lane < v.factor) v.factor = Math.max(lane, Math.fround(v.factor - 0.06));
@@ -175,10 +176,12 @@ export class Traffic {
     v.vel = [dx, v.pos[1] - oy, dz];
   }
 
-  _place() {
+  // EXTRA: drawn between the last two 30 Hz updates (a fraction `a` of the way) so they glide at any frame rate
+  _place(a = 1) {
     for (const v of this.vehicles) {
-      v.group.position.set(v.pos[0] * S, v.pos[1] * S, v.pos[2] * S);
-      v.group.rotation.set(v.pitch * RAD, v.yaw * RAD, 0);
+      const p = v.prev ?? [...v.pos, v.yaw, v.pitch], l = (i, x) => p[i] + (x - p[i]) * a, ang = (i, x) => p[i] + s16(x - p[i]) * a;
+      v.group.position.set(l(0, v.pos[0]) * S, l(1, v.pos[1]) * S, l(2, v.pos[2]) * S);
+      v.group.rotation.set(ang(4, v.pitch) * RAD, ang(3, v.yaw) * RAD, 0);
     }
   }
 
@@ -219,6 +222,6 @@ export class Traffic {
     }
     this._spots();
     this._collide(karts);
-    this._place();
+    this._place(Math.min(1, ((this.ticks & 1 ? 0 : TICK) + this.acc) / (2 * TICK)));
   }
 }
