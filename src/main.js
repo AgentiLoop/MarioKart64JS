@@ -305,7 +305,7 @@ const props = track.arena ? null : new Props(scene, trackDef || TRACKS[0], { mir
 const piranha = ['mario', 'royal'].includes(trackDef?.id) ? new PiranhaPlants(scene, trackDef) : null;   // spawn_piranha_plants
 const yoshiEgg = trackDef?.id === 'yoshi' ? new YoshiEgg(scene, trackDef, { mirror }) : null;   // ACTOR_YOSHI_EGG
 const train = trackDef?.id === 'kalimari' ? new Train(scene, track, trackDef, { mirror, audio, gp: raceMode === 'mario_gp', items }) : null;   // trains + railroad crossings
-const traffic = trackDef?.id === 'toad' ? new Traffic(scene, track, trackDef, { mirror, cc, timeTrial: raceMode === 'time_trials' }) : null;   // trucks, buses, tankers, cars
+const traffic = trackDef?.id === 'toad' ? new Traffic(scene, track, trackDef, { mirror, cc, timeTrial: raceMode === 'time_trials', items }) : null;   // trucks, buses, tankers, cars
 const ferry = trackDef?.id === 'dk' ? new Ferry(scene, trackDef, { mirror, audio }) : null;   // the paddle-boat ferry
 const balloon = trackDef?.id === 'luigi' ? new HotAirBalloon(scene, trackDef, { mirror, timeTrial: raceMode === 'time_trials' }) : null;   // the hot-air balloon
 const thwomps = trackDef?.id === 'bowser' ? new Thwomps(scene, trackDef, { mirror, cc, audio }) : null;   // Bowser's Castle Thwomps
@@ -1593,7 +1593,7 @@ function frame(now) {
   piranha?.update(dt, views.map(v => v.cam));
   yoshiEgg?.update(dt, views.map(v => v.cam));
   train?.update(dt, views.map(v => v.cam), karts);
-  traffic?.update(dt);
+  traffic?.update(dt, karts);
   ferry?.update(dt, views.map(v => v.cam));
   balloon?.update(dt, views.map(v => v.cam), views.some(v => (v.kart ?? player)?.crossings >= 1));   // a player's lap counter reached 1
   thwomps?.update(dt, views.map(v => v.cam), views.map(v => v.kart ?? player), karts, track.def.native?.path);

@@ -15,8 +15,9 @@
 // far beyond. Cars are scaled 0.1.
 // EXTRA: the console runs the mirrored path; here the unmirrored path is run with the lateral factor negated (its left
 // edge is the mirror of the right one) and each model is flipped back in its own x, as src/train.js.
-// Not ported: engine hum / horns (func_800C9D80, handle_vehicle_interactions), karts tumbling when hit
-// (VERTICAL_TUMBLE_TRIGGER), CPU karts steering round traffic (update_player_track_position_factor_from_*).
+// EXTRA: a kart touching a vehicle (its LOD 0 model's bounding box, kart radius 5.5 / DK and Bowser 6) is knocked into
+// the air as by a star kart (Items.hit), as src/train.js, standing in for handle_vehicle_interactions.
+// Not ported: engine hum / horns (func_800C9D80), CPU karts steering round traffic (update_player_track_position_factor_from_*).
 import * as THREE from 'three';
 import { NATIVE_SCALE } from './track.js';
 import { partMeshes } from './props.js';
@@ -26,6 +27,7 @@ const TICK = 1 / 60;
 const S = NATIVE_SCALE;
 const RAD = Math.PI / 32768;
 const NUM = 7, FAR = 9000000;
+const BBOX = { donkeykong: 6, bowser: 6 };   // gKartBoundingBoxSizeTable: 5.5, DK and Bowser 6
 // kind: [models per level of detail, start offset, scale]
 const KINDS = [
   ['truck', 0, 1], ['bus', 75, 1], ['tanker', 50, 1], ['car', 25, 0.1],
@@ -39,11 +41,11 @@ function adjustAngle(angle, target, step) {
 }
 
 export class Traffic {
-  constructor(scene, track, def, { mirror = false, cc = 2, timeTrial = false } = {}) {
+  constructor(scene, track, def, { mirror = false, cc = 2, timeTrial = false, items = null } = {}) {
     this.group = new THREE.Group();
     this.group.name = 'traffic';
     scene.add(this.group);
-    this.mirror = mirror; this.cc = cc; this.timeTrial = timeTrial;
+    this.mirror = mirror; this.items = items; this.cc = cc; this.timeTrial = timeTrial;
     this.screens = 1; this.ticks = 0; this.acc = 0;
     this.path = track.def.native.path;
     this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/traffic.json`)
@@ -83,6 +85,9 @@ export class Traffic {
         v.vel = [v.pos[0] - ox, 0, v.pos[2] - oz];
         const model = kind === 'truck' ? `truck${i % 3}_` : kind;   // ACTOR_BOX_TRUCK state = D_802BA260++ % 3
         v.group = this._model(model, scale);
+        const xs = [], ys = [], zs = [];
+        for (const part of data.models[`${model}0`].parts) for (const tri of part.triangles) for (const [x, y, z] of tri) { xs.push(x); ys.push(y); zs.push(z); }
+        v.box = [Math.min(...xs), Math.max(...xs), Math.max(...ys), Math.min(...zs), Math.max(...zs)].map(b => b * scale);   // x0 x1 height z0 z1
         this.vehicles.push(v);
       }
     }
@@ -174,11 +179,28 @@ export class Traffic {
     }
   }
 
-  update(dt) {
+  // a kart inside a vehicle's box is knocked into the air
+  _collide(karts) {
+    const S_ = this.mirror ? -1 : 1;
+    for (const k of karts) {
+      if (!k?.world || k.boo > 0 || k.tumble || k.out || k.star > 0) continue;
+      const r = BBOX[k.mesh?.userData?.character] ?? 5.5;
+      for (const v of this.vehicles) {
+        const dx = k.world.x / S - v.pos[0], dz = k.world.z / S - v.pos[2], dy = k.world.y / S - v.pos[1];
+        if (dy < -10 || dy > v.box[2]) continue;
+        const yaw = v.yaw * RAD, s = Math.sin(yaw), c = Math.cos(yaw);
+        const lx = S_ * (dx * c - dz * s), lz = dx * s + dz * c;   // into the model's own axes (Y rotation, x flipped in EXTRA)
+        if (lx > v.box[0] - r && lx < v.box[1] + r && lz > v.box[3] - r && lz < v.box[4] + r) { this.items?.hit(k, 'star'); break; }
+      }
+    }
+  }
+
+  update(dt, karts = []) {
     if (!this.vehicles) return;
     for (this.acc += dt; this.acc >= TICK; this.acc -= TICK) {
       if (++this.ticks & 1) for (const v of this.vehicles) this._update(v);   // update_vehicles: every other tick
     }
+    this._collide(karts);
     this._place();
   }
 }
