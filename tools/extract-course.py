@@ -100,12 +100,18 @@ def overlap_area(p, q):
 
 
 def decal_layers(vertices, drawn, batches):
-    """Depth layer per triangle (by draw order) drawn over earlier coplanar scenery.
+    """Depth layer per triangle (by draw order) drawn over earlier coplanar scenery, and the triangles that
+    sit back to back with another culled triangle.
 
     The RDP's opaque z compare lets a surface pass at the depth already stored (within its dz), so
     where two coplanar triangles overlap the one drawn later shows. A depth buffer without that
     tolerance flickers between them, so a triangle drawn over an earlier coplanar triangle gets a
     higher layer (its batch is rendered with a polygon offset towards the camera).
+
+    Two culled triangles facing away from each other on the same plane (a wall textured on each side,
+    e.g. Toad's Turnpike's sign bands backing its wall panels) never overlap on the RDP: each is drawn
+    from its own side only. Rendered double-sided they flicker, so both go in the second set
+    (their batches are rendered back-face culled).
     """
     tris = []
     for order, (key, tri) in enumerate(drawn):
@@ -129,6 +135,7 @@ def decal_layers(vertices, drawn, batches):
             for z in range(int(t['lo'][2] // cell), int(t['hi'][2] // cell) + 1):
                 grid.setdefault((x, z), []).append(t)
     over = {}   # triangle draw order -> earlier coplanar triangles it covers
+    backed = set()   # draw orders of culled triangles back to back with another culled triangle
     checked = set()
     for bucket in grid.values():
         for a in range(len(bucket)):
@@ -140,19 +147,21 @@ def decal_layers(vertices, drawn, batches):
                 if any(s['hi'][k] < t['lo'][k] - 0.5 or t['hi'][k] < s['lo'][k] - 0.5 for k in range(3)):
                     continue
                 dot = sum(s['n'][k] * t['n'][k] for k in range(3))
-                two = batches[s['key']].get('doubleSided') or batches[t['key']].get('doubleSided')
-                if dot < 0.999 and not (two and dot < -0.999):
+                if -0.999 < dot < 0.999:
                     continue
                 if any(abs(sum(t['n'][k] * v[k] for k in range(3)) - t['d']) > 0.5 for v in s['p']):
                     continue
                 if s['axis'] != t['axis'] or overlap_area(s['flat'], t['flat']) < 0.5:
+                    continue
+                if dot < 0 and not (batches[s['key']].get('doubleSided') or batches[t['key']].get('doubleSided')):
+                    backed.update((s['order'], t['order']))
                     continue
                 early, late = (s, t) if s['order'] < t['order'] else (t, s)
                 over.setdefault(late['order'], []).append(early['order'])
     layers = {}
     for order in sorted(over):   # draw order: everything a triangle covers already has its layer
         layers[order] = max(layers.get(e, 0) + 1 for e in over[order])
-    return layers
+    return layers, backed
 
 
 def convert(source, rom, course_id):
@@ -360,13 +369,14 @@ def convert(source, rom, course_id):
     if missing:
         raise ValueError(f'Unvisited geometry lists: {sorted(missing)}')
     batches = {k: b for k, b in batches.items() if b['indices']}
-    # split batches by decal layer (triangles keep their display-list order inside each batch)
-    layers, split = decal_layers(vertices, drawn, batches), {}
+    # split batches by decal layer and back-to-back culling (triangles keep their display-list order inside each batch)
+    (layers, backed), split = decal_layers(vertices, drawn, batches), {}
     for order, (key, tri) in enumerate(drawn):
-        layer = layers.get(order, 0)
-        if (key, layer) not in split:
-            split[(key, layer)] = dict(batches[key], indices=[], **({'layer': layer} if layer else {}))
-        split[(key, layer)]['indices'].extend(tri)
+        layer, back = layers.get(order, 0), order in backed
+        if (key, layer, back) not in split:
+            split[(key, layer, back)] = dict(batches[key], indices=[], **({'layer': layer} if layer else {}),
+                                             **({'cullBack': True} if back else {}))
+        split[(key, layer, back)]['indices'].extend(tri)
     batches = split
     assets = json.loads(texts['assets.json'])
     course_assets = json.loads(texts[inputs[7]]) if len(inputs) > 7 else {}

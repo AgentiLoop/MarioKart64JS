@@ -1284,8 +1284,10 @@ export class Track {
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
         map, vertexColors: true, toneMapped: false, fog: false,
         // Not in MK64 (G_CULL_BACK unless the list clears it): both sides drawn, so a camera behind a wall sees the
-        // wall instead of looking through its culled back (Sherbet Land's ice walls)
-        side: THREE.DoubleSide,
+        // wall instead of looking through its culled back (Sherbet Land's ice walls). Except the triangles that back
+        // another culled triangle on the same plane (cullBack, extract-course.py decal_layers): drawn both-sided
+        // they depth-fight, so they cull like the RDP does.
+        side: batch.cullBack ? THREE.FrontSide : THREE.DoubleSide,
         alphaTest: batch.alphaTest ? 0.5 : 0,   // G_RM_AA_ZB_TEX_EDGE lists
         // G_RM_AA_ZB_XLU_* lists blend by texture alpha (course vertex alpha is always 0 in the ROM)
         transparent: !!batch.translucent, depthWrite: !batch.translucent,
