@@ -207,7 +207,8 @@ describe('widened narrow passages (port changes, not MK64)', () => {
     }
     let wallTris = 0;
     for (const b of t.def.native.batches) {
-      if (b.texture !== 'gFSTexture678118') continue;
+      expect(b.texture).not.toBeNull();   // the dark underground box is retextured with ice (iceBox)
+      if (b.texture !== 'gFSTexture678118' || b.iceBox) continue;
       for (let i = 0; i + 2 < b.indices.length; i += 3) {
         const a = t.def.native.vertices[b.indices[i]].slice(0, 3).join(',');
         const c = t.def.native.vertices[b.indices[i + 1]].slice(0, 3).join(',');

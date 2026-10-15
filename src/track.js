@@ -313,6 +313,24 @@ export function widenFrappeWalls(course) {
     }
     v[0] = x + dx; v[1] = y + dy; v[2] = z + dz;
   }
+  // Not in MK64: the untextured dark [0, 0, 20] underground box still peeks through as black past the wall tops, so
+  // it gets the ice-wall texture at the walls' ~20 S10.5 units per course unit, planar-mapped per triangle by its
+  // facing (walls along x or z, floors/lids top-down) with the walls' shaded ice colour
+  for (const b of course.batches) {
+    if (b.texture) continue;
+    Object.assign(b, { texture: 'gFSTexture678118', width: 32, height: 32, wrapS: 'mirror', wrapT: 'mirror', doubleSided: true, iceBox: true });
+    const next = [];
+    for (let i = 0; i + 2 < b.indices.length; i += 3) {
+      const [p, q, r] = [0, 1, 2].map(j => course.vertices[b.indices[i + j]]);
+      const ux = q[0] - p[0], uy = q[1] - p[1], uz = q[2] - p[2], wx = r[0] - p[0], wy = r[1] - p[1], wz = r[2] - p[2];
+      const nx = Math.abs(uy * wz - uz * wy), ny = Math.abs(uz * wx - ux * wz), nz = Math.abs(ux * wy - uy * wx);
+      for (const [x, y, z] of [p, q, r]) {
+        const [s, t] = ny >= nx && ny >= nz ? [x, z] : [nx > nz ? z : x, -y];
+        next.push(course.vertices.push([x, y, z, Math.round(s * 20), Math.round(t * 20), 180, 180, 212]) - 1);
+      }
+    }
+    b.indices = next;
+  }
 }
 // Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
 // radians with the kart facing (sin h, 0, cos h).
