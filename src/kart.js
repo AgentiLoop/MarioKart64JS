@@ -572,7 +572,7 @@ export class Kart {
     return { throttle: blockedAhead ? 0.3 : Math.abs(diff) > 2.2 ? 0.5 : 1, brake: blockedAhead && this.v > 18 ? 0.8 : 0, steer, drift: false };
   }
 
-  think(dt, karts) {
+  think(dt, karts, hazards = null) {
     if (this.free) return this.thinkFree(dt, karts);
     const t = this.track, look = 14 + this.v * 0.6;
     const f = t.frameAt(this.s + look, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
@@ -640,6 +640,60 @@ export class Kart {
     for (let a = 2; a <= 10 + Math.max(0, this.v) * 0.3; a += 2) { wl = Math.min(wl, t.dryAt(this.s + a, -1)); wr = Math.min(wr, t.dryAt(this.s + a, 1)); }
     const lo = -Math.min(HALF_WIDTH, wl) + 2.5, hi = Math.min(HALF_WIDTH, wr) - 2.5;
     target = THREE.MathUtils.clamp(target, lo, hi);
+    // Toad's Turnpike's traffic (Traffic.spots; update_player_track_position_factor_from_vehicle: a vehicle on the
+    // path up to 21 points ahead moves the CPU's lane target off its lane - a left-lane vehicle to the right of it,
+    // a right-lane one to the left, a middle one to the kart's own side). Here every vehicle within the lookahead
+    // (growing with the closing speed: EXTRA's traffic drives against the karts) bars the lane across its body (half
+    // width + the kart's + 1). A kart whose body is in the lane of a close vehicle (its tail under 0.7 s or 4 off, or
+    // beside it) picks a spot to get out to (below), and brakes down to the speed of one going its way while its tail
+    // is under 0.5 s or 3 off, i.e. follows it until a lane opens (not in MK64; the karts lag their lane target by a
+    // few units, and steering for a far lane from inside the vehicle's took them through its tail. Never below the
+    // vehicle's speed: braked to a crawl the kart has no sideways speed left to get out with, and in EXTRA a stop in
+    // the lane of an oncoming truck is a hit); otherwise a barred lane target moves to such a spot too
+    this.trafficBrake = false;
+    if (hazards?.length) {
+      const hw = this.visualHalfWidth, near = [];
+      for (const o of hazards) {
+        let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
+        const closing = Math.max(0, this.v - o.v), gap = o.hw + hw + 1;
+        if (ds > -o.fwd - 2 && ds < look + o.back + closing * 0.4) {
+          const ttc = ds > o.back ? (ds - o.back) / Math.max(closing, 0.1) : 0;   // until the nose reaches its tail
+          near.push({ ds, ttc, tail: ds - o.back, close: ttc < 0.7 || ds - o.back < 4, follow: o.v > 0 && closing > 0, c: o.d, w: o.hw + hw, lo: o.d - gap, hi: o.d + gap });
+        }
+      }
+      if (near.length) {
+        const barred = (x, m) => near.some(n => x > n.lo + m && x < n.hi - m);
+        const reachable = x => !near.some(n => n.close && ((this.d <= n.lo && x >= n.hi) || (this.d >= n.hi && x <= n.lo)));
+        // room the kart's body has at x from the close vehicles (under 0 is overlap): the space between two side by
+        // side oncoming vehicles is 3.7-4 wide, the kart 2.7 - the lane margins above (1 a side) would never find it
+        const room = x => Math.min(Infinity, ...near.filter(n => n.close).map(n => Math.abs(x - n.c) - n.w));
+        // the spots to try: the lanes' edges and the middle of each gap between two vehicles, within the wall limits;
+        // one the kart can reach with 0.3 of room, the nearest first (clear of the far vehicles' lanes too first)
+        const open = list => {
+          const spots = list.flatMap(n => [n.lo, n.hi]);
+          for (const a of near) for (const b of near) if (a !== b && b.c > a.c) spots.push((a.c + a.w + b.c - b.w) / 2);
+          const ok = spots.map(x => THREE.MathUtils.clamp(x, lo, hi)).filter(reachable);
+          const fit = ok.filter(x => room(x) >= 0.3).sort((a, b) => (barred(a, 0.5) - barred(b, 0.5)) || Math.abs(a - this.d) - Math.abs(b - this.d));
+          return fit.length ? fit[0] : ok.length ? ok.reduce((p, x) => (room(x) > room(p) ? x : p)) : null;   // nothing fits: the most room
+        };
+        const inside = near.filter(n => n.close && this.d > n.lo && this.d < n.hi);
+        // the spot, once picked, is kept while it still fits (the vehicles in reach come and go as they pass, and
+        // re-picking the nearest spot each time swung the karts from one side of the road to the other in front of
+        // EXTRA's oncoming trucks)
+        const held = this.trafficSpot;
+        const keep = held !== null && held !== undefined && held >= lo && held <= hi && reachable(held) && room(held) >= 0.3;
+        if (inside.length) {
+          const spot = keep ? held : open(inside);
+          if (spot !== null) target = spot;
+          this.trafficSpot = spot;
+          if (inside.some(n => n.follow && n.tail > -1 && (n.ttc < 0.5 || n.tail < 3) && Math.abs(this.d - n.c) - n.w < 0.3)) this.trafficBrake = true;
+        } else if (barred(target, 0)) {
+          const spot = keep ? held : open(near);
+          if (spot !== null) target = spot;
+          this.trafficSpot = spot;
+        } else this.trafficSpot = null;
+      }
+    }
     this.dbgT = target;
     // a racing CPU's lane is kept where its body clears the steep faces over the next lengths too (as the finished
     // kart's above), probed every 1.5 units so a ramp is not stepped over: Koopa Troopa Beach's ramps at (-4, 69),
@@ -703,6 +757,7 @@ export class Kart {
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
     // backing off a face: reversing, the nose turns the other way for the same steer (Kart.update dir)
     if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: -steer, drift: false }; }
+    if (this.trafficBrake) return { throttle: 0, brake: 0.6, steer, drift: false };
     // the finished kart brakes early for a tight bend instead of sliding wide into the wall
     if (this.finished && this.v > this.cornerV) return { throttle: 0, brake: this.v > this.cornerV * 1.15 ? 0.6 : 0.2, steer, drift: false };
     // a racing CPU brakes where the bend just ahead turns the route faster than full steer turns the nose (k v over

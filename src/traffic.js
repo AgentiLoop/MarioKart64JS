@@ -17,7 +17,9 @@
 // edge is the mirror of the right one) and each model is flipped back in its own x, as src/train.js.
 // EXTRA: a kart touching a vehicle (its LOD 0 model's bounding box, kart radius 5.5 / DK and Bowser 6) is knocked into
 // the air as by a star kart (Items.hit), as src/train.js, standing in for handle_vehicle_interactions.
-// Not ported: engine hum / horns (func_800C9D80), CPU karts steering round traffic (update_player_track_position_factor_from_*).
+// CPU karts steering round traffic (update_player_track_position_factor_from_*): Traffic.spots puts each vehicle on the
+// karts' route (s along, d across, speed along, its box's half length / width) each update for Kart.think's lane choice.
+// Not ported: engine hum / horns (func_800C9D80).
 import * as THREE from 'three';
 import { NATIVE_SCALE } from './track.js';
 import { partMeshes } from './props.js';
@@ -47,7 +49,7 @@ export class Traffic {
     scene.add(this.group);
     this.mirror = mirror; this.items = items; this.cc = cc; this.timeTrial = timeTrial;
     this.screens = 1; this.ticks = 0; this.acc = 0;
-    this.path = track.def.native.path;
+    this.path = track.def.native.path; this.track = track; this.spots = [];
     this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/traffic.json`)
       .then(r => (r.ok ? r.json().catch(() => null) : null))   // no file: the dev server answers with index.html
       .then(data => data && this._build(data, def.dir));
@@ -57,6 +59,7 @@ export class Traffic {
     this.data = data;
     const P = this.path, N = P.length, w = data.maxSeparation;
     if (N !== data.pathPoints) throw new Error(`traffic: path has ${N} points, expected ${data.pathPoints}`);
+    this.pathS = this.track.curve.getLengths(N * 8);   // route arc length at path point i (control point i at parameter i / N)
     // calculate_track_boundaries (posX / posZ stored as s16: truncated)
     this.left = []; this.right = [];
     for (let i = 0; i < N; i++) {
@@ -195,11 +198,26 @@ export class Traffic {
     }
   }
 
+  // each vehicle on the karts' route: { s, d, v, back, fwd, hw } (scene units; v its speed along the route, against the
+  // karts in EXTRA; back / fwd how far its box reaches down / up the route from its origin (the model's +z is its
+  // front, which drives down the route in EXTRA); hw its half width)
+  _spots() {
+    const t = this.track, fr = this._fr ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+    this.spots = this.vehicles.map(v => {
+      const s0 = this.pathS[v.idx * 8];
+      t.frameAt(s0, fr);
+      const dx = v.pos[0] * S - fr.pos.x, dz = v.pos[2] * S - fr.pos.z;
+      return { s: s0 + fr.T.x * dx + fr.T.z * dz, d: fr.R.x * dx + fr.R.z * dz, v: (fr.T.x * v.vel[0] + fr.T.z * v.vel[2]) * S * 30,
+        back: (this.mirror ? v.box[4] : -v.box[3]) * S, fwd: (this.mirror ? -v.box[3] : v.box[4]) * S, hw: (v.box[1] - v.box[0]) / 2 * S };
+    });
+  }
+
   update(dt, karts = []) {
     if (!this.vehicles) return;
     for (this.acc += dt; this.acc >= TICK; this.acc -= TICK) {
       if (++this.ticks & 1) for (const v of this.vehicles) this._update(v);   // update_vehicles: every other tick
     }
+    this._spots();
     this._collide(karts);
     this._place();
   }
