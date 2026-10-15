@@ -45,7 +45,8 @@ async function race(id) {
           const order = [...g.karts].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.finishTime - b.finishTime : b.progress - a.progress));
           done({ finished: p.finished, time: p.finishTime || rt, laps: laps.map((x, i) => +(x - (laps[i - 1] ?? 0)).toFixed(2)),
             place: order.indexOf(p) + 1, stalls, rescues, autopilot: g.autopilot, minV: +minV.toFixed(1),
-            cpusFinished: g.karts.filter(k => !k.isPlayer && k.finished).length });
+            cpusFinished: g.karts.filter(k => !k.isPlayer && k.finished).length,
+            cpuTimes: g.karts.filter(k => !k.isPlayer && k.finished).map(k => +k.finishTime.toFixed(1)) });
         }
       }, 100);
     }), LIMIT);

@@ -291,6 +291,8 @@ def convert(source, rom, course_id):
                         raise ValueError('Vertex out of range')
                     cache[start + i] = first + i
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
+                if state.get('raceOnly') and name not in race_lists:
+                    continue   # root pass: geometry the race renderer never submits (collision table / credits only)
                 texture = state['texture'] if state['enabled'] and not state['shade'] else None
                 stale = cfg.get('staleTexture', {}).get(name.removeprefix(dl))
                 if stale and not state['enabled'] and not state['shade']:
@@ -339,6 +341,26 @@ def convert(source, rom, course_id):
             culled = 'gSPSetGeometryMode' in line
         elif not culled:
             no_cull.update(re.findall(rf'{dl}\w+|d_course_{course_id}_\w*dl_\w+', line))
+    # The root (full static list) pass draws only lists render_courses.c submits outside the collision-mesh builder
+    # and the credits renderer (by name or segment-7 address), and their children. The rest of the root is reached
+    # only through the TrackSections table (invisible collision, e.g. Rainbow Road dl_2078) or credits-only lists
+    # (Luigi Raceway dl_FD40), which the race never draws.
+    race_c = re.sub(r'//.*', '', texts['src/racing/render_courses.c'])
+    for start, end in (('void course_generate_collision_mesh', None), ('void render_course_credits', 'void render_course(')):
+        i = race_c.index(start)
+        race_c = race_c[:i] + (race_c[race_c.index(end, i):] if end else '')
+    race_lists = set()
+
+    def submit(name):
+        if name in lists and name not in race_lists:
+            race_lists.add(name)
+            for child in re.findall(r'gsSPDisplayList\((\w+)\)', lists[name]):
+                submit(child)
+    for name in lists:
+        offset = re.search(r'_dl_([0-9A-F]+)$', name)
+        if re.search(rf'\b{name}\b', race_c) or (name.startswith(dl) and offset and
+                                                 re.search(rf'0x07{int(offset.group(1), 16):06X}\b', race_c)):
+            submit(name)
     sections = cfg.get('sections', [])
     passes = ([s for s in sections if s[1] != 'xlu'] + [(n, 'edge') for n in cfg['edge']] +
               [(n, 'xlu') for n in cfg.get('xlu', [])] + [s for s in sections if s[1] == 'xlu'] +
@@ -346,6 +368,7 @@ def convert(source, rom, course_id):
     for name, mode in passes:
         state['mode'] = mode
         state['shade'] = False
+        state['raceOnly'] = name == cfg['root'] and not cfg.get('battle')
         cull = state['cull'] = resolve(name) not in no_cull
         if name in arrays:
             for entry in re.findall(r'\w+', arrays[name]):

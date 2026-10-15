@@ -218,7 +218,7 @@ describe('widened narrow passages (port changes, not MK64)', () => {
         wallTris++;
       }
     }
-    expect(wallTris).toBe(95);
+    expect(wallTris).toBe(94);
     // Outer snow bank behind the south canyon exit wall (around x = 19, z = 41..48) is widened and raised above 5.2m
     const g = t.groundBelow(19.1, 41.5, 10);
     expect(g).not.toBeNull();

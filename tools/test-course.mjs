@@ -6,15 +6,15 @@ import { readFileSync, existsSync } from 'node:fs';
 // Courses without a road pattern only require every waypoint to lie over course geometry
 // (jumps on Royal Raceway, Wario Stadium etc. put waypoints well above the surface).
 const COURSES = [
-  { dir: 'luigi-raceway', tris: 3022, road: /^gLRTextureRoad/ },
-  { dir: 'mario-raceway', tris: 2549, road: /^gMRTexture(Road0|RoadFinish0|674354)$/ },
-  { dir: 'moo-moo-farm', tris: 3195 }, { dir: 'koopa-troopa-beach', tris: 3602 },
-  { dir: 'kalimari-desert', tris: 2932 }, { dir: 'toads-turnpike', tris: 3732 },
-  { dir: 'frappe-snowland', tris: 3179 }, { dir: 'choco-mountain', tris: 2397 },
-  { dir: 'wario-stadium', tris: 3637 }, { dir: 'sherbet-land', tris: 1276 },
-  { dir: 'royal-raceway', tris: 3514 }, { dir: 'bowsers-castle', tris: 4788 },
-  { dir: 'dks-jungle-parkway', tris: 3726 }, { dir: 'yoshi-valley', tris: 2456 },
-  { dir: 'banshee-boardwalk', tris: 2668 }, { dir: 'rainbow-road', tris: 1634 },
+  { dir: 'luigi-raceway', tris: 2892, road: /^gLRTextureRoad/ },
+  { dir: 'mario-raceway', tris: 2466, road: /^gMRTexture(Road0|RoadFinish0|674354)$/ },
+  { dir: 'moo-moo-farm', tris: 3195 }, { dir: 'koopa-troopa-beach', tris: 3481 },
+  { dir: 'kalimari-desert', tris: 2835 }, { dir: 'toads-turnpike', tris: 3732 },
+  { dir: 'frappe-snowland', tris: 3139 }, { dir: 'choco-mountain', tris: 2316 },
+  { dir: 'wario-stadium', tris: 3236 }, { dir: 'sherbet-land', tris: 1269 },
+  { dir: 'royal-raceway', tris: 3452 }, { dir: 'bowsers-castle', tris: 4613 },
+  { dir: 'dks-jungle-parkway', tris: 3633 }, { dir: 'yoshi-valley', tris: 2440 },
+  { dir: 'banshee-boardwalk', tris: 2608 }, { dir: 'rainbow-road', tris: 1622 },
 ];
 for (const { dir: name, tris: expectedTris, road: roadName } of COURSES) {
 const dir = new URL(`../public/mk64/${name}/`, import.meta.url);
