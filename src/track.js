@@ -637,6 +637,23 @@ export class Track {
       }
       return best === null ? null : { y: best, normal: n, ramp: r, lakitu: l };
     };
+    // func_80290C20 (render_courses.c): whether the camera at (x, y, z) is over a course floor, a collision surface
+    // (course.collision) at or below it. Off the course MK64 also draws the offCourse batches (showOffCourse).
+    // Not modelled: its second case, the camera within 3 units of a wall.
+    const floorGrid = new Map(), floors = [];
+    for (let i = 0; i + 2 < ci.length; i += 3) {
+      const [a, b, c] = [0, 1, 2].map(k => course.vertices[ci[i + k]].slice(0, 3).map(v => v * S));
+      const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
+      if (Math.abs(area) < 1e-4 || steep(a, b, c, 0.7)) continue;
+      const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
+      bucket(floorGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), floors.push([a, b, c, area]) - 1);
+    }
+    this.overCourse = (x, y, z) => (floorGrid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []).some(t => {
+      const [a, b, c, area] = floors[t];
+      const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
+      const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
+      return u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6 && u * a[1] + v * b[1] + (1 - u - v) * c[1] <= y;
+    });
     // does the probe step (x0,z0)->(x1,z1), swept at kart body height above ground y, hit a steep face? (crossed = its index)
     let crossed = -1;
     const blocked = (x0, z0, x1, z1, y) => {
@@ -1296,9 +1313,20 @@ export class Track {
       }));
       if (batch.translucent) mesh.renderOrder = 1;
       mesh.name = batch.texture || 'shade';
-      mesh.userData.catcher = !batch.translucent;   // setShadowCatchers: the opaque surfaces (base and decal layers)
+      mesh.userData.catcher = !batch.translucent && !batch.offCourse;   // setShadowCatchers: the opaque surfaces (base and decal layers)
+      if (batch.offCourse) (this.offCourse ??= []).push(mesh);
       this.group.add(mesh);
     });
+  }
+
+  // The void floors and black skirts under and around the course (offCourse batches, extract-course.py): MK64 draws
+  // them only while the camera is over no course floor (func_80290C20, render_<course>), so from the race camera on
+  // the course they never cover the scenery (Luigi Raceway's black wall over the tunnel, Royal Raceway's green void
+  // floor). Called with each camera before it renders.
+  showOffCourse(cam) {
+    if (!this.offCourse) return;
+    const on = !this.overCourse(cam.position.x, cam.position.y, cam.position.z);
+    for (const m of this.offCourse) m.visible = on;
   }
 
   // The native course lists are unlit (MeshBasicMaterial takes no shadow map). For the Wii 3D karts (castShadow,

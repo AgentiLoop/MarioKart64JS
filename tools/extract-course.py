@@ -300,7 +300,8 @@ def convert(source, rom, course_id):
                 if texture:
                     formats[texture] = state['format']
                 key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'],
-                       state['mode'] == 'edge', state['mode'] == 'xlu', state['origin'], state['cull'])
+                       state['mode'] == 'edge', state['mode'] == 'xlu', state['origin'], state['cull'],
+                       bool(state.get('raceOnly')) and name not in open_lists)
                 batch = batches.get(key)
                 if batch is None:
                     batch = batches[key] = dict(texture=texture, width=key[1], height=key[2],
@@ -311,6 +312,8 @@ def convert(source, rom, course_id):
                         batch['tileOrigin'] = list(key[7])
                     if not key[8]:
                         batch['doubleSided'] = True   # drawn with G_CULL_BACK cleared
+                    if key[9]:
+                        batch['offCourse'] = True   # only while the camera is over no course floor (func_80290C20)
                 for j in range(0, len(a), 4):
                     tri = tuple(cache[int(v, 0)] for v in a[j:j + 3])
                     if (texture, tri) not in seen:  # sections repeat shared lists
@@ -349,18 +352,22 @@ def convert(source, rom, course_id):
     for start, end in (('void course_generate_collision_mesh', None), ('void render_course_credits', 'void render_course(')):
         i = race_c.index(start)
         race_c = race_c[:i] + (race_c[race_c.index(end, i):] if end else '')
-    race_lists = set()
+    race_lists, open_lists = set(), set()
+    # Lists submitted only inside `if (func_80290C20(camera) == 1 ...)` (the shade-only void floors and black skirts
+    # under and around each course) are drawn only while the camera is over no course floor (offCourse batches).
+    open_c = re.sub(r'if \(\(?func_80290C20\([^)]*\) == 1\)[^{]*\{[^{}]*\}', '', race_c)
 
-    def submit(name):
-        if name in lists and name not in race_lists:
-            race_lists.add(name)
+    def submit(name, into):
+        if name in lists and name not in into:
+            into.add(name)
             for child in re.findall(r'gsSPDisplayList\((\w+)\)', lists[name]):
-                submit(child)
+                submit(child, into)
     for name in lists:
         offset = re.search(r'_dl_([0-9A-F]+)$', name)
-        if re.search(rf'\b{name}\b', race_c) or (name.startswith(dl) and offset and
-                                                 re.search(rf'0x07{int(offset.group(1), 16):06X}\b', race_c)):
-            submit(name)
+        for text, into in ((race_c, race_lists), (open_c, open_lists)):
+            if re.search(rf'\b{name}\b', text) or (name.startswith(dl) and offset and
+                                                   re.search(rf'0x07{int(offset.group(1), 16):06X}\b', text)):
+                submit(name, into)
     sections = cfg.get('sections', [])
     passes = ([s for s in sections if s[1] != 'xlu'] + [(n, 'edge') for n in cfg['edge']] +
               [(n, 'xlu') for n in cfg.get('xlu', [])] + [s for s in sections if s[1] == 'xlu'] +
