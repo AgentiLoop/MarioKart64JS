@@ -74,6 +74,10 @@ COURSES['wario_stadium']['unused'] = ['3B0']  # only under the unreferenced aggr
 # init_course (render_courses.c) find_vtx_and_set_colours(list, alpha, r, g, b): rewrites the unpacked
 # vertices (alpha 0xFF) of a list, colour too when red != 0. Sherbet Land's see-through ice.
 COURSES['sherbet_land']['vtxColours'] = [('1EB8', 180, 255, 255, 255), ('2308', 150, 255, 255, 255)]
+# Lists drawn with gsSPTexture(G_OFF) under a combiner that still reads TEXEL0: the RDP samples texel (0, 0) of
+# whatever TMEM holds from the list drawn before it at run time. Kalimari Desert's dl_A18 quad follows dl_8398 /
+# dl_4AA8 in every section (course_data.c), both ending on gKDTexture646CA8 (sand), not a white shade-only patch.
+COURSES['kalimari_desert']['staleTexture'] = {'A18': 'gKDTexture646CA8'}
 
 
 def numbers(text):
@@ -288,6 +292,9 @@ def convert(source, rom, course_id):
                     cache[start + i] = first + i
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
                 texture = state['texture'] if state['enabled'] and not state['shade'] else None
+                stale = cfg.get('staleTexture', {}).get(name.removeprefix(dl))
+                if stale and not state['enabled'] and not state['shade']:
+                    texture = stale
                 if texture:
                     formats[texture] = state['format']
                 key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'],
