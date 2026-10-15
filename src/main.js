@@ -218,6 +218,23 @@ window.__clouds = clouds && { set: cloudSet, get yaw() { return cameraYaw; }, me
 
 const track = new Track(await loadNativeCourse(trackDef || TRACKS[0]), { mirror });
 scene.add(track.group);
+// Toad's Turnpike's highway has nothing under it (MK64's low camera never looks past the walls), so the high
+// cameras saw the orange-to-black lower sky through the gaps and took it for lava: a grass field at the foot of
+// the overpass supports (the course's lowest vertices, native y -256). Not in MK64.
+if (track.def.id === 'toad') {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#3f7a1c'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1500; i++) {
+    g.fillStyle = `hsla(${85 + 25 * Math.random()},60%,${18 + 22 * Math.random()}%,0.35)`;
+    g.fillRect(256 * Math.random(), 256 * Math.random(), 2 + 6 * Math.random(), 2 + 6 * Math.random());
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(250, 250); tex.anisotropy = 8;
+  const field = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+  field.rotation.x = -Math.PI / 2; field.position.set(50, -256 * NATIVE_SCALE - 0.05, -100); field.receiveShadow = true;
+  scene.add(field);
+}
 const physicsDebug = new PhysicsDebug(scene, track);   // P / ?physics: walls and kart collision bodies
 if (params.has('physics') || params.get('showphysics') === 'true') physicsDebug.toggle(true);
 
