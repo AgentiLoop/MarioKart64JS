@@ -356,7 +356,7 @@ describe('online', () => {
     expect(net.isReady).toBe(true);
     net.emit('mesh', {});
     const gg = window.__game;
-    expect(gg.karts).toHaveLength(4);
+    expect(gg.karts).toHaveLength(2);   // online VS is humans only (no CPU karts)
     expect(gg.karts.filter(k => k.remote)).toHaveLength(1);
     net.emit('data', { from: 2, msg: { t: 'ready' } });
     expect(net.sent.some(m => m.t === 'go')).toBe(true);
