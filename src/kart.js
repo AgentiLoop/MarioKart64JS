@@ -549,27 +549,37 @@ export class Kart {
     }
     // probe ahead (further the faster it goes): a wall or a drop there turns the kart towards the open side
     const reach = 6 + Math.abs(this.v) * 0.5;
-    // ground sampled along the ray: a step down of up to 6 units (decks, slabs) is fine, a hole is not
-    const probe = (ang, dist = reach) => {
-      let px = this.x, pz = this.z, py = this.y;
-      for (let k = 1; k <= 3; k++) {
-        const qx = this.x + Math.sin(ang) * dist * k / 3, qz = this.z + Math.cos(ang) * dist * k / 3;
+    // ground sampled every 2 units along the ray (Skyscraper's centre hole is under 5 across: three samples over
+    // 24 units stepped right over it): a step down of up to 6 units (decks, slabs) is fine, a hole is not, nor is
+    // ground at the fall height (Big Donut's lava pit: the floor slopes down into it with no step to see)
+    const probe = (ang, dist = reach, ox = 0, oz = 0) => {
+      let px = this.x + ox, pz = this.z + oz, py = this.y;
+      const n = Math.max(3, Math.ceil(dist / 2));
+      for (let k = 1; k <= n; k++) {
+        const qx = this.x + ox + Math.sin(ang) * dist * k / n, qz = this.z + oz + Math.cos(ang) * dist * k / n;
         if (t.blocked(px, pz, qx, qz, py)) return false;
         const g = t.groundAt(qx, qz, py) || t.groundBelow(qx, qz, py + 0.5);
-        if (!g || g.y < py - 6) return false;
+        if (!g || g.y < py - 6 || g.y < t.fallY + 1) return false;
         px = qx; pz = qz; py = g.y;
       }
       return true;
     };
+    // a corridor, not a single ray: the fan rays at +-0.3 rad plus two rays from the kart's sides (1.5 out, its body
+    // 1.4 wide), straight ahead. The fan alone let a kart run along an edge inside 2 of it, where every steer toward
+    // its goal across the edge blocked, turned it off and cleared, a little nearer each time, until it was over it
+    const rx = -Math.cos(this.h) * 1.5, rz = Math.sin(this.h) * 1.5;   // right = fwd x up
     let blockedAhead = false;
-    if (!probe(this.h) || !probe(this.h + 0.3, reach * 0.8) || !probe(this.h - 0.3, reach * 0.8)) {   // a corridor, not a single ray
+    if (!probe(this.h) || !probe(this.h + 0.3, reach * 0.8) || !probe(this.h - 0.3, reach * 0.8)
+      || !probe(this.h, reach * 0.7, rx, rz) || !probe(this.h, reach * 0.7, -rx, -rz)) {
       blockedAhead = true;
       if (this.avoid == null) {
         const l = probe(this.h + 0.8), r = probe(this.h - 0.8);
         this.avoid = l && !r ? 1 : r && !l ? -1 : probe(this.h + 1.6) ? 1 : probe(this.h - 1.6) ? -1 : (Math.random() < 0.5 ? 1 : -1);
       }
-      want = this.h + this.avoid * 1.4;
-    } else this.avoid = null;
+      this.avoidHold = 0.3;
+    } else if (this.avoidHold > 0) this.avoidHold -= dt;   // the turn runs on 0.3 s past a clear corridor, so it is not flicked back at once
+    else this.avoid = null;
+    if (this.avoid != null) want = this.h + this.avoid * 1.4;
     // nose stuck on a wall: no speed means no steering, so back off for a moment turning towards the open side
     // (reversing, steering right turns h positive)
     if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: this.avoid || 1, drift: false }; }
@@ -578,7 +588,11 @@ export class Kart {
     let diff = want - this.h;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     const steer = THREE.MathUtils.clamp(-diff * 2.5, -1, 1);   // steering right turns h negative
-    return { throttle: blockedAhead ? 0.3 : Math.abs(diff) > 2.2 ? 0.5 : 1, brake: blockedAhead && this.v > 18 ? 0.8 : 0, steer, drift: false };
+    // a wall or an edge ahead: slow to 10 (turning circle 6; at 18 it was 11, wider than Skyscraper's 10-wide outer
+    // ring, and karts turning away from its edge at 18 drove off it). No throttle while slowing: a mushroom / star
+    // boost pushes 40/s against the brake's 55/s only while the throttle is on, and a boosting kart ran off the edge
+    const slow = blockedAhead && this.v > 10;
+    return { throttle: slow ? 0 : blockedAhead ? 0.3 : Math.abs(diff) > 2.2 ? 0.5 : 1, brake: slow ? 1 : 0, steer, drift: false };
   }
 
   think(dt, karts, hazards = null, items = null) {
