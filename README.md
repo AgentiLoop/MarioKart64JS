@@ -7,7 +7,7 @@
 Mario Kart 64, rebuilt to run in a web browser. It isn't an emulator. The courses, karts, music and sounds are pulled
 out of the original N64 ROM and redrawn with Three.js.
 
-We built it as a test of how closely AI tools can recreate a classic game.
+We built it as a test of how closely AI tools can recreate a classic game, and improve upon it.
 
 - **▶ Play now:** https://mk64js.gokart.games/play
 - **⬇ Desktop apps** (Mac, Windows, Linux, Raspberry Pi): [Releases](https://github.com/AgentiLoop/MarioKart64JS/releases/latest)
