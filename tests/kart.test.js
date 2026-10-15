@@ -155,11 +155,21 @@ describe('Kart on a race course', () => {
     run(k, 3, gas);
     expect(k.v).toBeLessThanOrEqual(44.5);
   });
-  it('going off the road slows the kart', () => {
-    const k = makeKart(track, { isPlayer: true });
+  it('going off the road slows the kart (the grass past the route half-width), not an on-course surface out there', () => {
+    const k = makeKart(track, { isPlayer: true, s: 100 });
     k.d = 14;
-    k.update(1 / 60, gas);
+    k.update(1 / 60, gas); k.update(1 / 60, gas);   // the second tick sees the ground surface of the first
+    expect(track.groundAt(k.world.x, k.world.z, k.world.y + 2)?.surface).toBe('GRASS');
     expect(k.offroad).toBe(true);
+  });
+  it('is not slowed out past the route half-width on Wario Stadium\'s wide dirt (an on-course surface)', async () => {
+    const wario = await makeTrack('wario');
+    const k = makeKart(wario, { isPlayer: true, s: 1300 });
+    k.d = 14;
+    k.update(1 / 60, gas); k.update(1 / 60, gas);
+    expect(k.surface).toBe('DIRT');
+    expect(k.d).toBeGreaterThan(13);
+    expect(k.offroad).toBe(false);
   });
   it('hitting the route wall bounces and slows', () => {
     const k = makeKart(track, { isPlayer: true, s: 100 });

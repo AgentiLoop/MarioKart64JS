@@ -71,12 +71,20 @@ async function race(id) {
       const at = k => `${g.raceTime.toFixed(1)}s L${k.crossings} ${where(k)}`;
       const log = (k, what) => ev[karts.indexOf(k)].push(`${at(k)} ${what}`);
       // every hit with its cause: Items.hit (kind null = a critter's / vehicle's spin-out trigger), lightning, a bonk
+      const st = karts.map(k => ({ rescue: false, stop: 0, slow: 0, slowS: 0, off: 0, offAt: 0, rev: 0, wall: 0, lastHit: -1, lastX: k.world.x, lastZ: k.world.z, movedAt: 0, stalls: 0, trace: [], spin: false, tumble: false }));
       const hit0 = items.hit.bind(items), strike0 = items.strike.bind(items);
-      items.hit = (k, kind, owner) => { const r = hit0(k, kind, owner); if (r) log(k, `hit ${kind ?? 'critter'}${owner ? ' by ' + (owner.name ?? '?') : ''}`); return r; };
+      // a vehicle hit (kind 'star', no owner): the nearest vehicle on the route - kind, where it is relative to the
+      // kart (route units ahead / across) and its speed - and the driver's last second
+      const vehicle = k => {
+        const sp = g.traffic?.spots; if (!sp?.length) return '';
+        const L = g.track.length, rel = o => { let ds = o.s - k.s; if (ds < -L / 2) ds += L; if (ds > L / 2) ds -= L; return ds; };
+        const i = sp.map((o, i) => [Math.abs(rel(o)) + Math.abs(o.d - k.d), i]).sort((a, b) => a[0] - b[0])[0][1], o = sp[i], v = g.traffic.vehicles[i];
+        return ` ${v.kind} ds${rel(o).toFixed(1)} dd${(o.d - k.d).toFixed(1)} v${o.v.toFixed(0)} after ${st[karts.indexOf(k)].trace.join(' ')}`;
+      };
+      items.hit = (k, kind, owner) => { const r = hit0(k, kind, owner); if (r) log(k, `hit ${kind ?? 'critter'}${owner ? ' by ' + (owner.name ?? '?') : ''}${kind === 'star' && !owner ? vehicle(k) : ''}`); return r; };
       items.strike = k => { strike0(k); log(k, 'lightning'); };
       const bonk0 = p.bonk;
       for (const k of karts) k.bonk = function (...a) { const m2 = bonk0.apply(this, a); if (Math.sqrt(m2) >= 6.5) log(this, 'bonked'); return m2; };
-      const st = karts.map(k => ({ rescue: false, stop: 0, slow: 0, slowS: 0, off: 0, offAt: 0, rev: 0, wall: 0, lastHit: -1, lastX: k.world.x, lastZ: k.world.z, movedAt: 0, stalls: 0, trace: [], spin: false, tumble: false }));
       let lastLap = p.crossings, nextShot = every, minV = 1e9, topV = 0;
       const dt = 0.1;
       const t = setInterval(() => {

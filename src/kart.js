@@ -164,6 +164,10 @@ const KART_RADIUS = [5.5, 5.5, 5.5, 5.5, 5.5, 6.0, 5.5, 6.0].map(r => r * 0.1); 
 // Opaque width of each character's rear-view sprite frame (84) in the 64 px atlas cell, as scene units at the
 // sprite's 4.5 scale, halved: Mario 38 px -> 1.34, Bowser 48 px -> 1.69 (CHARACTER_ID order)
 const KART_HALF_WIDTH = [38, 38, 38, 40, 42, 38, 38, 48].map(px => px / 64 * 4.5 / 2);
+// MK64's off-course surface types: the ones the tyre drag tables (kart_attributes.c D_800E26D0 / D_800E28B0, indexed
+// by surface type) slow on the front tyres, 0.38 (ASPHALT, DIRT, SAND, STONE, SNOW, BRIDGE, ICE, CLIFF, TRAIN_TRACK
+// and the bridges are the course)
+const OFFROAD_SURFACES = new Set(['GRASS', 'SAND_OFFROAD', 'WET_SAND', 'SNOW_OFFROAD', 'DIRT_OFFROAD', 'OUT_OF_BOUNDS']);
 const WALL_SLOW = 18 / 320 * MAX_SPEED;   // player_decelerate_alternative(18) on currentSpeed (top ~320)
 const EASE_RATE = 30;      // a kart past a closing route limit is eased in this fast (/s; 0.5 a 60 Hz frame)
 const WALL_CLEAR = 0.1;   // a kart pushed out of a wall is left this far off it, not touching (assumption: tuned value)
@@ -840,7 +844,11 @@ export class Kart {
     if (this.rescue) { this.v = 0; this.drift = 0; this.boost = 0; this.spin = 0; this.spinAngle = 0; return; }   // held by Lakitu (src/lakitu.js)
     const t = this.track;
     const absD = Math.abs(this.d);
-    this.offroad = absD > HALF_WIDTH + 1.5;
+    // Off the asphalt past HALF_WIDTH of the route - unless the ground under the kart is one of MK64's on-course
+    // surfaces (Track.groundAt surface, from the collision table): D.K.'s Jungle Parkway's dirt road past the rope
+    // bridge at (150, -197) runs 32 wide to the right of the route and every kart swinging out of the bend onto it
+    // was slowed to 45% for a second and a half each lap. Unknown ground (none in the table) keeps the route rule
+    this.offroad = absD > HALF_WIDTH + 1.5 && !(this.surface && !OFFROAD_SURFACES.has(this.surface));
     let scale = this.speedScale * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
     // CPU_FAST_EFFECT: unk_0E8 eases to 380 on top of the speed force currentSpeed^2 / 25 (func_80030150);
     // top velocity is linear in the force: (cs^2 / 25 + 380) / (cs^2 / 25)
@@ -1653,6 +1661,7 @@ export class Kart {
       if (below?.lakitu && this.y - below.y <= 0.3 && !rising || this.overLakitu > 0.25) this.fell = { kind: 'drop', base: this.y };
     }
     this.stepBounce(dt);
+    this.surface = g && !this.air ? g.surface ?? null : null;
     if (g && !this.air) {
       this.groundY = g.y; this.world.y = PHYSICS.glue ? g.y : this.y + this.lead;
       if (!this.ramp) this.lastGroundS = this.s;   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
