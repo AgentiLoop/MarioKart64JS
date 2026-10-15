@@ -1679,8 +1679,12 @@ function frame(now) {
   props?.update(dt);
   piranha?.update(dt, views.map(v => v.cam));
   yoshiEgg?.update(dt, views.map(v => v.cam));
-  train?.update(dt, views.map(v => v.cam), karts);
-  traffic?.update(dt, karts);
+  // the vehicles drive through the countdown but only hit karts once the race is on (func_8028F474: RACE_PREP /
+  // RACE_STAGING run update_vehicles alone, the vehicle interactions are in update_player). Toad's Turnpike's first
+  // truck starts on path point 0, the start line, and knocked a kart off the grid at 0.5 s of the countdown
+  const hittable = state === 'countdown' ? [] : karts;
+  train?.update(dt, views.map(v => v.cam), hittable);
+  traffic?.update(dt, hittable);
   ferry?.update(dt, views.map(v => v.cam));
   balloon?.update(dt, views.map(v => v.cam), views.some(v => (v.kart ?? player)?.crossings >= 1));   // a player's lap counter reached 1
   thwomps?.update(dt, views.map(v => v.cam), views.map(v => v.kart ?? player), karts, track.def.native?.path);

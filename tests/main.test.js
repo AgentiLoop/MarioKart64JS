@@ -337,6 +337,20 @@ describe('every race course boots and runs', () => {
     g.player.crossings = 1;
     tick(20);
   }, 60000);
+
+  it("Toad's Turnpike's traffic drives through the countdown without hitting the grid, and hits once the race is on", async () => {
+    const g = await boot('?track=toad&char=mario&mode=mario_gp&cc=100');
+    await g.traffic.ready;
+    const p = g.player, v = g.traffic.vehicles[0];
+    expect(g.state).toBe('countdown');
+    const park = () => { v.pos = [p.world.x * 10, p.world.y * 10, p.world.z * 10]; };   // the truck on top of the kart
+    park(); tick(2);
+    expect(p.tumble).toBeFalsy();
+    toRace(g);
+    expect(g.state).toBe('race');
+    park(); tick(2);
+    expect(p.tumble).toBeTruthy();
+  }, 60000);
 });
 
 describe('online', () => {
