@@ -511,7 +511,7 @@ export class Kart {
   // Arena CPU: chase the nearest opponent it can drive straight to; when walls or another floor are in the way,
   // drive via the item box spots (on every deck and ramp), picking the reachable one that is closest to an
   // opponent. Re-planned twice a second; walls and edges ahead still turn it towards the open side.
-  thinkFree(dt, karts) {
+  thinkFree(dt, karts, items = null) {
     const t = this.track;
     this.plan = (this.plan ?? 0) - dt;
     if (this.plan <= 0) {
@@ -538,6 +538,15 @@ export class Kart {
     this.wander = (this.wander ?? 0) + (Math.random() - 0.5) * dt * 2;
     this.wander = THREE.MathUtils.clamp(this.wander, -0.8, 0.8);
     let want = target ? Math.atan2(target.x - this.x, target.z - this.z) + this.wander * 0.2 : this.h + this.wander;
+    // a dropped banana / fake item box in the way ahead (Items.hazards): steer past it on the side it is not on.
+    // Not in MK64 (its CPUs keep to their path); the walls and edges below still win
+    for (const o of items || []) {
+      if (o.x === undefined || (o.owner === this && o.safe > 0)) continue;
+      const dx = o.x - this.x, dz = o.z - this.z, dist = Math.hypot(dx, dz);
+      if (dist > 8 + Math.abs(this.v) * 0.5 || Math.abs(o.y - this.y) > 2.5) continue;
+      const off = Math.atan2(Math.sin(Math.atan2(dx, dz) - want), Math.cos(Math.atan2(dx, dz) - want));
+      if (Math.abs(off) * dist < 3.5) { want = Math.atan2(dx, dz) - (off >= 0 ? 1 : -1) * Math.atan2(3.5, Math.max(dist, 1)); break; }
+    }
     // probe ahead (further the faster it goes): a wall or a drop there turns the kart towards the open side
     const reach = 6 + Math.abs(this.v) * 0.5;
     // ground sampled along the ray: a step down of up to 6 units (decks, slabs) is fine, a hole is not
@@ -572,8 +581,8 @@ export class Kart {
     return { throttle: blockedAhead ? 0.3 : Math.abs(diff) > 2.2 ? 0.5 : 1, brake: blockedAhead && this.v > 18 ? 0.8 : 0, steer, drift: false };
   }
 
-  think(dt, karts, hazards = null) {
-    if (this.free) return this.thinkFree(dt, karts);
+  think(dt, karts, hazards = null, items = null) {
+    if (this.free) return this.thinkFree(dt, karts, items);
     const t = this.track, look = 14 + this.v * 0.6;
     const f = t.frameAt(this.s + look, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
     let target = this.aiOffset;
@@ -738,6 +747,16 @@ export class Kart {
         }
       }
       target += this.laneOff;
+    }
+    // a dropped banana / fake item box on the lane ahead (Items.hazards, hit inside 2.2 of it): the lane moves to
+    // the nearer side clear of it within the wall limits, kept until the kart is past. Not in MK64 (its CPUs keep
+    // to their path and run into them)
+    for (const o of items || []) {
+      if (o.d === undefined || (o.owner === this && o.safe > 0)) continue;
+      let ds = o.s - this.s; if (ds < -t.length / 2) ds += t.length; if (ds > t.length / 2) ds -= t.length;
+      if (ds < -1 || ds > 10 + Math.max(0, this.v) * 0.8 || Math.abs(target - o.d) >= 3.6) continue;
+      const sides = [o.d - 3.8, o.d + 3.8].filter(x => x >= lo && x <= hi).sort((a, b) => Math.abs(a - this.d) - Math.abs(b - this.d));
+      if (sides.length) target = sides[0];
     }
     const want = Math.atan2(target - this.d, this.finished ? 20 : 14);
     // plus the steer that turns the nose with the route under the kart (update: psi -= k * ds, steering turns

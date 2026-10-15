@@ -726,14 +726,15 @@ export class Items {
     }
   }
 
-  // CPUs outside Grand Prix (VS / battle seats): boosts, star, boo, lightning and the blue shell go at once; shells
-  // when a rival is ahead in range, bananas and fake boxes when one is close behind.
+  // CPUs outside Grand Prix (VS / battle seats) and the autopilot's player kart: boosts, star, boo, lightning and the
+  // blue shell go at once; shells when a rival is ahead in range, bananas and fake boxes when one is close behind.
+  // A player kart's banana / fake box / shell comes out held (use), so the next go lets it go (release)
   aiUse(kart, karts, dt) {
     if ((!kart.item && !kart.trail) || kart.spin > 0 || kart.tumble) return;
-    kart.itemTimer -= dt;
+    kart.itemTimer = (kart.itemTimer ?? 0) - dt;
     if (kart.itemTimer > 0) return;
     const it = kart.trail ? kart.trail.kind : kart.item;
-    const go = () => { this.use(kart, karts); kart.itemTimer = 0.5 + Math.random(); };
+    const go = () => { if (kart.trail?.held) this.release(kart, karts); else this.use(kart, karts); kart.itemTimer = 0.5 + Math.random(); };
     if (!['banana', 'fake_item_box', 'green_shell', 'red_shell'].includes(it)) return go();
     const shell = it.endsWith('shell');
     for (const o of karts) {

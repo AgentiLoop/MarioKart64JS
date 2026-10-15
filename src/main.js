@@ -1547,7 +1547,7 @@ function frame(now) {
         if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
         else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
         // a finished player becomes a CPU driver and keeps racing laps (race_logic.c: player->type |= PLAYER_CPU)
-        const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts, traffic?.spots);
+        const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts, traffic?.spots, items.hazards);
         if (k.isPlayer && state === 'finished' && !k.finished) { inp.throttle = 0.4; inp.brake = 0; }
         k.update(h, inp);
         if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }
