@@ -299,7 +299,8 @@ class Referee {
     const [ul, ur] = cam.userData.mirror ? [u1, u0] : [u0, u1];   // EXTRA: flipped back so his signs read under the mirrored projection
     uv.array.set([ul, v0, ur, v0, ur, v1, ul, v1]); uv.needsUpdate = true;
     this.material.opacity = this.alpha;
-    this.mesh.visible = !this.model;   // the sprite quad still stands in for the frustum test under the 3D model
+    // the sprite quad still stands in for the frustum test under the 3D model; hidden too while that model loads
+    this.mesh.visible = !this.model && !this.lakitu?.wait3D;
     if (this.model) {
       this.model.position.copy(m); this.model.rotation.copy(this.mesh.rotation);
       this.model.userData.show(this.mode, this.frame, this.alpha, this.seen?.lap ?? 2);
@@ -337,7 +338,7 @@ export class Lakitu {
       for (let l = 1; l <= 4; l++) v.cam.layers.disable(l);
       v.cam.layers.enable(1 + i);
       const r = new Referee(this.scene, 1 + i, this.textures);
-      r.kart = v.kart; r.cam = v.cam;
+      r.kart = v.kart; r.cam = v.cam; r.lakitu = this;
       r.sound = (bank, id) => this.onSound?.(bank, id);
       r.shards = k => this.ice?.shatter(k, views.length, 1 + i);
       return r;
@@ -350,12 +351,13 @@ export class Lakitu {
   // null brings the sprites back
   set3D(build) {
     this.build3D = build || null;
-    if (!build) { for (const r of this.referees) r.setModel(null); return Promise.resolve(); }
+    if (!build) { this.wait3D = false; for (const r of this.referees) r.setModel(null); return Promise.resolve(); }
     const referees = this.referees;
     return Promise.all(referees.map(() => build())).then(models => {
       if (this.build3D !== build) return;
       referees.forEach((r, i) => { if (this.referees.includes(r)) r.setModel(models[i]); });
-    });
+      this.wait3D = false;
+    }, err => { this.wait3D = false; throw err; });
   }
 
   // the hum (func_800C8F80 0x0100FA28 in init_obj_lakitu_red_flag_fishing / _reverse) loops while a fishing or

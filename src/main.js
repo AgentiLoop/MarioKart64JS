@@ -291,8 +291,11 @@ function setup(count = battle ? 4 : 8) {   // count: karts on the grid (8 for 1P
 function setWii3D(on) {
   if (on) localStorage.setItem('mk64wii3d', '1'); else localStorage.removeItem('mk64wii3d');
   if (!on) { for (const k of karts) k.set3D(null); track.setShadowCatchers(false); lakitu.set3D(null); showRes('KART: MK64 SPRITE'); return; }
-  import('./kart3d.js').then(m => Promise.all(karts.map(k => m.buildWiiKart(k.character)))).then(models => { karts.forEach((k, i) => k.set3D(models[i])); track.setShadowCatchers(true); showRes('KART: WII 3D (STANDARD KART)'); }, err => { console.error(err); showRes('WII KART FAILED TO LOAD'); });
-  import('./lakitu3d.js').then(m => lakitu.set3D(m.buildLakitu3D)).catch(err => { console.error(err); showRes('WII LAKITU FAILED TO LOAD'); });
+  // the sprites (and their blob shadows) stay hidden while the models load, so a 3D race never shows them first
+  for (const k of karts) if (!k.model) { k.mesh.children.find(c => c.isSprite).visible = false; k.mesh.userData.setBlob(false); }
+  lakitu.wait3D = true;
+  import('./kart3d.js').then(m => Promise.all(karts.map(k => m.buildWiiKart(k.character)))).then(models => { karts.forEach((k, i) => k.set3D(models[i])); track.setShadowCatchers(true); showRes('KART: WII 3D (STANDARD KART)'); }, err => { console.error(err); for (const k of karts) k.set3D(null); showRes('WII KART FAILED TO LOAD'); });
+  import('./lakitu3d.js').then(m => lakitu.set3D(m.buildLakitu3D)).catch(err => { console.error(err); lakitu.wait3D = false; showRes('WII LAKITU FAILED TO LOAD'); });
 }
 
 // track menu (shown until a track is picked; picking reloads with ?track=id)
