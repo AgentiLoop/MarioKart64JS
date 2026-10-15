@@ -202,15 +202,21 @@ function updateClouds(vw, vh) {
   if (vw && vh) size.set(vw, vh);
   const kx = (size.y / 240) * 2 / size.x;   // native px -> NDC x, height-matched scaling
   const row = (1 - sky.material.uniforms.horizon.value) * 120;
-  const tick = Math.floor(performance.now() * 0.03);   // object updates at 30 Hz (assumption)
+  // EXTRA: MK64 snaps the twinkle between min and max on every object update (a hard ~15 Hz blink that strobes
+  // unevenly off 60 Hz displays); here each star eases between the same pair on its own ~1.6 s phase instead.
+  const t = performance.now() / 1000;
   const pos = clouds.geometry.attributes.position, al = clouds.geometry.attributes.alpha;
   const [hw, hh] = cloudSet.stars ? [8, 8] : [32, 16];
   cloudSet.objects.forEach((o, i) => {
-    const x = Math.trunc(cloudScreenX(cameraYaw, o.rotY)), y = row - o.posY;
+    // EXTRA: sub-pixel x (MK64 truncates to whole 320x240 pixels, which steps visibly when scaled up)
+    const x = cloudScreenX(cameraYaw, o.rotY), y = row - o.posY;
     // EXTRA: screen-space quads skip the mirrored projection, so mirror where they sit but not their image
     const X = d => ((mirror ? 160 - x : x - 160) + d * o.scale) * kx, Y = d => 1 - (y + d * o.scale) / 120;
     pos.array.set([X(-hw), Y(-hh), 0, X(hw - 1), Y(-hh), 0, X(hw - 1), Y(hh - 1), 0, X(-hw), Y(hh - 1), 0], i * 12);
-    if (cloudSet.stars) al.array.fill(STAR_TWINKLE[i % 5][tick & 1] / 255, i * 4, i * 4 + 4);
+    if (cloudSet.stars) {
+      const [lo, hi] = STAR_TWINKLE[i % 5], k = 0.5 + 0.5 * Math.sin(t * 4 + i * 2.39);
+      al.array.fill((lo + (hi - lo) * k) / 255, i * 4, i * 4 + 4);
+    }
   });
   pos.needsUpdate = al.needsUpdate = true;
 }
