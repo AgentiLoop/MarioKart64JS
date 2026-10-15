@@ -331,6 +331,14 @@ export function widenFrappeWalls(course) {
     }
     b.indices = next;
   }
+  // Not in MK64: the frozen creek/lake the karts jump over (gFSTexture675434 at y -50, shade [0, 128, 148]) renders
+  // as a near-black teal; it gets the ice-wall texture under a light blue shade so it reads as blue ice. Its
+  // vertices are its own (no other batch uses them), so the recolour touches nothing else.
+  for (const b of course.batches) {
+    if (b.texture !== 'gFSTexture675434') continue;
+    Object.assign(b, { texture: 'gFSTexture678118', wrapS: 'mirror', wrapT: 'mirror', iceLake: true });
+    for (const i of new Set(b.indices)) course.vertices[i].splice(5, 3, 140, 200, 255);
+  }
 }
 // Start spot for player slot i (0-3) of a battle course: { x, y, z, h } in scene units, h the heading in
 // radians with the kart facing (sin h, 0, cos h).
