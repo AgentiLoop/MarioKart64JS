@@ -1413,7 +1413,7 @@ function cinematicCamera(dt, v, k) {
 // they cross, or under the camera: a bank it looks down over) or that only the low line (0.8 under the view's) meets hides at most the kart's body: v (the chase view)
 // pulls in for it at most CAM_OUT a second, not at once (dropping down Frappe Snowland's bank at (-1250, -1250) its top
 // grazed both lines for a frame or two and jerked the camera 13-17 in, 3 times a race)
-const CAM_GAP = 1, SCENE_GAP = 3, GRAZE = 0.5, _eye = new THREE.Vector3(), _lowEye = new THREE.Vector3(), _lowPos = new THREE.Vector3(), _sceneFrom = new THREE.Vector3();
+const CAM_GAP = 1, SCENE_GAP = 3, THIN = 4, GRAZE = 0.5, _eye = new THREE.Vector3(), _lowEye = new THREE.Vector3(), _lowPos = new THREE.Vector3(), _sceneFrom = new THREE.Vector3();
 function pullIn(pos, hit, hard, v, dt) {
   const len = pos.distanceTo(_eye);
   let f = Math.max(0.06, hit - CAM_GAP / len);
@@ -1445,14 +1445,18 @@ function keepInside(pos, k, v, dt) {
   // them (Bowser's Castle's drawn buttresses at the hall's wall, x 1550..1580 and 1750..1780, z -2681..-2791, 3 wide,
   // have no collision: driving through one, or just out of one with the camera still behind it, the line met its side
   // by the eye and the camera was thrown 16 in, onto the kart). Nor faces the line leaves by (entering): those are
-  // closed solids, and with the eye deep inside one the line met the face it exits by (2 jumps of 10-16 a race)
+  // closed solids, and with the eye deep inside one the line met the face it exits by (2 jumps of 10-16 a race).
+  // A solid thinner than THIN along the line with the camera out past it (the line comes out of it again: one of those
+  // buttresses between the kart just through it and the camera, 15 in at once) only eases the camera in.
   const g0 = Math.min(0.5, SCENE_GAP / Math.max(1e-6, pos.distanceTo(_eye)));
   _sceneFrom.lerpVectors(_eye, pos, g0);
   const h3 = track.sightHitScene?.(_sceneFrom, pos, undefined, undefined, true) ?? null, last = h3 === null ? null : g0 + h3 * (1 - g0);
   if (last !== null) {
-    const hard = lifted || track.sightHitScene(_sceneFrom, pos, GRAZE, pos.y, true) !== null;
+    const back = track.sightHitScene(pos, _sceneFrom, undefined, undefined, true);
+    const thin = back !== null && (1 - back - h3) * pos.distanceTo(_sceneFrom) < THIN;
+    const hard = lifted || !thin && track.sightHitScene(_sceneFrom, pos, GRAZE, pos.y, true) !== null;
     pullIn(pos, last, hard, v, dt);
-    why.push(`scene${hard ? '' : '~'} ${last.toFixed(2)}`);
+    why.push(`scene${hard ? '' : '~'}${thin ? ' thin' : ''} ${last.toFixed(2)}`);
   }
   if (v) v.why = why.join(' ');
 }
