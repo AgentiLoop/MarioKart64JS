@@ -642,12 +642,19 @@ export class Track {
     // (course.collision) at or below it. Off the course MK64 also draws the offCourse batches (showOffCourse).
     // Not modelled: its second case, the camera within 3 units of a wall.
     const floorGrid = new Map(), floors = [];
-    for (let i = 0; i + 2 < ci.length; i += 3) {
-      const [a, b, c] = [0, 1, 2].map(k => course.vertices[ci[i + k]].slice(0, 3).map(v => v * S));
+    const addFloor = (a, b, c) => {
       const area = (b[0] - a[0]) * (c[2] - a[2]) - (c[0] - a[0]) * (b[2] - a[2]);
-      if (Math.abs(area) < 1e-4 || steep(a, b, c, 0.7)) continue;
+      if (Math.abs(area) < 1e-4 || steep(a, b, c, 0.7)) return;
       const xs = [a[0], b[0], c[0]], zs = [a[2], b[2], c[2]];
       bucket(floorGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), floors.push([a, b, c, area]) - 1);
+    };
+    for (let i = 0; i + 2 < ci.length; i += 3) addFloor(...[0, 1, 2].map(k => course.vertices[ci[i + k]].slice(0, 3).map(v => v * S)));
+    // the see-through floors count too (Sherbet Land's lake ice, which has no collision in places): over them
+    // the black offCourse box showed through the ice and water, grey patches on the road for a few frames at a
+    // time. Not in MK64
+    for (const batch of course.batches) {
+      if (!batch.translucent || batch.offCourse) continue;
+      for (let i = 0; i + 2 < batch.indices.length; i += 3) addFloor(...[0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S)));
     }
     this.overCourse = (x, y, z) => (floorGrid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []).some(t => {
       const [a, b, c, area] = floors[t];
@@ -1409,7 +1416,11 @@ export class Track {
   // floor). Called with each camera before it renders.
   showOffCourse(cam) {
     if (!this.offCourse) return;
-    const on = !this.overCourse(cam.position.x, cam.position.y, cam.position.z);
+    // also off when the point halfway to the camera's kart is over the course: the chase camera grazing a snow
+    // bank's slope at a corner (Sherbet Land, s 275-290) flashed the black box under the see-through ice, grey
+    // patches on the road. Not in MK64 (it tests the camera alone)
+    const p = cam.position, k = cam.userData.kart?.world;
+    const on = !this.overCourse(p.x, p.y, p.z) && !(k && this.overCourse((p.x + k.x) / 2, p.y, (p.z + k.z) / 2));
     for (const m of this.offCourse) m.visible = on;
   }
 
