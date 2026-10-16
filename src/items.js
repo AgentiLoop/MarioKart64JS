@@ -457,11 +457,13 @@ export class Items {
     }
   }
 
-  // a shell leaves the kart: forwards (or backwards) at max(8, 1.2 x kart speed)
+  // a shell leaves the kart: forwards (or backwards) at max(8, 1.2 x kart speed). Its owner is safe from it for
+  // the console's 0x1E updates after the swing (flag 0x1000, cleared when someTimer runs out); a green shell thrown
+  // backwards keeps someTimer 0, so the flag never clears and its owner can never be hit by it.
   launch(kart, kind, karts, back = false) {
     const p = this.spot(kart, back ? -3 : 3), mesh = this.makeMesh(kind);
     const speed = Math.max(SHELL_MIN * (kart.top || 60), 1.2 * Math.abs(kart.v));
-    this.shots.push({ kind, ...p, h: kart.h + (back ? Math.PI : 0), dir: back ? -1 : 1, speed, owner: kart, safe: 0.6, mesh,
+    this.shots.push({ kind, ...p, h: kart.h + (back ? Math.PI : 0), dir: back ? -1 : 1, speed, owner: kart, safe: back ? Infinity : 0.6, mesh,
       ttl: kind === 'green_shell' ? 8 : kind === 'blue_shell' ? Infinity : 12, t: 0, top: kart.top || 60,
       ...(!this.arena && { a: (kart.psi || 0) + (back ? Math.PI : 0) }) });
     this.snd(kart, SND_FIRE); this.voice(kart, V_THROW);
@@ -734,7 +736,14 @@ export class Items {
     kart.itemTimer = (kart.itemTimer ?? 0) - dt;
     if (kart.itemTimer > 0) return;
     const it = kart.trail ? kart.trail.kind : kart.item;
-    const go = () => { if (kart.trail?.held) this.release(kart, karts); else this.use(kart, karts); kart.itemTimer = 0.5 + Math.random(); };
+    // back: a hoarded green shell goes backwards - the player kart's held one with the stick down, a triple's next
+    // one straight out behind - which its owner can never meet
+    const go = (back = false) => {
+      if (kart.trail?.held) this.release(kart, karts, back ? -0x2e : 0);
+      else if (back && kart.trail) { if (this.onFire) this.onFire(kart, 'green_shell'); this.popTrail(kart); this.launch(kart, 'green_shell', karts, true); }
+      else this.use(kart, karts);
+      kart.itemTimer = 0.5 + Math.random();
+    };
     if (!['banana', 'fake_item_box', 'green_shell', 'red_shell'].includes(it)) return go();
     const shell = it.endsWith('shell');
     for (const o of karts) {
@@ -747,10 +756,33 @@ export class Items {
         continue;
       }
       const ds = this.delta(o.s, kart.s), dd = Math.abs(o.d - kart.d);
-      if (shell && ds > 8 && ds < 90 && (it === 'red_shell' || dd < 3)) return go();
+      if (shell && ds > 8 && ds < 90 && (it === 'red_shell' || (dd < 3 && this.clearShot(kart, o)))) return go();
       if (!shell && ds < -4 && ds > -25 && dd < 6) return go();
     }
-    if (kart.itemTimer < -8) go();   // don't hoard forever
+    if (kart.itemTimer < -8) go(it === 'green_shell');   // don't hoard forever
+  }
+  // A green shell flies straight on in the world at the kart's heading (moveGreen), so a rival ahead along a bend is
+  // only a shot when it sits within 3 of that line and neither a steep face nor the route limit (a wall to the shell
+  // too, moveGreen) is between them: thrown at a rival round a bend the shell met the wall and came back, slowed to
+  // 4 units a frame (the thrower's own shell hit it 7-9 times in 16 autopilot races; the owner is only safe for the
+  // console's 0x1E updates after the throw, green_shell/update.inc.c flag 0x1000).
+  clearShot(kart, o) {
+    const t = this.track, f = t.frameAt(kart.s, this.fr), a = kart.psi || 0, c = Math.cos(a), sn = Math.sin(a);
+    const hx = f.T.x * c + f.R.x * sn, hz = f.T.z * c + f.R.z * sn, hl = Math.hypot(hx, hz) || 1;
+    const kx = f.pos.x + f.R.x * kart.d, kz = f.pos.z + f.R.z * kart.d, ky = f.pos.y + f.R.y * kart.d;
+    t.frameAt(o.s, f);
+    const ox = f.pos.x + f.R.x * o.d, oz = f.pos.z + f.R.z * o.d, dx = ox - kx, dz = oz - kz;
+    if (hx * dx + hz * dz <= 0 || Math.abs(hx * dz - hz * dx) / hl > 3) return false;
+    if (t.sweep(kx, kz, ox, oz, ky)) return false;
+    // the line sampled every 4 along against the route limits (foot: the route spot square across from each sample)
+    const p = { x: kx, z: kz, s: kart.s, d: kart.d }, n = Math.ceil(Math.hypot(dx, dz) / 4);
+    for (let i = 1; i <= n; i++) {
+      p.x = kx + dx * i / n; p.z = kz + dz * i / n;
+      this.foot(p);
+      const side = Math.sign(p.d);
+      if (side && Math.abs(p.d) > t.wallAt(p.s, side) - 1.2) return false;
+    }
+    return true;
   }
 
   update(dt, karts) {

@@ -603,6 +603,9 @@ export class Kart {
     if (this.free) return this.thinkFree(dt, karts, items);
     const t = this.track, look = 14 + this.v * 0.6;
     const f = t.frameAt(this.s + look, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    // waiting for a train at a rung railroad crossing (below): not wedged, so no backing off and no Lakitu
+    const sm = ((this.s % t.length) + t.length) % t.length;
+    const waiting = !!stops?.length && !(this.star > 0 || this.boo > 0) && stops.some(([a, b]) => sm >= a && sm < b);
     let target = this.aiOffset;
     // a finished kart on its cinematic laps drives a racing line: eased to the inside of the bend ahead (positive
     // d is the inside when k > 0: along = ds * (1 - k * d)), back to the middle on the straights; the lane is
@@ -639,7 +642,7 @@ export class Kart {
       }
       let adv = this.s - (this.lastS ?? this.s); if (adv < -t.length / 2) adv += t.length;
       this.lastS = this.s;
-      this.stuckT = adv < dt * 3 && !(this.spin > 0) && !this.tumble && !this.rescue ? (this.stuckT || 0) + dt : 0;
+      this.stuckT = adv < dt * 3 && !(this.spin > 0) && !this.tumble && !this.rescue && !waiting ? (this.stuckT || 0) + dt : 0;
       if (this.stuckT > 0.8) { this.stuckT = 0; this.reverse = 0.9; }
     }
     // a racing CPU that has not got 8 along the route in 4 s (spun out, tumbling, in flight or in Lakitu's hands aside)
@@ -650,7 +653,7 @@ export class Kart {
     if (!this.finished) {
       let adv = this.s - (this.watchS ??= this.s);
       if (adv < -t.length / 2) adv += t.length; else if (adv > t.length / 2) adv -= t.length;
-      if (adv > 8 || this.spin > 0 || this.tumble || this.air || this.rescue) { this.watchS = this.s; this.watchT = 0; }
+      if (adv > 8 || this.spin > 0 || this.tumble || this.air || this.rescue || waiting) { this.watchS = this.s; this.watchT = 0; }
       else if ((this.watchT = (this.watchT || 0) + dt) > 4 && !this.fell) { this.watchT = 0; this.fell = { kind: 'drop', base: this.y ?? this.world.y }; }
     }
     for (const o of karts) { // dodge slower karts ahead
@@ -798,12 +801,9 @@ export class Kart {
     // a CPU without a star / boo brakes to a stop and waits for the train: player_decelerate_alternative(10), currentSpeed
     // (320 = top) down 10 a frame with velocity ~ currentSpeed^2, i.e. from top speed a stop in 32 frames and 65 units
     // (frames at the V_TOP units a frame top speed covers, so the stop takes the console's distance: 6.6 along the route)
-    if (stops?.length && !(this.star > 0 || this.boo > 0)) {
-      const sm = ((this.s % t.length) + t.length) % t.length;
-      if (stops.some(([a, b]) => sm >= a && sm < b)) {
-        const top = this.top || MAX_SPEED, cs = Math.max(0, 320 * Math.sqrt(Math.max(0, this.v) / top) - 10 * dt * MAX_SPEED / (0.1 * V_TOP));
-        return { throttle: 0, brake: this.v > 0 ? (this.v - top * (cs / 320) ** 2) / (55 * dt) : 0, steer, drift: false };
-      }
+    if (waiting) {
+      const top = this.top || MAX_SPEED, cs = Math.max(0, 320 * Math.sqrt(Math.max(0, this.v) / top) - 10 * dt * MAX_SPEED / (0.1 * V_TOP));
+      return { throttle: 0, brake: this.v > 0 ? (this.v - top * (cs / 320) ** 2) / (55 * dt) : 0, steer, drift: false };
     }
     if (this.trafficBrake) return { throttle: 0, brake: 0.6, steer, drift: false };
     // the finished kart brakes early for a tight bend instead of sliding wide into the wall

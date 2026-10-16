@@ -550,6 +550,46 @@ describe('Items on a race course', () => {
     items.aiUse({ item: null, trail: null }, karts, 0.1);
   });
 
+  it('aiUse: a green shell only goes when the rival sits on its line with no face between; a hoarded one goes backwards', () => {
+    // Mario Raceway: s 800-860 runs straight (a clear shot); s 1600-1800 winds through the hairpin
+    const line = (s, ps) => { cpu.s = s; cpu.d = 0; cpu.psi = 0; player.s = ps; player.d = 0; };
+    line(800, 860);
+    expect(items.clearShot(cpu, player)).toBe(true);
+    cpu.item = 'green_shell'; cpu.itemTimer = 0;
+    items.aiUse(cpu, karts, 0.1);
+    expect(items.shots.length).toBe(1);
+    items.shots.length = 0;
+    // the rival ahead along the route but round the bend: its spot is off the shell's line (or behind a face)
+    let kept = 0;
+    for (let s = 1600; s < 1800; s += 10) {
+      line(s, s + 60);
+      cpu.item = 'green_shell'; cpu.itemTimer = 0;
+      items.aiUse(cpu, karts, 0.1);
+      if (cpu.item) kept++;
+      items.shots.length = 0;
+    }
+    expect(kept).toBeGreaterThan(10);
+    // the player's hoarded green shell goes backwards, and its owner can never meet it
+    line(800, 1200);
+    player.item = 'green_shell'; player.itemTimer = -9;
+    items.aiUse(player, karts, 0.1);   // use: held
+    expect(player.trail && player.trail.held).toBeTruthy();
+    player.itemTimer = -9;
+    items.aiUse(player, karts, 0.1);   // release, stick down
+    expect(items.shots.length).toBe(1);
+    expect(items.shots[0].dir).toBe(-1);
+    expect(items.shots[0].safe).toBe(Infinity);
+    // a hoarded triple's next shell goes straight out behind too
+    items.shots.length = 0;
+    cpu.item = 'triple_green_shell'; items.use(cpu, karts);
+    expect(cpu.trail.meshes).toHaveLength(3);
+    cpu.itemTimer = -9;
+    items.aiUse(cpu, karts, 0.1);
+    expect(cpu.trail.meshes).toHaveLength(2);
+    expect(items.shots).toHaveLength(1);
+    expect(items.shots[0].dir).toBe(-1);
+  });
+
   it('non-player karts that touch a box get a rolled item outside GP', () => {
     items.gp = false;
     const b = items.boxes[0];

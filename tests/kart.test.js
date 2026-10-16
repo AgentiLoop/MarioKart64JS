@@ -348,6 +348,16 @@ describe('CPU driving', () => {
     expect(cpu.think(1 / 60, [cpu], null, null, [[90, 120]]).throttle).toBeGreaterThan(0);
     cpu.star = 0; cpu.boo = 5;
     expect(cpu.think(1 / 60, [cpu], null, null, [[90, 120]]).throttle).toBeGreaterThan(0);
+    // waiting is not being wedged: 6 s stopped in the zone neither backs the kart off (stuckT reverse at 0.8 s) nor
+    // has Lakitu fish it out (the 4 s watchdog lifted every waiting kart 14 up and dropped it on the middle of the road)
+    cpu.boo = 0; cpu.v = 0; cpu.s = 100; cpu.d = -5; cpu.reverse = 0; cpu.fell = null;
+    for (let i = 0; i < 360; i++) {
+      cpu.update(1 / 60, cpu.think(1 / 60, [cpu], null, null, [[90, 130]]), [cpu]);
+      expect(cpu.reverse > 0).toBe(false);
+    }
+    expect(cpu.fell).toBeFalsy();
+    expect(cpu.rescue).toBeFalsy();
+    expect(cpu.d).toBeCloseTo(-5, 0);
   });
   it('keeps out of the gap between Koopa Troopa Beach\'s start ramp and the rock beside it', async () => {
     // the gap (-172, 14) is 3 wide: the route limit stops at the ramp's side (Track._nativeBounds GAP), not the rock
