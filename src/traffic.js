@@ -15,8 +15,10 @@
 // far beyond. Cars are scaled 0.1.
 // EXTRA: the console runs the mirrored path; here the unmirrored path is run with the lateral factor negated (its left
 // edge is the mirror of the right one) and each model is flipped back in its own x, as src/train.js.
-// EXTRA: a kart touching a vehicle (its LOD 0 model's bounding box, kart radius 5.5 / DK and Bowser 6) is knocked into
-// the air as by a star kart (Items.hit), as src/train.js, standing in for handle_vehicle_interactions.
+// handle_vehicle_interactions (update_player, so never during the countdown): a kart within 20 of a vehicle's height
+// whose position is, by is_collide_with_vehicle, within the vehicle's half length of its origin along its motion and
+// its half width across it (box trucks 55 x 12.5, buses 70 x 12.5, tankers 55 x 12.5, cars 11.5 x 8.5) is knocked into
+// the air (VERTICAL_TUMBLE_TRIGGER; as by a star kart here, Items.hit), as src/train.js.
 // CPU karts steering round traffic (update_player_track_position_factor_from_*): Traffic.spots puts each vehicle on the
 // karts' route (s along, d across, speed along, its box's half length / width) each update for Kart.think's lane choice.
 // Not ported: engine hum / horns (func_800C9D80).
@@ -29,7 +31,7 @@ const TICK = 1 / 60;
 const S = NATIVE_SCALE;
 const RAD = Math.PI / 32768;
 const NUM = 7, FAR = 9000000;
-const BBOX = { donkeykong: 6, bowser: 6 };   // gKartBoundingBoxSizeTable: 5.5, DK and Bowser 6
+const HIT = { truck: [55, 12.5], bus: [70, 12.5], tanker: [55, 12.5], car: [11.5, 8.5] };   // handle_*_interactions: half length along the motion, half width
 // kind: [models per level of detail, start offset, scale]
 const KINDS = [
   ['truck', 0, 1], ['bus', 75, 1], ['tanker', 50, 1], ['car', 25, 0.1],
@@ -187,18 +189,19 @@ export class Traffic {
     }
   }
 
-  // a kart inside a vehicle's box is knocked into the air
+  // handle_vehicle_interactions: a kart whose position is within 20 of a vehicle's height and, by is_collide_with_vehicle,
+  // within HIT's half length of its origin along its motion and half width across it is knocked into the air (a vehicle
+  // not moving hits nothing)
   _collide(karts) {
-    const S_ = this.mirror ? -1 : 1;
     for (const k of karts) {
       if (!k?.world || k.boo > 0 || k.tumble || k.out || k.star > 0) continue;
-      const r = BBOX[k.mesh?.userData?.character] ?? 5.5;
       for (const v of this.vehicles) {
         const dx = k.world.x / S - v.pos[0], dz = k.world.z / S - v.pos[2], dy = k.world.y / S - v.pos[1];
-        if (dy < -10 || dy > v.box[2]) continue;
-        const yaw = v.yaw * RAD, s = Math.sin(yaw), c = Math.cos(yaw);
-        const lx = S_ * (dx * c - dz * s), lz = dx * s + dz * c;   // into the model's own axes (Y rotation, x flipped in EXTRA)
-        if (lx > v.box[0] - r && lx < v.box[1] + r && lz > v.box[3] - r && lz < v.box[4] + r) { this.items?.hit(k, 'star'); break; }
+        if (dy <= -20 || dy >= 20) continue;
+        const [vx, vz] = [v.vel[0], v.vel[2]], speed = Math.sqrt(vx * vx + vz * vz);
+        if (speed < 0.01) continue;
+        const [along, across] = HIT[v.kind];
+        if (Math.abs((vx * dx + vz * dz) / speed) < along && Math.abs((vz * dx - vx * dz) / speed) < across) { this.items?.hit(k, 'star'); break; }
       }
     }
   }

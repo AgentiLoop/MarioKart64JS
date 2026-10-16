@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import * as THREE from 'three';
 import { Traffic } from '../src/traffic.js';
-import { makeTrack, def } from './helpers.js';
+import { makeTrack, makeKart, def } from './helpers.js';
 
 const TICK = 1 / 60 + 1e-9;
 
@@ -132,5 +132,36 @@ describe('Traffic', () => {
     fake.path = [[0, 0, 0], [10, 0, 0], [20, 0, 0], [30, 0, 0]];
     expect(fake._nearest({ idx: 1, pos: [0, 0, 1] })).toBe(3);
     expect(fake._nearest({ idx: 1, pos: [30, 0, -1] })).toBe(0);
+  });
+
+  it('knocks a kart inside a vehicle\'s console hit box into the air (handle_vehicle_interactions)', async () => {
+    const items = { hit: vi.fn() };
+    const t = new Traffic(new THREE.Scene(), track, def('toad'), { items });
+    await t.ready;
+    t.update(TICK * 2);   // vehicles moving (a standing vehicle hits nothing)
+    const kart = makeKart(track);
+    // a point at `along` down the vehicle's motion and `across` to its side
+    const at = (v, along, across, up = 0) => {
+      const n = Math.hypot(v.vel[0], v.vel[2]), ux = v.vel[0] / n, uz = v.vel[2] / n;
+      kart.world.set((v.pos[0] + ux * along + uz * across) * 0.1, (v.pos[1] + up) * 0.1, (v.pos[2] + uz * along - ux * across) * 0.1);
+    };
+    // is_collide_with_vehicle: a bus is 70 along x 12.5 across, a box truck / tanker 55 x 12.5, a car 11.5 x 8.5,
+    // the kart's position a point (no kart radius; the drawn bus is 16 wide, the old box + 5.5 hit karts 21 off)
+    const bus = t.vehicles.find(v => v.kind === 'bus'), truck = t.vehicles.find(v => v.kind === 'truck'), car = t.vehicles.find(v => v.kind === 'car');
+    const cases = [[bus, 0, 12, 1], [bus, 0, 13, 0], [bus, 0, 21, 0], [bus, 69, 0, 1], [bus, -69, 0, 1], [bus, 71, 0, 0],
+      [truck, 54, 12, 1], [truck, 56, 0, 0], [car, 11, 8, 1], [car, 12, 0, 0], [car, 0, 9, 0], [bus, 0, 0, 1, 19], [bus, 0, 0, 0, 21]];
+    for (const [v, along, across, hits, up] of cases) {
+      items.hit.mockClear();
+      at(v, along, across, up);
+      t._collide([kart, null]);
+      expect(items.hit, `${v.kind} ${along} along, ${across} across, ${up ?? 0} up`).toHaveBeenCalledTimes(hits);
+      if (hits) expect(items.hit).toHaveBeenCalledWith(kart, 'star');
+    }
+    // a star / boo / tumbling kart is left alone
+    at(bus, 0, 0);
+    for (const k of ['star', 'boo']) { items.hit.mockClear(); kart[k] = 5; t._collide([kart]); expect(items.hit).not.toHaveBeenCalled(); kart[k] = 0; }
+    items.hit.mockClear(); kart.tumble = true; t._collide([kart]); expect(items.hit).not.toHaveBeenCalled(); kart.tumble = false;
+    // a vehicle that is not moving hits nothing
+    items.hit.mockClear(); const vel = bus.vel; bus.vel = [0, 0, 0]; t._collide([kart]); expect(items.hit).not.toHaveBeenCalled(); bus.vel = vel;
   });
 });

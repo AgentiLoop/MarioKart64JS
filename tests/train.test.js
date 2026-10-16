@@ -222,7 +222,7 @@ describe('Train', () => {
     expect(audio.playSound).toHaveBeenCalledWith(1, 0x0D, expect.any(Number), expect.any(Number));
   });
 
-  it('knocks a kart touching a car into the air, but not a star / boo kart', async () => {
+  it('knocks a kart inside a car\'s hit box into the air, but not a star / boo kart', async () => {
     const items = { hit: vi.fn() };
     const t = new Train(new THREE.Scene(), track, def('kalimari'), { items });
     await t.ready;
@@ -240,11 +240,16 @@ describe('Train', () => {
     kart.star = 0; kart.boo = 10;
     t.update(0, [], [kart]);
     expect(items.hit).not.toHaveBeenCalled();
-    // Bowser's bigger box still hits from just outside the default radius
+    // handle_trains_interactions: the locomotive's box is 60 along its heading and 20 across it, the kart's position a
+    // point (no kart radius): 19 across hits, 21 does not; 59 along hits, 61 does not
     kart.boo = 0;
-    kart.mesh.userData.character = 'bowser';
-    kart.world.set(e.pos[0] * 0.1, (e.pos[1] + 5) * 0.1, e.pos[2] * 0.1);
-    t.update(0, [], [kart]);
-    expect(items.hit).toHaveBeenCalledTimes(1);
+    const s = Math.sin(e.yaw), c = Math.cos(e.yaw);
+    const at = (along, across) => kart.world.set((e.pos[0] + along * s + across * c) * 0.1, e.pos[1] * 0.1, (e.pos[2] + along * c - across * s) * 0.1);
+    for (const [along, across, hits] of [[0, 19, 1], [0, 21, 0], [59, 0, 1], [61, 0, 0], [-59, 19, 1]]) {
+      items.hit.mockClear();
+      at(along, across);
+      t.update(0, [], [kart]);
+      expect(items.hit, `${along} along, ${across} across`).toHaveBeenCalledTimes(hits);
+    }
   });
 });

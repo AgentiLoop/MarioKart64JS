@@ -16,8 +16,10 @@
 // The locomotive's bell 0x1901800E as it reaches 2D point 190 or 320, else its whistle 0x1901800D one frame in 100.
 // EXTRA: the console mirrors positions and headings only, so each model is flipped back in its own x (as src/props.js)
 // and the crossings turn the other way.
-// EXTRA: a kart touching a car (its footprint box, kart radius 5.5 / DK and Bowser 6) is knocked into the air as by a
-// star kart (Items.hit), standing in for handle_trains_interactions.
+// handle_trains_interactions (update_player, so never during the countdown): a kart whose position is, by
+// is_collide_with_vehicle, within a car's half length of its origin along its heading and its half width across it
+// (locomotive 60 x 20, tender and passenger cars 30 x 20) is knocked into the air (VERTICAL_TUMBLE_TRIGGER; as by a star
+// kart here, Items.hit).
 // Not ported: the locomotive's smoke (render_object_trains_smoke_particles).
 // check_ai_crossing_distance: a CPU whose nearest kart-path point is 176..181 (crossing 1) or 306..309 (crossing 0)
 // while that crossing has rung for over 240 ticks (sCrossingActiveTimer > FRAMES_SINCE_CROSSING_ACTIVATED) brakes
@@ -45,9 +47,8 @@ const KINDS = {
 const FAR = 9000000, WHEELS = 1440000, CROSSING_FAR = 4000000;
 const CROSSING_AT = [0.42299348, 0.72017354];
 const STOP_TICKS = 240, STOP_POINTS = [[306, 310], [176, 182]];   // per crossing: kart-path points [from, to) where CPUs stop
-// half width / half length / height of each car's hit box (model units)
-const BOX = { engine: [20, 58, 66], tender: [16, 26, 40], car: [16, 47, 52] };
-const BBOX = { donkeykong: 6, bowser: 6 };   // gKartBoundingBoxSizeTable: 5.5, DK and Bowser 6
+// half width / half length of each car's hit box (handle_trains_interactions)
+const HIT = { engine: [20, 60], tender: [20, 30], car: [20, 30] };
 
 const _p = new THREE.Vector3();
 // x/z distance squared from this camera to the actor (distance_if_visible without its view-cone test)
@@ -234,16 +235,16 @@ export class Train {
     }
   }
 
-  // a kart inside a car's box is knocked into the air
+  // handle_trains_interactions: a kart whose position is, by is_collide_with_vehicle, within a car's half length of its
+  // origin along its heading and half width across it is knocked into the air
   _collide(karts) {
     for (const k of karts) {
       if (!k?.world || k.boo > 0 || k.tumble || k.out || k.star > 0) continue;
-      const r = BBOX[k.mesh?.userData?.character] ?? 5.5;
       for (const t of this.trains) for (const car of [t.engine, t.tender, ...t.cars]) {
         if (!car.active) continue;
-        const [hx, hz, hy] = BOX[car.kind], dx = k.world.x / S - car.pos[0], dz = k.world.z / S - car.pos[2], dy = k.world.y / S - car.pos[1];
+        const [hx, hz] = HIT[car.kind], dx = k.world.x / S - car.pos[0], dz = k.world.z / S - car.pos[2];
         const s = Math.sin(car.yaw), c = Math.cos(car.yaw);
-        if (Math.abs(dx * c - dz * s) < hx + r && Math.abs(dx * s + dz * c) < hz + r && dy > -10 && dy < hy) {
+        if (Math.abs(dx * c - dz * s) < hx && Math.abs(dx * s + dz * c) < hz) {
           this.items?.hit(k, 'star');
           break;
         }
