@@ -48,7 +48,7 @@ const REVERSE_OUT = spline(7, [[0, 18, -5, 20], [0, 18, -10, 20], [0, 18, 5, 16]
 const WRONG_MIN = 136, CORRECT_MAX = 45, WRONG_FRAMES = 5;
 // render_courses.c D_8015F8E4 (fluid / out-of-bounds level, MK64 units); the others use gCourseMinY - 10.
 const FLUID = { choco: -80, bowser: -50, banshee: -80, frappe: -50, royal: -60, sherbet: -18, rainbow: 0, dk: -475 };
-const SNOW = 0x05, CAVE = 0x0F;   // SURFACE_TYPE (mk64.h)
+const SNOW = 'SNOW', CAVE = 'CAVE';   // SURFACE_TYPE (mk64.h 0x05 / 0x0F), by name as in course.json collision sections
 
 // gCourseMinY starts at 0 and takes the lowest collision triangle (add_collision_triangle); courses extracted
 // without the collision mesh use their lowest vertex

@@ -51,16 +51,16 @@ describe('fluidAt', () => {
   });
   it('Sherbet Land snow tunnel', () => {
     const t = fakeTrack('sherbet', { vertices: [[0, -30, 0]] });
-    expect(fluidAt(t, 0, 0, { surface: 0x05 })).toBeCloseTo(-40 * S);
+    expect(fluidAt(t, 0, 0, { surface: 'SNOW' })).toBeCloseTo(-40 * S);
     expect(t.courseMinY).toBe(-30);
-    expect(fluidAt(t, 0, 0, { surface: 1 })).toBe(-123);
+    expect(fluidAt(t, 0, 0, { surface: 'ASPHALT' })).toBe(-123);
     expect(fluidAt(t, 0, 0)).toBe(-123);
   });
   it('D.K.\'s Jungle Parkway river vs. cave', () => {
     const t = fakeTrack('dk', {});
     expect(fluidAt(t, 0, 0, { section: 0x14 })).toBeCloseTo(-475 * S);
     expect(fluidAt(t, 0, 0, { section: 0x10 })).toBeCloseTo(-33.9 * S);
-    expect(fluidAt(t, 0, 0, { surface: 0x0F })).toBeCloseTo(-475 * S);
+    expect(fluidAt(t, 0, 0, { surface: 'CAVE' })).toBeCloseTo(-475 * S);
     expect(fluidAt(t, -400 * S, 0)).toBeCloseTo(-33.9 * S);
     expect(fluidAt(t, -900 * S, -800 * S)).toBeCloseTo(-475 * S);
     expect(fluidAt(t, -600 * S, -400 * S)).toBeCloseTo(-475 * S);

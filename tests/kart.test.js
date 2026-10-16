@@ -358,6 +358,23 @@ describe('CPU driving', () => {
     }
     expect(beside).toEqual([]);
   });
+  it('does not sink a kart dropped back on D.K.\'s Jungle Parkway\'s cave floor, under the river\'s level', async () => {
+    // the cave floor at s1468 (-9 high) lies under the river's level (-3.39); without its CAVE surface the river level
+    // applied, every kart Lakitu dropped back there sank at once and was fished out again, endlessly (jumps physics)
+    const track = await makeTrack('dk');
+    track.fluidY = fluidLevel(track); track.fluidAt = (x, z, f) => fluidAt(track, x, z, f);
+    const glue = PHYSICS.glue;
+    try {
+      for (const g of [true, false]) {
+        PHYSICS.glue = g;
+        const k = makeKart(track, { isPlayer: true, character: 'dk', s: 1468.5, d: 0 });
+        k.syncMesh(0); k.y += 4; k.air = true;   // released 40 MK64 units up, as Lakitu drops it
+        for (let i = 0; i < 60 * 2 && !k.fell; i++) k.update(1 / 60, gas, [k]);
+        expect(k.fell).toBeFalsy();
+        expect(k.s).toBeGreaterThan(1480);
+      }
+    } finally { PHYSICS.glue = glue; }
+  });
   it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
     // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
     const track = await makeTrack('dk');

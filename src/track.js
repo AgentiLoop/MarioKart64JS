@@ -548,6 +548,12 @@ export class Track {
     for (let i = 0; i + 2 < lci.length; i += 3) {
       if ([0, 1, 2].every(k => lakituV.has(lci[i + k]))) lakituTri.add(lci.slice(i, i + 3).sort((p, q) => p - q).join());
     }
+    // collision surface type per triangle (course.collision.sections: MK64 TrackSections, `count` triangles each):
+    // sorted vertex triple -> name (CAVE, SNOW, ...), for func_802AAB4C's fluid level (lakitu.js fluidAt)
+    const surfaceOf = new Map(), sci = course.collision?.sections ? course.collision.indices : [];
+    for (let i = 0, t = 0, sec = course.collision?.sections || []; i < sec.length; i++) {
+      for (let n = 0; n < sec[i].count && 3 * t + 2 < sci.length; n++, t++) surfaceOf.set(sci.slice(3 * t, 3 * t + 3).sort((p, q) => p - q).join(), sec[i].surface);
+    }
     // Steep faces (walls) come from the course's collision surfaces where the extractor lists them (course.collision:
     // MK64's TrackSections table, which is all generate_collision_mesh reads): decorative geometry drawn but not
     // listed (Koopa Troopa Beach's arrow signs at (-93, -136) / (-34, -119), the scenery rocks at (-50, -115), palm
@@ -592,10 +598,11 @@ export class Track {
         const normal = new THREE.Vector3(sg * nx / nl, sg * -area / nl, sg * nz / nl);
         const ramp = rampOf.get(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join()) || null;
         const lakitu = lakituTri.size > 0 && lakituTri.has(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join());
-        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp, lakitu]) - 1);
+        const surface = surfaceOf.get(batch.indices.slice(i, i + 3).sort((p, q) => p - q).join()) || null;
+        bucket(grid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), tris.push([a, b, c, area, normal, ramp, lakitu, surface]) - 1);
       }
     }
-    let hitNormal = null, hitRamp = null, hitLakitu = false, hitCeiling = false;
+    let hitNormal = null, hitRamp = null, hitLakitu = false, hitCeiling = false, hitSurface = null;
     // Stacked surfaces (Wario Stadium's visible dirt lumps over its lower collision dirt): stay on top of the
     // highest one at most CLIMB above yRef, so the kart rides what is drawn; otherwise the nearest within 3.
     // A surface steeper than 45 deg is not climbed onto: MK64 files a triangle whose normal is more horizontal than
@@ -605,38 +612,38 @@ export class Track {
     // ceiling: the face is wound facing down (area > 0: Luigi Raceway's tunnel roof, gLRTexture673C68), seen from under it
     const CLIMB = 0.6, FLOOR_NY = 0.7;
     const height = (x, z, yRef) => {
-      let best = null, top = null, topN = null, topR = null, topL = false, topC = false;
+      let best = null, top = null, topN = null, topR = null, topL = false, topC = false, topS = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal, ramp, lakitu] = tris[t];
+        const [a, b, c, area, normal, ramp, lakitu, surface] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; hitLakitu = lakitu; hitCeiling = area > 0; }
-        if (y - yRef > -3 && y - yRef <= CLIMB && (y - yRef <= 0.05 || normal.y >= FLOOR_NY) && (top === null || y > top)) { top = y; topN = normal; topR = ramp; topL = lakitu; topC = area > 0; }
+        if (Math.abs(y - yRef) < 3 && (best === null || Math.abs(y - yRef) < Math.abs(best - yRef))) { best = y; hitNormal = normal; hitRamp = ramp; hitLakitu = lakitu; hitCeiling = area > 0; hitSurface = surface; }
+        if (y - yRef > -3 && y - yRef <= CLIMB && (y - yRef <= 0.05 || normal.y >= FLOOR_NY) && (top === null || y > top)) { top = y; topN = normal; topR = ramp; topL = lakitu; topC = area > 0; topS = surface; }
       }
-      if (top !== null) { hitNormal = topN; hitRamp = topR; hitLakitu = topL; hitCeiling = topC; return top; }
+      if (top !== null) { hitNormal = topN; hitRamp = topR; hitLakitu = topL; hitCeiling = topC; hitSurface = topS; return top; }
       return best;
     };
-    // Ground under (x, z) nearest to yRef: { y, normal, ramp, lakitu, ceiling } or null. Used by karts to ride slopes.
+    // Ground under (x, z) nearest to yRef: { y, normal, ramp, lakitu, ceiling, surface } or null. Used by karts to ride slopes.
     this.groundAt = (x, z, yRef) => {
       const y = height(x, z, yRef);
-      return y === null ? null : { y, normal: hitNormal, ramp: hitRamp, lakitu: hitLakitu, ceiling: hitCeiling };
+      return y === null ? null : { y, normal: hitNormal, ramp: hitRamp, lakitu: hitLakitu, ceiling: hitCeiling, surface: hitSurface };
     };
-    // Highest ground at or below yTop under (x, z): { y, normal, ramp, lakitu, ceiling } or null. Used by airborne karts.
+    // Highest ground at or below yTop under (x, z): { y, normal, ramp, lakitu, ceiling, surface } or null. Used by airborne karts.
     this.groundBelow = (x, z, yTop) => {
-      let best = null, n = null, r = null, l = false, ce = false;
+      let best = null, n = null, r = null, l = false, ce = false, su = null;
       for (const t of grid.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL)) || []) {
-        const [a, b, c, area, normal, ramp, lakitu] = tris[t];
+        const [a, b, c, area, normal, ramp, lakitu, surface] = tris[t];
         const u = ((b[0] - x) * (c[2] - z) - (c[0] - x) * (b[2] - z)) / area;
         const v = ((c[0] - x) * (a[2] - z) - (a[0] - x) * (c[2] - z)) / area;
         const w = 1 - u - v;
         if (u < -1e-6 || v < -1e-6 || w < -1e-6) continue;
         const y = u * a[1] + v * b[1] + w * c[1];
-        if (y <= yTop && (best === null || y > best)) { best = y; n = normal; r = ramp; l = lakitu; ce = area > 0; }
+        if (y <= yTop && (best === null || y > best)) { best = y; n = normal; r = ramp; l = lakitu; ce = area > 0; su = surface; }
       }
-      return best === null ? null : { y: best, normal: n, ramp: r, lakitu: l, ceiling: ce };
+      return best === null ? null : { y: best, normal: n, ramp: r, lakitu: l, ceiling: ce, surface: su };
     };
     // func_80290C20
     // (course.collision) at or below it. Off the course MK64 also draws the offCourse batches (showOffCourse).

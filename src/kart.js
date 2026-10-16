@@ -1445,7 +1445,7 @@ export class Kart {
     if (!wasAir && g && g.ramp) this.ramp = g.ramp;
     if (this.ramp) this.v = Math.max(this.v, this.top ?? MAX_SPEED);
     // the same fluid / void / route-plane rules as the frame-step path above, for a kart that is in the air
-    const fluid = wasAir && t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
+    const fluid = wasAir && t.fluidAt ? t.fluidAt(x, z, g) : -Infinity, sunk = !g || g.y < fluid;
     const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 && this.y > f.pos.y - 1 ? f.pos.y : g.y;
     const n = floor === g?.y && g.normal.y > 0.2 ? g.normal : UP;
     this.ticks += dt / TICK;
@@ -1593,7 +1593,7 @@ export class Kart {
         // below the route is floored at the route - for a kart coming down onto it from above. One already down there
         // (off the 48 deg bank to the floor beside Royal Raceway's road at (-48, -181), route 0.4, floor -6) was lifted
         // 4.8 onto the route plane the moment it left the bank
-        const fluid = t.fluidAt ? t.fluidAt(x, z) : -Infinity, sunk = !g || g.y < fluid;
+        const fluid = t.fluidAt ? t.fluidAt(x, z, g) : -Infinity, sunk = !g || g.y < fluid;
         const floor = sunk ? -Infinity : !this.ramp && g.y < f.pos.y - 4 && y0 > f.pos.y - 1 ? f.pos.y : g.y;
         if (this.y <= floor) {
           this.air = false; this.y = floor; this.vy = 0; this.land();
