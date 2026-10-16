@@ -1321,15 +1321,19 @@ export class Track {
         // Not in MK64 (G_CULL_BACK unless the list clears it): both sides drawn, so a camera behind a wall sees the
         // wall instead of looking through its culled back (Sherbet Land's ice walls). Except the triangles that back
         // another culled triangle on the same plane (cullBack, extract-course.py decal_layers): drawn both-sided
-        // they depth-fight, so they cull like the RDP does.
-        side: batch.cullBack ? THREE.FrontSide : THREE.DoubleSide,
+        // they depth-fight, so they cull like the RDP does. The translucent lists cull too: see-through anyway, and
+        // Sherbet Land's teal lake-pit sides face into the pit; drawn both-sided their dark backs covered the ice
+        // when seen from outside the pit
+        side: batch.cullBack || batch.translucent ? THREE.FrontSide : THREE.DoubleSide,
         alphaTest: batch.alphaTest ? 0.5 : 0,   // G_RM_AA_ZB_TEX_EDGE lists
         // G_RM_AA_ZB_XLU_* lists blend by texture alpha (course vertex alpha is always 0 in the ROM)
         transparent: !!batch.translucent, depthWrite: !batch.translucent,
         // drawn over coplanar scenery: the RDP lets the later surface win at equal depth
         polygonOffset: !!batch.layer, polygonOffsetFactor: -(batch.layer || 0), polygonOffsetUnits: -2 * (batch.layer || 0),
       }));
-      if (batch.translucent) mesh.renderOrder = 1;
+      // translucent lists blend lowest first (none writes Z): Sherbet Land's dark lake water under the ice was
+      // blended over the ice whenever three drew it later, a dark grey road for the light blue ice
+      if (batch.translucent) mesh.renderOrder = 1.5 + batch.indices.reduce((y, i) => y + course.vertices[i][1], 0) / batch.indices.length / 1e5;
       mesh.name = batch.texture || 'shade';
       mesh.userData.catcher = !batch.translucent && !batch.offCourse;   // setShadowCatchers: the opaque surfaces (base and decal layers)
       if (batch.offCourse) (this.offCourse ??= []).push(mesh);
