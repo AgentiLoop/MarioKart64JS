@@ -38,6 +38,20 @@ describe('Ferry', () => {
     expect(f.lit.length).toBeGreaterThan(0);
   });
 
+  it('headStart sails the boat through the console\'s intro before the countdown', async () => {
+    const f = new Ferry(new THREE.Scene(), def('dk'), { headStart: n => (n === 1 ? 312 : 0) });
+    const plain = new Ferry(new THREE.Scene(), def('dk'));
+    await Promise.all([f.ready, plain.ready]);
+    const b = f.boat, p0 = f.path[0];
+    expect(f.ticks).toBe(312);
+    expect(b.idx).toBeGreaterThan(10);   // 156 frames at 1.67 .. 2 a frame
+    expect(Math.hypot(b.pos[0] - p0[0], b.pos[2] - p0[1])).toBeGreaterThan(100);
+    plain.update(312 / 60 + 1e-9, []);   // where a plain boat gets after the same ticks
+    expect(b.pos).toEqual(plain.boat.pos);
+    expect(b.rotY).toBe(plain.boat.rotY);
+    expect(f.boatGroup.position.x).toBeCloseTo(b.pos[0] * 0.1);
+  });
+
   it('sails along the path, turning, changing speed, turning its wheel and sounding its horn', async () => {
     const audio = fakeAudio();
     const f = new Ferry(new THREE.Scene(), def('dk'), { audio });

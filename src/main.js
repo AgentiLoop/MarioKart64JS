@@ -326,9 +326,14 @@ const cows = trackDef?.dir === 'moo-moo-farm' ? new Foliage(scene, track, trackD
 const props = track.arena ? null : new Props(scene, trackDef || TRACKS[0], { mirror });   // palm trees, spinning signs, DK trees
 const piranha = ['mario', 'royal'].includes(trackDef?.id) ? new PiranhaPlants(scene, trackDef) : null;   // spawn_piranha_plants
 const yoshiEgg = trackDef?.id === 'yoshi' ? new YoshiEgg(scene, trackDef, { mirror }) : null;   // ACTOR_YOSHI_EGG
-const train = trackDef?.id === 'kalimari' ? new Train(scene, track, trackDef, { mirror, audio, gp: raceMode === 'mario_gp', items }) : null;   // trains + railroad crossings
-const traffic = trackDef?.id === 'toad' ? new Traffic(scene, track, trackDef, { mirror, cc, timeTrial: raceMode === 'time_trials', items }) : null;   // trucks, buses, tankers, cars
-const ferry = trackDef?.id === 'dk' ? new Ferry(scene, trackDef, { mirror, audio }) : null;   // the paddle-boat ferry
+// The console's vehicles run before Lakitu's countdown: RACE_PREP's screen wipe (func_8028F914: 36 frames, 72 ticks)
+// and his wait of D_8018D180 object ticks (1P / 2P Grand Prix 240, 2P VS 30, 3P 150, 4P 30, time trials 0 - our Lakitu
+// skips it, lakitu.js). Toad's Turnpike's first truck starts on the start line: without this run it crossed the grid at
+// GO. screens: this race's split-screen count (gPlayerCount).
+const vehicleHeadStart = screens => 72 + (raceMode === 'time_trials' ? 0 : screens >= 4 ? 30 : screens === 3 ? 150 : raceMode === 'mario_gp' ? 240 : 30);
+const train = trackDef?.id === 'kalimari' ? new Train(scene, track, trackDef, { mirror, audio, gp: raceMode === 'mario_gp', items, headStart: vehicleHeadStart }) : null;   // trains + railroad crossings
+const traffic = trackDef?.id === 'toad' ? new Traffic(scene, track, trackDef, { mirror, cc, timeTrial: raceMode === 'time_trials', items, headStart: vehicleHeadStart }) : null;   // trucks, buses, tankers, cars
+const ferry = trackDef?.id === 'dk' ? new Ferry(scene, trackDef, { mirror, audio, headStart: vehicleHeadStart }) : null;   // the paddle-boat ferry
 const balloon = trackDef?.id === 'luigi' ? new HotAirBalloon(scene, trackDef, { mirror, timeTrial: raceMode === 'time_trials' }) : null;   // the hot-air balloon
 const thwomps = trackDef?.id === 'bowser' ? new Thwomps(scene, trackDef, { mirror, cc, audio }) : null;   // Bowser's Castle Thwomps
 const snowmen = trackDef?.id === 'frappe' ? new Snowmen(scene, trackDef, { mirror, items, audio }) : null;   // Frappe Snowland snowmen
@@ -1631,7 +1636,7 @@ function frame(now) {
           if (!k.isPlayer && order) { if (PATH_POINTS[track.def.id]) items.cpuStrategy(k, karts, order, id, PATH_POINTS[track.def.id], h); }
           else if (!k.isPlayer || autopilot) items.aiUse(k, karts, h);
           // a finished player becomes a CPU driver and keeps racing laps (race_logic.c: player->type |= PLAYER_CPU)
-          const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts, traffic?.spots, items.hazards);
+          const inp = k.isPlayer && !autopilot && !k.finished ? playerInput() : k.think(h, karts, traffic?.spots, items.hazards, train?.stops);
           if (k.isPlayer && state === 'finished' && !k.finished) { inp.throttle = 0.4; inp.brake = 0; }
           k.update(h, inp);
           if (k.isPlayer && !k.finished && k.crossings > lapsDone) { if (lapsDone >= 0) lapTimes.push(raceTime - lapStart); lapStart = raceTime; lapsDone = k.crossings; }

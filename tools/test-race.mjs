@@ -81,6 +81,8 @@ async function race(id) {
         const i = sp.map((o, i) => [Math.abs(rel(o)) + Math.abs(o.d - k.d), i]).sort((a, b) => a[0] - b[0])[0][1], o = sp[i], v = g.traffic.vehicles[i];
         return ` ${v.kind} ds${rel(o).toFixed(1)} dd${(o.d - k.d).toFixed(1)} v${o.v.toFixed(0)} after ${st[karts.indexOf(k)].trace.join(' ')}`;
       };
+      // a CPU stopped on a route stretch before a rung railroad crossing (Kalimari Desert, Train.stops)
+      const waiting = k => { const L = g.track.length, sm = ((k.s % L) + L) % L; return !!g.train?.stops?.some(([a, b]) => sm >= a && sm < b); };
       items.hit = (k, kind, owner) => { const r = hit0(k, kind, owner); if (r) log(k, `hit ${kind ?? 'critter'}${owner ? ' by ' + (owner.name ?? '?') : ''}${kind === 'star' && !owner ? vehicle(k) : ''}`); return r; };
       items.strike = k => { strike0(k); log(k, 'lightning'); };
       const bonk0 = p.bonk;
@@ -102,11 +104,12 @@ async function race(id) {
           if (k.offroad) { if (!s.off) s.offAt = rt; s.off += dt; } else if (s.off) { if (s.off >= 1) log(k, `off-road ${s.off.toFixed(1)}s`); s.off = 0; }
           if (k.reverse > 0) { s.rev += dt; if (s.rev === dt) log(k, `reversing after ${s.trace.join(' ')}`); } else s.rev = 0;
           if (racing && rt > 4 && !k.finished && !(k.rescue > 0)) {
-            if (Math.abs(k.v) < 2) { s.stop += dt; if (Math.abs(s.stop - 1) < dt / 2) log(k, `stopped after ${s.trace.join(' ')}`); } else s.stop = 0;
+            if (Math.abs(k.v) < 2) { s.stop += dt; if (Math.abs(s.stop - 1) < dt / 2) log(k, `${waiting(k) ? 'waiting at the crossing' : 'stopped'} after ${s.trace.join(' ')}`); } else s.stop = 0;
             if (k.v < top * 0.4 && !(k.spin > 0) && !k.tumble) { if (!s.slow) s.slowS = k.s; s.slow += dt; }
             else if (s.slow) { if (s.slow >= 1.5) log(k, `slow ${s.slow.toFixed(1)}s from s${s.slowS.toFixed(0)} after ${s.trace.join(' ')}`); s.slow = 0; }
           }
           if (Math.hypot(k.world.x - s.lastX, k.world.z - s.lastZ) > 1) { s.lastX = k.world.x; s.lastZ = k.world.z; s.movedAt = rt; }
+          else if (waiting(k)) s.movedAt = rt;   // stopped for a rung railroad crossing (Train.stops): not a stall
           else if (racing && !k.finished && !(k.rescue > 0) && rt - s.movedAt > 5) { s.stalls++; s.movedAt = rt; log(k, `STALL after ${s.trace.join(' ')}`); }
           // the driver's last second: speed, item held, reversing / spinning / tumbling / boosting / off-road / wall
           s.trace.push(`v${k.v.toFixed(0)}${k.item ? '(' + k.item + ')' : ''}${k.reverse > 0 ? 'R' : ''}${k.spin > 0 ? 'S' : ''}${k.tumble ? 'T' : ''}${k.boost > 0 ? 'B' : ''}${k.offroad ? 'O' : ''}${k.hitWall > 0 ? 'W' : ''}${k.air ? 'A' : ''}d${k.d.toFixed(0)}`);
@@ -121,7 +124,7 @@ async function race(id) {
             place: order.indexOf(p) + 1, stalls: st[karts.indexOf(p)].stalls, minV: +minV.toFixed(1), topV: +topV.toFixed(1),
             cpus: karts.filter(k => !k.isPlayer).map((k, i) => `${k.name}:${k.finished ? k.finishTime.toFixed(1) : 'L' + k.crossings}${st[karts.indexOf(k)].stalls ? ' STALL' + st[karts.indexOf(k)].stalls : ''}`),
             player: ev[karts.indexOf(p)], others: all ? Object.fromEntries(karts.filter(k => !k.isPlayer).map(k => [k.name, ev[karts.indexOf(k)]])) : undefined,
-            cpuEvents: karts.filter(k => !k.isPlayer).flatMap(k => ev[karts.indexOf(k)].filter(e => /STALL|rescued|stopped|reversing/.test(e)).map(e => `${k.name} ${e}`)),
+            cpuEvents: karts.filter(k => !k.isPlayer).flatMap(k => ev[karts.indexOf(k)].filter(e => /STALL|rescued|stopped|waiting|reversing/.test(e)).map(e => `${k.name} ${e}`)),
             shots: shotsOut });
         }
       }, 100);

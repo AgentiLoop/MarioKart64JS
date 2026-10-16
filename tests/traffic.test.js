@@ -79,6 +79,22 @@ describe('Traffic', () => {
     expect(Math.hypot(...v.vel)).toBeCloseTo(v.speed, 3);
   });
 
+  it('headStart drives the vehicles through the console\'s intro before the countdown', async () => {
+    const plain = new Traffic(new THREE.Scene(), track, def('toad'), { timeTrial: true, cc: 2 });
+    const t = new Traffic(new THREE.Scene(), track, def('toad'), { timeTrial: true, cc: 2, headStart: n => (n === 1 ? 312 : 0) });
+    await Promise.all([plain.ready, t.ready]);
+    // 312 ticks = 156 frames of speed 3.75 along the path: truck 0 is well past the start line, where a plain
+    // instance gets after the same ticks
+    const v = t.vehicles[0], p = plain.vehicles[0];
+    expect(p.idx).toBeLessThan(4);
+    expect(t.ticks).toBe(312);
+    expect(Math.hypot(v.pos[0] - p.pos[0], v.pos[2] - p.pos[2])).toBeGreaterThan(400);
+    plain.update(312 / 60 + 1e-9);
+    expect(v.idx).toBe(p.idx);
+    expect(v.pos).toEqual(p.pos);
+    expect(Math.abs(v.group.position.x - v.pos[0] * 0.1)).toBeLessThan(0.4);   // drawn between the last two frames
+  });
+
   it('past point 0x28A the lanes move over', async () => {
     const t = new Traffic(new THREE.Scene(), track, def('toad'));
     await t.ready;

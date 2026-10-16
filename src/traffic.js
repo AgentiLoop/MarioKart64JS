@@ -43,11 +43,12 @@ function adjustAngle(angle, target, step) {
 }
 
 export class Traffic {
-  constructor(scene, track, def, { mirror = false, cc = 2, timeTrial = false, items = null } = {}) {
+  // headStart(screens): 60 Hz ticks the vehicles have driven before the countdown (main.js vehicleHeadStart)
+  constructor(scene, track, def, { mirror = false, cc = 2, timeTrial = false, items = null, headStart = null } = {}) {
     this.group = new THREE.Group();
     this.group.name = 'traffic';
     scene.add(this.group);
-    this.mirror = mirror; this.items = items; this.cc = cc; this.timeTrial = timeTrial;
+    this.mirror = mirror; this.items = items; this.cc = cc; this.timeTrial = timeTrial; this.headStart = headStart;
     this.screens = 1; this.ticks = 0; this.acc = 0;
     this.path = track.def.native.path; this.track = track; this.spots = [];
     this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/traffic.json`)
@@ -96,6 +97,7 @@ export class Traffic {
     }
     this.setScreens(this.screens);
     this._place();
+    if (this.headStart) this.update(this.headStart(this.screens) * TICK);   // driven through the console's intro
   }
 
   _model(prefix, scale) {

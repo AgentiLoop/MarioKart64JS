@@ -29,11 +29,12 @@ const atan2s = (x, z) => s16(Math.round(Math.atan2(x, z) / RAD));
 const _p = new THREE.Vector3(), _n = new THREE.Vector3(), _m = new THREE.Matrix3(), color = new THREE.Color();
 
 export class Ferry {
-  constructor(scene, def, { mirror = false, audio = null } = {}) {
+  // headStart(screens): 60 Hz ticks the boat has sailed before the countdown (main.js vehicleHeadStart)
+  constructor(scene, def, { mirror = false, audio = null, headStart = null } = {}) {
     this.group = new THREE.Group();
     this.group.name = 'ferry';
     scene.add(this.group);
-    this.mirror = mirror; this.audio = audio;
+    this.mirror = mirror; this.audio = audio; this.headStart = headStart;
     this.screens = 1; this.ticks = 0; this.acc = 0;
     this.sections = new Map();   // camera -> pathCounter
     this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/ferry.json`)
@@ -94,6 +95,7 @@ export class Ferry {
       b.rotY = atan2s(b.vel[0], b.vel[1]);
     }
     this._place();
+    if (this.headStart) this.update(this.headStart(n) * TICK);   // sailed through the console's intro
   }
 
   // update_vehicle_paddle_boats

@@ -18,8 +18,11 @@
 // and the crossings turn the other way.
 // EXTRA: a kart touching a car (its footprint box, kart radius 5.5 / DK and Bowser 6) is knocked into the air as by a
 // star kart (Items.hit), standing in for handle_trains_interactions.
-// Not ported: the locomotive's smoke (render_object_trains_smoke_particles) and CPU karts waiting at a rung crossing
-// (check_ai_crossing_distance).
+// Not ported: the locomotive's smoke (render_object_trains_smoke_particles).
+// check_ai_crossing_distance: a CPU whose nearest kart-path point is 176..181 (crossing 1) or 306..309 (crossing 0)
+// while that crossing has rung for over 240 ticks (sCrossingActiveTimer > FRAMES_SINCE_CROSSING_ACTIVATED) brakes
+// to a stop (regulate_cpu_speed: player_decelerate_alternative 10 a frame) unless it has a star / boo; Train.stops
+// gives those zones as route lengths for Kart.think.
 import * as THREE from 'three';
 import { NATIVE_SCALE } from './track.js';
 import { partMeshes } from './props.js';
@@ -41,6 +44,7 @@ const KINDS = {
 };
 const FAR = 9000000, WHEELS = 1440000, CROSSING_FAR = 4000000;
 const CROSSING_AT = [0.42299348, 0.72017354];
+const STOP_TICKS = 240, STOP_POINTS = [[306, 310], [176, 182]];   // per crossing: kart-path points [from, to) where CPUs stop
 // half width / half length / height of each car's hit box (model units)
 const BOX = { engine: [20, 58, 66], tender: [16, 26, 40], car: [16, 47, 52] };
 const BBOX = { donkeykong: 6, bowser: 6 };   // gKartBoundingBoxSizeTable: 5.5, DK and Bowser 6
@@ -78,14 +82,15 @@ export function followPath(P, car, speed) {
   if (car.vel[0] || car.vel[1]) car.yaw = Math.atan2(car.vel[0], car.vel[1]);   // atan2s(dx, dz)
 }
 export class Train {
-  constructor(scene, track, def, { mirror = false, audio = null, gp = false, items = null } = {}) {
+  // headStart(screens): 60 Hz ticks the trains have run before the countdown (main.js vehicleHeadStart)
+  constructor(scene, track, def, { mirror = false, audio = null, gp = false, items = null, headStart = null } = {}) {
     this.items = items;
     this.group = new THREE.Group();
     this.group.name = 'train';
     scene.add(this.group);
-    this.track = track; this.mirror = mirror; this.audio = audio; this.gp = gp;
+    this.track = track; this.mirror = mirror; this.audio = audio; this.gp = gp; this.headStart = headStart;
     this.screens = 1; this.ticks = 0; this.acc = 0;
-    this.triggered = [false, false];
+    this.triggered = [false, false]; this.activeTicks = [0, 0]; this.stops = [];
     this.ready = fetch(`${import.meta.env?.BASE_URL ?? '/'}mk64/${def.dir}/train.json`)
       .then(r => (r.ok ? r.json().catch(() => null) : null))   // no file: the dev server answers with index.html
       .then(data => data && this._build(data, def.dir));
@@ -96,6 +101,8 @@ export class Train {
     this.path = data.path2D;
     const p0 = this.path[0];
     this.y = (this.track.groundBelow?.(p0[0] * S, p0[1] * S, 2000 * S)?.y ?? 0) / S;   // D_80162EB0
+    const KP = this.track.def?.native?.path;   // route arc length at kart-path point i (control point i at parameter i / N)
+    this.pathS = KP && this.track.curve ? this.track.curve.getLengths(KP.length * 8) : null;
     const textures = {};
     this.meshes = Object.fromEntries(Object.entries(data.models).map(([k, m]) => [k, partMeshes(m, dir, textures)]));
     this.trains = [0, 1].map(() => ({
@@ -178,6 +185,7 @@ export class Train {
       }
     });
     this._place();
+    if (this.headStart) this.update(this.headStart(n) * TICK);   // run through the console's intro
   }
 
   _follow(car) { followPath(this.path, car, SPEED); }
@@ -202,6 +210,15 @@ export class Train {
       const f = t.engine.idx / L;
       return at - 0.1 < f && f < t.numCars * 0.01 + (at + 0.01);
     }));
+  }
+
+  // check_ai_crossing_distance: [s0, s1) route stretches (scene units) where a CPU stops for a rung crossing
+  _stops() {
+    this.stops = [];
+    if (!this.pathS) return;
+    STOP_POINTS.forEach(([a, b], i) => {
+      if (this.triggered[i] && this.activeTicks[i] > STOP_TICKS) this.stops.push([this.pathS[a * 8], this.pathS[b * 8]]);
+    });
   }
 
   _place() {
@@ -240,6 +257,7 @@ export class Train {
     for (this.acc += dt; this.acc >= TICK; this.acc -= TICK) {
       this.ticks++;
       this._crossingTriggers();
+      this.triggered.forEach((on, i) => { this.activeTicks[i] = on ? this.activeTicks[i] + 1 : 0; });   // sCrossingActiveTimer
       if (this.ticks & 1) this._vehicles(cams);   // update_vehicles runs twice a frame, the trains on one of them
       for (const t of this.trains) for (const car of [t.engine, t.tender, ...t.cars]) {
         if (car.active) car.wheelRot = (car.wheelRot - car.turn) & 0xFFFF;
@@ -251,6 +269,7 @@ export class Train {
       }
     }
     this._collide(karts);
+    this._stops();
     this._place();
   }
 }

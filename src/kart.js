@@ -599,7 +599,7 @@ export class Kart {
     return { throttle: slow ? 0 : blockedAhead ? 0.3 : Math.abs(diff) > 2.2 ? 0.5 : 1, brake: slow ? 1 : 0, steer, drift: false };
   }
 
-  think(dt, karts, hazards = null, items = null) {
+  think(dt, karts, hazards = null, items = null, stops = null) {
     if (this.free) return this.thinkFree(dt, karts, items);
     const t = this.track, look = 14 + this.v * 0.6;
     const f = t.frameAt(this.s + look, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
@@ -794,6 +794,17 @@ export class Kart {
     const sharp = Math.abs(f.k) * (this.v * this.v) / 40;
     // backing off a face: reversing, the nose turns the other way for the same steer (Kart.update dir)
     if (this.reverse > 0) { this.reverse -= dt; return { throttle: 0, brake: 1, steer: -steer, drift: false }; }
+    // check_ai_crossing_distance / regulate_cpu_speed: on a route stretch before a rung railroad crossing (Train.stops)
+    // a CPU without a star / boo brakes to a stop and waits for the train: player_decelerate_alternative(10), currentSpeed
+    // (320 = top) down 10 a frame with velocity ~ currentSpeed^2, i.e. from top speed a stop in 32 frames and 65 units
+    // (frames at the V_TOP units a frame top speed covers, so the stop takes the console's distance: 6.6 along the route)
+    if (stops?.length && !(this.star > 0 || this.boo > 0)) {
+      const sm = ((this.s % t.length) + t.length) % t.length;
+      if (stops.some(([a, b]) => sm >= a && sm < b)) {
+        const top = this.top || MAX_SPEED, cs = Math.max(0, 320 * Math.sqrt(Math.max(0, this.v) / top) - 10 * dt * MAX_SPEED / (0.1 * V_TOP));
+        return { throttle: 0, brake: this.v > 0 ? (this.v - top * (cs / 320) ** 2) / (55 * dt) : 0, steer, drift: false };
+      }
+    }
     if (this.trafficBrake) return { throttle: 0, brake: 0.6, steer, drift: false };
     // the finished kart brakes early for a tight bend instead of sliding wide into the wall
     if (this.finished && this.v > this.cornerV) return { throttle: 0, brake: this.v > this.cornerV * 1.15 ? 0.6 : 0.2, steer, drift: false };

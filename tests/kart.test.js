@@ -325,6 +325,30 @@ describe('CPU driving', () => {
     cpu.reverse = 0.5;
     expect(cpu.think(1 / 60, [cpu]).brake).toBe(1);
   });
+  it('stops for a rung railroad crossing (check_ai_crossing_distance), not with a star / boo', async () => {
+    const track = await makeTrack('kalimari');
+    const cpu = makeKart(track, { s: 100 });
+    cpu.v = 40;
+    const on = cpu.think(1 / 60, [cpu], null, null, [[90, 120]]);
+    expect(on.throttle).toBe(0);
+    expect(on.brake).toBeGreaterThan(0.5);
+    cpu.v = 0;
+    expect(cpu.think(1 / 60, [cpu], null, null, [[90, 120]]).brake).toBe(0);   // stopped: no reverse
+    // from top speed it stops in the console's ~65 MK64 units (32 frames of -10 currentSpeed): 5-7.5 along the route,
+    // not the 12 of a linear brake, so a kart entering the zone at point 176 is still well short of the rails
+    cpu.v = 44; cpu.s = 100; cpu.prevS = 100;
+    let n = 0;
+    for (; n < 120 && cpu.v > 0.2; n++) cpu.update(1 / 60, cpu.think(1 / 60, [cpu], null, null, [[90, 130]]), [cpu]);
+    expect(cpu.s - 100).toBeGreaterThan(5);
+    expect(cpu.s - 100).toBeLessThan(7.5);
+    expect(n).toBeLessThan(60);
+    cpu.v = 40;
+    expect(cpu.think(1 / 60, [cpu], null, null, [[120, 150]]).throttle).toBeGreaterThan(0);   // not in the zone
+    cpu.star = 5;
+    expect(cpu.think(1 / 60, [cpu], null, null, [[90, 120]]).throttle).toBeGreaterThan(0);
+    cpu.star = 0; cpu.boo = 5;
+    expect(cpu.think(1 / 60, [cpu], null, null, [[90, 120]]).throttle).toBeGreaterThan(0);
+  });
   it('keeps out of the gap between Koopa Troopa Beach\'s start ramp and the rock beside it', async () => {
     // the gap (-172, 14) is 3 wide: the route limit stops at the ramp's side (Track._nativeBounds GAP), not the rock
     const track = await makeTrack('koopa');

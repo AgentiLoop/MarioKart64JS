@@ -103,6 +103,23 @@ describe('Train', () => {
     expect(t.crossings.every(c => c.states[0].visible && !c.states[1].visible && !c.states[2].visible)).toBe(true);
   });
 
+  it('headStart runs the trains through the console\'s intro, again on each screen change', async () => {
+    const t = new Train(new THREE.Scene(), track, def('kalimari'), { headStart: n => (n === 1 ? 312 : 72) });
+    const plain = new Train(new THREE.Scene(), track, def('kalimari'));
+    await Promise.all([t.ready, plain.ready]);
+    // 156 frames of speed 5 past the spawn: where a plain instance gets after the same ticks
+    const eng = t.trains[0].engine;
+    expect(t.ticks).toBe(312);
+    expect(eng.idx).toBeGreaterThan(187 + 20);
+    plain.update(312 / 60 + 1e-9, []);
+    expect(eng.idx).toBe(plain.trains[0].engine.idx);
+    expect(eng.pos).toEqual(plain.trains[0].engine.pos);
+    expect(eng.group.position.x).toBeCloseTo(eng.pos[0] * 0.1);
+    t.setScreens(2);   // re-spawned, then 36 frames on
+    plain.setScreens(2); plain.update(72 / 60 + 1e-9, []);
+    expect(t.trains[0].engine.pos).toEqual(plain.trains[0].engine.pos);
+  });
+
   it('screen counts pick the active cars', async () => {
     const t = new Train(new THREE.Scene(), track, def('kalimari'));
     await t.ready;
@@ -157,6 +174,33 @@ describe('Train', () => {
     expect(c0.states[2].visible).toBe(true);   // timer past 20: left light
     for (let i = 0; i < 20; i++) t.update(TICK, [cam]);
     expect(c0.timer).toBeLessThan(20);           // wrapped after 40
+  });
+
+  it('a crossing rung for over 240 ticks puts a CPU stop zone on the route just before it (check_ai_crossing_distance)', async () => {
+    const t = new Train(new THREE.Scene(), track, def('kalimari'));
+    await t.ready;
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const L = t.path.length, e = t.trains[0].engine;
+    e.idx = Math.ceil((0.72017354 - 0.1) * L) + 1;   // locomotive 0 just inside crossing 1's trigger zone
+    e.pos = [t.path[e.idx][0], t.y, t.path[e.idx][1]];
+    t.trains[1].engine.idx = 10; t.trains[1].engine.pos = [t.path[10][0], t.y, t.path[10][1]];
+    for (let i = 0; i < 240; i++) t.update(TICK, []);
+    expect(t.triggered[1]).toBe(true);
+    expect(t.activeTicks[1]).toBe(240);
+    expect(t.stops).toEqual([]);   // not over 240 yet
+    t.update(TICK, []);
+    expect(t.stops).toHaveLength(1);
+    const [s0, s1] = t.stops[0];
+    expect(s1 - s0).toBeGreaterThan(5);
+    // the zone ends at the crossing: the route there is within 10 units of crossing 1's actors
+    const fr = track.frameAt(s1, { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const c1 = t.crossings.filter(c => c.id === 1);
+    expect(Math.min(...c1.map(c => Math.hypot(fr.pos.x - c.pos[0] * 0.1, fr.pos.z - c.pos[2] * 0.1)))).toBeLessThan(10);
+    // the train past the crossing: the zone is gone
+    e.idx = Math.ceil((0.72017354 + 0.01 + 0.06) * L) + 2; e.pos = [t.path[e.idx][0], t.y, t.path[e.idx][1]];
+    t.update(TICK, []);
+    expect(t.triggered[1]).toBe(false);
+    expect(t.stops).toEqual([]);
   });
 
   it('bell at points 190 / 320 and a whistle one frame in 100', async () => {
