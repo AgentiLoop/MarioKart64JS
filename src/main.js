@@ -1437,10 +1437,12 @@ function keepInside(pos, k, v, dt) {
   // (gLRTexture673C68, -10.7) and the camera still in the tunnel, 3.8 over its road, was lifted into the roof slab and
   // pulled 7 in to clear it (2 jumps a lap)
   const g = track.groundAt?.(pos.x, pos.z, k.world.y) || track.groundBelow?.(pos.x, pos.z, pos.y + 1.5);
-  const lifted = g && !(g.ceiling && pos.y < g.y) && pos.y < g.y + 1.2;
+  const lifted = g && !(g.ceiling && pos.y < g.y) && pos.y < g.y + 1.2, y0 = pos.y;
   if (lifted) { why.push(`ground ${(g.y + 1.2 - pos.y).toFixed(2)}`); pos.y = g.y + 1.2; }
   // last, against every opaque face drawn, as lifting it over the ground under it can take it up through a roof
-  // (inside Luigi Raceway's tunnel the ground under a camera in the roof's slab is the hill on top: always at once).
+  // (inside Luigi Raceway's tunnel the ground under a camera in the roof's slab is the hill on top: at once when the
+  // line from where it was before the lift was clear; a lift of 0.1 down Koopa Troopa Beach's ramp at (-60, 550),
+  // its line already eased in at a sign, threw it 5.4 in, 2 to 5 times a race).
   // Not faces within SCENE_GAP of the kart's eye: the kart is in them or just through them and no camera spot clears
   // them (Bowser's Castle's drawn buttresses at the hall's wall, x 1550..1580 and 1750..1780, z -2681..-2791, 3 wide,
   // have no collision: driving through one, or just out of one with the camera still behind it, the line met its side
@@ -1454,7 +1456,8 @@ function keepInside(pos, k, v, dt) {
   if (last !== null) {
     const back = track.sightHitScene(pos, _sceneFrom, undefined, undefined, true);
     const thin = back !== null && (1 - back - h3) * pos.distanceTo(_sceneFrom) < THIN;
-    const hard = lifted || !thin && track.sightHitScene(_sceneFrom, pos, GRAZE, pos.y, true) !== null;
+    const liftedIn = lifted && track.sightHitScene(_sceneFrom, _lowPos.set(pos.x, y0, pos.z), undefined, undefined, true) === null;
+    const hard = liftedIn || !thin && track.sightHitScene(_sceneFrom, pos, GRAZE, pos.y, true) !== null;
     pullIn(pos, last, hard, v, dt);
     why.push(`scene${hard ? '' : '~'}${thin ? ' thin' : ''} ${last.toFixed(2)}`);
   }
