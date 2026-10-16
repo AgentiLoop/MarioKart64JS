@@ -1,5 +1,8 @@
 # MarioKart64JS
 
+🤖 **Built by the makers of [Agent!](https://github.com/AgentiLoop/Agent)**, an autonomous macOS agent.
+
+
 > **⚠️ Work in progress. This is not a finished game.** Expect bugs, missing features and rough edges.
 > Please report any problems you find at https://github.com/AgentiLoop/MarioKart64JS/issues
 > Research Project. This is for Personal and Educational use only.
