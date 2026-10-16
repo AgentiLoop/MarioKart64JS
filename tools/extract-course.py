@@ -85,6 +85,9 @@ COURSES['kalimari_desert']['staleTexture'] = {'A18': 'gKDTexture646CA8'}
 # lists to uls 0, ult = a counter stepped by this much (ult is in 1/4 texels), back to 0 past 255 (to 255 under 0):
 # the water textures flow along t. Batches drawn there carry "scroll" (the step) and no tile origin.
 COURSES['koopa_troopa_beach']['scroll'] = {'9D58': 9, '9CD0': 3}   # the waterfall and its pool
+# render_koopa_troopa_beach draws dl_list2 (the sea) translated to y D_8015F8E4, which course_update_water steps
+# 0.1 a tick between 0 and -20 (func_802969F8 starts it at 0, going down): the tide. Its batches carry "tide".
+COURSES['koopa_troopa_beach']['tide'] = 'd_course_koopa_troopa_beach_dl_list2'
 COURSES['royal_raceway']['scroll'] = {'A6A8': -20, 'A648': -20}
 COURSES['dks_jungle_parkway']['scroll'] = {'3DD0': 2, '3E40': 2, '3EB0': 2, '3F30': 2, '36A8': 2, '9880': -20}
 # render_banshee_boardwalk ends with dl_B278: a dark water disc (radius 250, texture2) moved under the camera at
@@ -314,7 +317,8 @@ def convert(source, rom, course_id):
                     formats[texture] = state['format']
                 key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'],
                        state['mode'] == 'edge', state['mode'] == 'xlu', state['origin'], state['cull'],
-                       bool(state.get('raceOnly')) and name not in open_lists, texture and state.get('scroll'))
+                       bool(state.get('raceOnly')) and name not in open_lists, texture and state.get('scroll'),
+                       state.get('tide'))
                 batch = batches.get(key)
                 if batch is None:
                     batch = batches[key] = dict(texture=texture, width=key[1], height=key[2],
@@ -327,6 +331,8 @@ def convert(source, rom, course_id):
                         batch['tileOrigin'] = list(key[7])
                     if not key[8]:
                         batch['doubleSided'] = True   # drawn with G_CULL_BACK cleared
+                    if key[11]:
+                        batch['tide'] = True   # moved up and down by the tide (render_koopa_troopa_beach's D_8015F8E4)
                     if key[9]:
                         batch['offCourse'] = True   # only while the camera is over no course floor (func_80290C20)
                 for j in range(0, len(a), 4):
@@ -391,6 +397,7 @@ def convert(source, rom, course_id):
         state['mode'] = mode
         state['shade'] = False
         state['raceOnly'] = name == cfg['root'] and not cfg.get('battle')
+        state['tide'] = name == cfg.get('tide')
         cull = state['cull'] = resolve(name) not in no_cull
         if name in arrays:
             for entry in re.findall(r'\w+', arrays[name]):

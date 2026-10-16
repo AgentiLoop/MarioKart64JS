@@ -1341,6 +1341,7 @@ export class Track {
       mesh.name = batch.texture || 'shade';
       mesh.userData.catcher = !batch.translucent && !batch.offCourse;   // setShadowCatchers: the opaque surfaces (base and decal layers)
       if (batch.offCourse) (this.offCourse ??= []).push(mesh);
+      if (batch.tide) (this.tide ??= { y: 0, v: -0.1, meshes: [] }).meshes.push(mesh);   // updateWater
       this.group.add(mesh);
     });
     // Banshee Boardwalk's dark water disc (render_banshee_boardwalk's dl_B278: radius 250, shade 0x19 at the rim, 0xA6
@@ -1374,8 +1375,12 @@ export class Track {
   // course_update_water (render_courses.c), stepped every 1/60 s tick: find_and_set_tile_size moves the flowing water
   // lists' tile (ult, 1/4 texels) by their step, back to 0 past 255 (to 255 under 0), one counter per step. Also puts
   // Banshee Boardwalk's water disc under the camera. Called with each camera before it renders.
+  // Koopa Troopa Beach's tide: render_koopa_troopa_beach draws the sea (dl_list2, "tide" batches) moved to y
+  // D_8015F8E4, which course_update_water steps 0.1 a tick, turning back under -20 and over 0 (func_802969F8 starts
+  // it at 0 going down). Only the drawn sea moves: the karts' fluid level stays as before (lakitu.js fluidLevel).
   updateWater(cam) {
     if (!this.flowing) return;
+    const tide = this.tide;
     const now = performance.now() / 1000;
     this._waterT = Math.max(this._waterT ?? now, now - 0.5);   // a hidden tab doesn't catch up for minutes
     this._ult ??= {};
@@ -1385,7 +1390,12 @@ export class Track {
         const c = this._ult[step] + +step;
         this._ult[step] = c > 255 ? 0 : c < 0 ? 255 : c;
       }
+      if (tide) {
+        if (tide.v < 0 ? tide.y < -20 : tide.y > 0) tide.v = -tide.v;
+        tide.y += tide.v;
+      }
     }
+    if (tide) for (const m of tide.meshes) m.position.y = tide.y * NATIVE_SCALE;
     for (const f of this.flowing) f.map.offset.y = -(this._ult[f.step] ?? 0) / 4 / f.height;
     if (this.water) this.water.position.set(cam.position.x, this.water.position.y, cam.position.z);
   }
