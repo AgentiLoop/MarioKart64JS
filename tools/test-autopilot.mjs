@@ -1,6 +1,7 @@
 // Autopilot race test: Mario (the player kart) is driven by the CPU driver (?autopilot) for 3 laps on every race
 // course, in Google Chrome via playwright-core. Reports lap times, place, stalls and page errors per course, and
-// "hidden": how many of the 0.3 s samples had course geometry between the kart and the chase camera (by mesh).
+// "hidden": how many of the 0.3 s samples had course geometry between the kart and the chase camera (by mesh), and
+// "clip": how many had a face closer than the camera's near plane (the view cuts through it).
 // usage: node tools/test-autopilot.mjs [course ids...]   (PLAYWRIGHT=path/to/playwright-core, PARALLEL=n, CC=50|100|150)
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -85,7 +86,7 @@ async function race(id) {
       let lastLap = p.crossings, best = p.progress, bestAt = 0, stalls = 0, rescues = 0, wasRescue = false, minV = 1e9;
       // camera behind the course: course geometry between the kart (1.6 above it) and the race camera hides the kart.
       // Sampled every 0.3 s of the race; counts per mesh name with the first hit point (MK64 units) and race time.
-      const rc = new T.Raycaster(), eye = new T.Vector3(), dir = new T.Vector3(), hidden = {};
+      const rc = new T.Raycaster(), eye = new T.Vector3(), dir = new T.Vector3(), hidden = {}, clip = {};
       let looks = 0, polls = 0;
       const t = setInterval(() => {
         const rt = g.raceTime;
@@ -98,6 +99,17 @@ async function race(id) {
           const hit = rc.intersectObject(g.track.group, true).find(i => i.object.isMesh && i.object.visible);
           const mk = v => v.toArray().map(c => Math.round(c * 10));
           if (hit) (hidden[hit.object.name || hit.object.type] ??= { n: 0, at: `${mk(hit.point)} kart ${mk(p.world)} cam ${mk(g.camera.position)}`, rt: +rt.toFixed(1) }).n++;
+          // "clip": the near plane cutting into course geometry (a face closer than the near plane at the view's centre,
+          // edges or corners), which shows through the face to what is behind it
+          const cam = g.camera;
+          cam.updateMatrixWorld();
+          for (const [sx, sy] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) {
+            dir.set(sx, sy, -1).unproject(cam).sub(cam.position);   // NDC z -1: the near plane
+            const d = dir.length();
+            rc.set(cam.position, dir.normalize()); rc.far = d;
+            const h = rc.intersectObject(g.track.group, true).find(i => i.object.isMesh && i.object.visible);
+            if (h) { (clip[h.object.name || h.object.type] ??= { n: 0, at: `${mk(h.point)} kart ${mk(p.world)} cam ${mk(cam.position)}`, rt: +rt.toFixed(1) }).n++; break; }
+          }
         }
         if (p.crossings > lastLap) { if (p.crossings >= 1) laps.push(rt); lastLap = p.crossings; }
         if (p.progress > best + 1) { best = p.progress; bestAt = rt; }
@@ -113,7 +125,9 @@ async function race(id) {
             cpusFinished: g.karts.filter(k => !k.isPlayer && k.finished).length,
             cpuTimes: g.karts.filter(k => !k.isPlayer && k.finished).map(k => +k.finishTime.toFixed(1)),
             hidden: { of: looks, n: Object.values(hidden).reduce((a, e) => a + e.n, 0),
-              by: Object.entries(hidden).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) } });
+              by: Object.entries(hidden).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) },
+            clip: { n: Object.values(clip).reduce((a, e) => a + e.n, 0),
+              by: Object.entries(clip).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) } });
         }
       }, 100);
       });

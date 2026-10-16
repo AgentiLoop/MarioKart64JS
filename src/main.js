@@ -1401,6 +1401,7 @@ function cinematicCamera(dt, v, k) {
   if (!v.init) { v.look.copy(look); camera.fov = fov; } else v.look.lerp(look, 1 - Math.exp(-dt * 10));
   camera.position.copy(v.pos); if (target) keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 3);
+  clearNear(camera);
   camera.updateProjectionMatrix();
   v.init = true;
   if (k === player) followSun(k.world);
@@ -1430,6 +1431,25 @@ function keepInside(pos, k) {
   const last = track.sightHitScene?.(_eye, pos) ?? null;
   if (last !== null) pos.lerpVectors(_eye, pos, Math.max(0.06, last - CAM_GAP / pos.distanceTo(_eye)));
 }
+// Not in MK64: a camera kept in front of a face can still have it closer than its near plane at the view's edges
+// (Luigi Raceway's tunnel roof, Choco Mountain's rock faces, Bowser's Castle's walls: 30 of ~7000 race samples cut
+// through a face, tools/test-autopilot.mjs "clip"); the near plane comes in to clear the nearest opaque face drawn
+// along the view's centre, edge and corner rays, 0.5 (NEAR) otherwise
+const NEAR = 0.5, _nq = new THREE.Vector3(), _nf = new THREE.Vector3(), _nr = new THREE.Vector3(), _nu = new THREE.Vector3();
+function clearNear(camera) {
+  let near = NEAR;
+  if (track.sightHitScene) {
+    camera.updateMatrixWorld();
+    const m = camera.matrixWorld.elements, ty = Math.tan(camera.fov * Math.PI / 360), tx = ty * camera.aspect;
+    _nr.set(m[0], m[1], m[2]).normalize(); _nu.set(m[4], m[5], m[6]).normalize(); _nf.set(-m[8], -m[9], -m[10]).normalize();
+    for (const sx of [-1, 0, 1]) for (const sy of [-1, 0, 1]) {
+      _nq.copy(camera.position).addScaledVector(_nf, NEAR).addScaledVector(_nr, sx * tx * NEAR).addScaledVector(_nu, sy * ty * NEAR);
+      const k = track.sightHitScene(camera.position, _nq);
+      if (k !== null) near = Math.min(near, Math.max(0.05, NEAR * k * 0.8));
+    }
+  }
+  camera.near = near;
+}
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
   if (k.rescue?.watch) { camera.lookAt(k.world); return; }   // camera.c: holds still while Lakitu fishes the kart out
@@ -1444,6 +1464,7 @@ function updateCamera(dt, v) {
   v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
   camera.position.copy(v.pos); keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
+  clearNear(camera);
   camera.updateProjectionMatrix();
   v.init = true;
   if (k === player) followSun(k.world);
