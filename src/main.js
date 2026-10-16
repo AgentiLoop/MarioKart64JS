@@ -1407,8 +1407,8 @@ function cinematicCamera(dt, v, k) {
   if (k === player) followSun(k.world);
 }
 // Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's or Frappe Snowland's ice walls, with the
-// kart against or angled near one) is pulled in along its line to the kart and pushed clear of overhanging wall faces
-// and snow banks so its frustum never clips behind the wall; nor behind any opaque face drawn (Luigi Raceway's tunnel
+// kart against or angled near one) is pulled in along its line to the kart (and clearNear keeps its near plane in
+// front of a face beside it) so it never sees behind the wall; nor behind any opaque face drawn (Luigi Raceway's tunnel
 // roof, Choco Mountain's rock faces). A face that only grazes the view (its top under GRAZE over the view's line where
 // they cross, or under the camera: a bank it looks down over) or that only the low line (0.8 under the view's) meets hides at most the kart's body: v (the chase view)
 // pulls in for it at most CAM_OUT a second, not at once (dropping down Frappe Snowland's bank at (-1250, -1250) its top
@@ -1433,8 +1433,6 @@ function keepInside(pos, k, v, dt) {
     pullIn(pos, hit, hard, v, dt);
     why.push(`${h1 === null ? 'low' : 'wall'}${hard ? '' : '~'} ${hit.toFixed(2)}`);
   }
-  track.wallPush?.(pos, 1.6, pos.y - 0.8);
-  track.wallPush?.(pos, 1.6, k.world.y);
   const g = track.groundAt?.(pos.x, pos.z, k.world.y) || track.groundBelow?.(pos.x, pos.z, pos.y + 1.5);
   const lifted = g && pos.y < g.y + 1.2;
   if (lifted) { why.push(`ground ${(g.y + 1.2 - pos.y).toFixed(2)}`); pos.y = g.y + 1.2; }
