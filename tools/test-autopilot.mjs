@@ -63,7 +63,12 @@ const pickMeshes = async pts => {
     rc.setFromCamera(new T.Vector2((x - r.left) / r.width * 2 - 1, 1 - (y - r.top) / r.height * 2), g.camera);
     const hit = rc.intersectObjects(g.scene.children, true).find(i => i.object.isMesh && i.object.visible);
     const col = hit && hit.face && hit.object.geometry.attributes.color;
-    const name = hit ? `${hit.object.name || hit.object.type}${col ? ` rgb(${[col.getX(hit.face.a), col.getY(hit.face.a), col.getZ(hit.face.a)].map(c => Math.round(c * 255))})` : ''}` : 'nothing (sky/background)';
+    // an unnamed mesh is named by its nearest named ancestor and whether its material has a texture
+    let owner = hit && !hit.object.name ? hit.object.parent : null;
+    while (owner && !owner.name) owner = owner.parent;
+    const m = hit && [].concat(hit.object.material)[0];
+    const label = hit && (hit.object.name || `${hit.object.type}${owner ? ` in ${owner.name}` : ''}${m ? ` (${m.type}${m.map ? '' : ' untextured'})` : ''}`);
+    const name = hit ? `${label}${col ? ` rgb(${[col.getX(hit.face.a), col.getY(hit.face.a), col.getZ(hit.face.a)].map(c => Math.round(c * 255))})` : ''}` : 'nothing (sky/background)';
     (count[name] ??= { n: 0, at: hit && hit.point.toArray().map(c => Math.round(c * 10)) }).n++;   // MK64 units (NATIVE_SCALE 0.1)
   }
   return Object.entries(count).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => `${k} x${v.n}${v.at ? ' @' + v.at : ''}`);

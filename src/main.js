@@ -1433,8 +1433,11 @@ function keepInside(pos, k, v, dt) {
     pullIn(pos, hit, hard, v, dt);
     why.push(`${h1 === null ? 'low' : 'wall'}${hard ? '' : '~'} ${hit.toFixed(2)}`);
   }
+  // not up onto a ceiling over it: a kart out of Luigi Raceway's tunnel at (-40, 3) climbs toward its roof's height
+  // (gLRTexture673C68, -10.7) and the camera still in the tunnel, 3.8 over its road, was lifted into the roof slab and
+  // pulled 7 in to clear it (2 jumps a lap)
   const g = track.groundAt?.(pos.x, pos.z, k.world.y) || track.groundBelow?.(pos.x, pos.z, pos.y + 1.5);
-  const lifted = g && pos.y < g.y + 1.2;
+  const lifted = g && !(g.ceiling && pos.y < g.y) && pos.y < g.y + 1.2;
   if (lifted) { why.push(`ground ${(g.y + 1.2 - pos.y).toFixed(2)}`); pos.y = g.y + 1.2; }
   // last, against every opaque face drawn, as lifting it over the ground under it can take it up through a roof
   // (inside Luigi Raceway's tunnel the ground under a camera in the roof's slab is the hill on top: always at once).
