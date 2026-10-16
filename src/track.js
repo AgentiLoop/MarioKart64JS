@@ -1318,6 +1318,7 @@ export class Track {
         map.flipY = false;
         map.wrapS = wrap[batch.wrapS]; map.wrapT = wrap[batch.wrapT];
         this.textures.push(map);
+        if (batch.scroll) (this.flowing ??= []).push({ map, step: batch.scroll, height: batch.height });   // updateWater
       }
       const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
         map, vertexColors: true, toneMapped: false, fog: false,
@@ -1342,6 +1343,51 @@ export class Track {
       if (batch.offCourse) (this.offCourse ??= []).push(mesh);
       this.group.add(mesh);
     });
+    // Banshee Boardwalk's dark water disc (render_banshee_boardwalk's dl_B278: radius 250, shade 0x19 at the rim, 0xA6
+    // in the middle), drawn under the camera at y -82 (updateWater); flows like the batches with "scroll"
+    const w = course.water;
+    if (w) {
+      const positions = [], colors = [], uvs = [];
+      for (const i of w.indices) {
+        const [x, y, z, s, t, r, g, b] = w.vertices[i];
+        positions.push(x * NATIVE_SCALE, y * NATIVE_SCALE, z * NATIVE_SCALE);
+        color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
+        colors.push(color.r, color.g, color.b);
+        uvs.push(s / 32 / w.width, t / 32 / w.height);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      const image = course.textures[w.texture].image;
+      const map = HD.loadTexture(image.startsWith('common/') ? image : `${this.def.dir}/${image}`);
+      map.colorSpace = THREE.SRGBColorSpace; map.flipY = false; map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      this.textures.push(map);
+      (this.flowing ??= []).push({ map, step: w.scroll, height: w.height });
+      this.water = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, vertexColors: true, toneMapped: false, fog: false, side: THREE.DoubleSide }));
+      this.water.name = w.texture;
+      this.water.position.y = w.y * NATIVE_SCALE;
+      this.group.add(this.water);
+    }
+  }
+
+  // course_update_water (render_courses.c), stepped every 1/60 s tick: find_and_set_tile_size moves the flowing water
+  // lists' tile (ult, 1/4 texels) by their step, back to 0 past 255 (to 255 under 0), one counter per step. Also puts
+  // Banshee Boardwalk's water disc under the camera. Called with each camera before it renders.
+  updateWater(cam) {
+    if (!this.flowing) return;
+    const now = performance.now() / 1000;
+    this._waterT = Math.max(this._waterT ?? now, now - 0.5);   // a hidden tab doesn't catch up for minutes
+    this._ult ??= {};
+    for (; now - this._waterT >= 1 / 60; this._waterT += 1 / 60) {
+      for (const { step } of this.flowing) this._ult[step] ??= 0;
+      for (const step in this._ult) {
+        const c = this._ult[step] + +step;
+        this._ult[step] = c > 255 ? 0 : c < 0 ? 255 : c;
+      }
+    }
+    for (const f of this.flowing) f.map.offset.y = -(this._ult[f.step] ?? 0) / 4 / f.height;
+    if (this.water) this.water.position.set(cam.position.x, this.water.position.y, cam.position.z);
   }
 
   // The void floors and black skirts under and around the course (offCourse batches, extract-course.py): MK64 draws

@@ -42,7 +42,7 @@ async function sweep([stations, view]) {
     cam.position.copy(at).addScaledVector(dir, -back).setY(at.y + up);
     cam.lookAt(at.x + dir.x * back, at.y, at.z + dir.z * back);
     cam.updateMatrixWorld();
-    tr.showOffCourse?.(cam);   // as renderViews does before each render
+    tr.showOffCourse?.(cam); tr.updateWater?.(cam);   // as renderViews does before each render
     g.renderer.render(g.scene, cam);
     x2.drawImage(gl, 0, 0);
     const { data: d, width: w, height: h } = x2.getImageData(0, 0, c2.width, c2.height);

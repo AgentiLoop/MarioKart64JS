@@ -1502,7 +1502,7 @@ function updateCamera(dt, v) {
   if (k === player) followSun(k.world);
 }
 function renderViews() {
-  if (views.length === 1) { updateSky(camera); track.showOffCourse?.(camera); renderer.render(scene, camera); return; }
+  if (views.length === 1) { updateSky(camera); track.showOffCourse?.(camera); track.updateWater?.(camera); renderer.render(scene, camera); return; }
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   renderer.setScissorTest(true);
   const rect = r => [Math.round(r[0] * size.x), Math.round((1 - r[1] - r[3]) * size.y), Math.round(r[2] * size.x), Math.round(r[3] * size.y)];
@@ -1511,7 +1511,7 @@ function renderViews() {
     renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
     exhaust.draw(karts, v.cam);
     updateSky(v.cam, w, h);
-    track.showOffCourse?.(v.cam);
+    track.showOffCourse?.(v.cam); track.updateWater?.(v.cam);
     renderer.render(scene, v.cam);
   }
   if (views.length === 3) { const [x, y, w, h] = rect([0.5, 0.5, 0.5, 0.5]); renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.clear(); }
@@ -1639,7 +1639,7 @@ function frame(now) {
     charStep(now);    // animate the character-select faces when that screen is open
     courseStep(now);  // cup / course / OK flash boxes on the course-select screen
     updateSky(camera);
-    track.showOffCourse?.(camera);
+    track.showOffCourse?.(camera); track.updateWater?.(camera);
     present(() => renderer.render(scene, camera));
     return;
   }

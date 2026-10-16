@@ -78,7 +78,16 @@ COURSES['sherbet_land']['vtxColours'] = [('1EB8', 180, 255, 255, 255), ('2308', 
 # whatever TMEM holds from the list drawn before it at run time. Kalimari Desert's dl_A18 quad follows dl_8398 /
 # dl_4AA8 in every section (course_data.c), both ending on gKDTexture646CA8 (sand), not a white shade-only patch.
 COURSES['kalimari_desert']['staleTexture'] = {'A18': 'gKDTexture646CA8'}
-
+# course_update_water (render_courses.c): every tick find_and_set_tile_size rewrites the first G_SETTILESIZE of these
+# lists to uls 0, ult = a counter stepped by this much (ult is in 1/4 texels), back to 0 past 255 (to 255 under 0):
+# the water textures flow along t. Batches drawn there carry "scroll" (the step) and no tile origin.
+COURSES['koopa_troopa_beach']['scroll'] = {'9D58': 9, '9CD0': 3}   # the waterfall and its pool
+COURSES['royal_raceway']['scroll'] = {'A6A8': -20, 'A648': -20}
+COURSES['dks_jungle_parkway']['scroll'] = {'3DD0': 2, '3E40': 2, '3EB0': 2, '3F30': 2, '36A8': 2, '9880': -20}
+# render_banshee_boardwalk ends with dl_B278: a dark water disc (radius 250, texture2) moved under the camera at
+# y -82 (camera x, -82, camera z), its tile size stepped +1 a tick by course_update_water. Its vertices and texture
+# are in the course data segment (the MIO0 block holding the path), at the offsets course_data.c notes. "water".
+COURSES['banshee_boardwalk']['water'] = dict(list='d_course_banshee_boardwalk_dl_B278', y=-82, scroll=1)
 
 def numbers(text):
     return [int(n, 0) for n in re.findall(r'-?0x[0-9a-fA-F]+|-?\d+', text)]
@@ -273,14 +282,15 @@ def convert(source, rom, course_id):
             elif command == 'gsDPLoadTextureBlock':
                 texture_image(a[1], a[2], a[0])
                 state.update(wrapS=wrap(a[6]), wrapT=wrap(a[7]), width=int(a[3], 0),
-                             height=int(a[4], 0), origin=(0, 0))
+                             height=int(a[4], 0), origin=(0, 0), scroll=None)
             elif command == 'gsDPSetTile' and a[4] == 'G_TX_RENDERTILE':
                 if a[8] != 'G_TX_NOLOD' or a[11] != 'G_TX_NOLOD':
                     raise ValueError('Unsupported texture shift')
                 state.update(wrapS=wrap(a[9]), wrapT=wrap(a[6]))
             elif command == 'gsDPSetTileSize':
+                step = cfg.get('scroll', {}).get(name.removeprefix(dl))   # rewritten every tick (course_update_water)
                 state.update(width=(int(a[3], 0) >> 2) + 1, height=(int(a[4], 0) >> 2) + 1,
-                             origin=(fixed(a[1]), fixed(a[2])))
+                             origin=(0, 0) if step else (fixed(a[1]), fixed(a[2])), scroll=step)
             elif command == 'gsSPVertex':
                 address, count, start = [int(v, 0) for v in a]
                 if address >> 24 != 4 or address % 16 or start + count > 32:
@@ -301,11 +311,13 @@ def convert(source, rom, course_id):
                     formats[texture] = state['format']
                 key = (texture, state['width'], state['height'], state['wrapS'], state['wrapT'],
                        state['mode'] == 'edge', state['mode'] == 'xlu', state['origin'], state['cull'],
-                       bool(state.get('raceOnly')) and name not in open_lists)
+                       bool(state.get('raceOnly')) and name not in open_lists, texture and state.get('scroll'))
                 batch = batches.get(key)
                 if batch is None:
                     batch = batches[key] = dict(texture=texture, width=key[1], height=key[2],
                                                 wrapS=key[3], wrapT=key[4], alphaTest=key[5], indices=[])
+                    if key[10]:
+                        batch['scroll'] = key[10]
                     if key[6]:
                         batch['translucent'] = True
                     if key[7] != (0, 0):
@@ -535,6 +547,26 @@ def convert(source, rom, course_id):
                 if length / 2 >= 20 and abs(n[1]) < 0.7 * length:
                     walls.extend(t)
         extra['extraWalls'] = walls
+    if cfg.get('water'):
+        w, data = cfg['water'], karts.mio0(rom[path_block:])
+        body = lists[w['list']]
+        at = lambda symbol: int(re.search(rf'// (0x[0-9A-Fa-f]+)\n\w+ {symbol}\[\]', texts[inputs[2]]).group(1), 16)
+        vname = re.search(r'gsSPVertex\((\w+),', body).group(1)
+        tname = re.search(r'gsDPSetTextureImage\([^)]*,\s*(\w+)\)', body).group(1)
+        rows = [numbers(r) for r in re.search(rf'Vtx {vname}\[\] = \{{(.*?)\}};', texts[inputs[2]], re.S).group(1).splitlines()
+                if '{' in r]   # x, y, z, flag, s, t, r, g, b, a
+        if b''.join(struct.pack('>3hH2h4B', *r) for r in rows) != data[at(vname):at(vname) + 16 * len(rows)]:
+            raise ValueError('Water vertices do not match the ROM')
+        if 'gsDPLoadBlock(G_TX_LOADTILE, 0, 0, 1023, 256)' not in body:   # 32 x 32 RGBA16
+            raise ValueError('Unsupported water texture load')
+        tri = [int(v, 0) for c, args in re.findall(r'(gsSP[12]Triangles?)\((.*?)\)', body) for j, v in enumerate(args.split(','))
+               if j % 4 != 3]
+        name, rgba = f'{cfg["prefix"]}{at(tname):X}', b''.join(karts.rgba16(data[at(tname):at(tname) + 2048]))
+        images[name + '.png'] = encoded = karts.png(32, 32, rgba)
+        textures[name] = dict(image=name + '.png', width=32, height=32, romOffset=path_block, blockOffset=at(tname),
+                              rgbaSha256=hashlib.sha256(rgba).hexdigest(), pngSha256=hashlib.sha256(encoded).hexdigest())
+        extra['water'] = dict(texture=name, width=32, height=32, y=w['y'], scroll=w['scroll'], indices=tri,
+                              vertices=[[x, y, z, s, t, r, g, b] for x, y, z, _, s, t, r, g, b, _ in rows])
     if cfg.get('battle'):
         provenance['battle'] = True
         # Item box actors (course_data.c d_course_<course>_item_box_spawns): [x, y, z, quadrant]
