@@ -1,7 +1,8 @@
 // Autopilot race test: Mario (the player kart) is driven by the CPU driver (?autopilot) for 3 laps on every race
 // course, in Google Chrome via playwright-core. Reports lap times, place, stalls and page errors per course, and
 // "hidden": how many of the 0.3 s samples had course geometry between the kart and the chase camera (by mesh), and
-// "clip": how many had a face closer than the camera's near plane (the view cuts through it).
+// "clip": how many had a face closer than the camera's near plane (the view cuts through it), and "snap": rendered
+// frames where the camera jumped more than 1.5 units against the kart (a jerk), by where the kart was.
 // usage: node tools/test-autopilot.mjs [course ids...]   (PLAYWRIGHT=path/to/playwright-core, PARALLEL=n, CC=50|100|150)
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -87,7 +88,29 @@ async function race(id) {
       // camera behind the course: course geometry between the kart (1.6 above it) and the race camera hides the kart.
       // Sampled every 0.3 s of the race; counts per mesh name with the first hit point (MK64 units) and race time.
       const rc = new T.Raycaster(), eye = new T.Vector3(), dir = new T.Vector3(), hidden = {}, clip = {};
-      let looks = 0, polls = 0;
+      let looks = 0, polls = 0, over = false;
+      // "snap": rendered frames where the race camera jumped against the kart (its offset from the kart changed by
+      // more than 1.5 units since the previous frame: a pull in front of a face or a push off a wall, seen as a jerk)
+      const off = new T.Vector3(), prevOff = new T.Vector3(), snap = {};
+      let frames = 0, had = false;
+      const frame = () => {
+        if (over) return;
+        if (g.state === 'race' && !p.finished && !p.rescue) {
+          off.copy(g.camera.position).sub(p.world);
+          const d = off.distanceTo(prevOff);
+          frames++;
+          if (had && d > 1.5) {
+            const k = `${p.world.toArray().map(c => Math.round(c / 5) * 50)}`;   // MK64 units, 50-unit cells
+            const e = snap[k] ??= { n: 0, max: 0, rt: +g.raceTime.toFixed(1), in: 0, out: 0 };
+            e.n++;
+            if (off.length() < prevOff.length()) e.in++; else e.out++;   // pulled in toward the kart or let out
+            e.max = Math.max(e.max, +d.toFixed(1));
+          }
+          prevOff.copy(off); had = true;
+        } else had = false;
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
       const t = setInterval(() => {
         const rt = g.raceTime;
         if (g.state === 'race' && !p.finished && !p.rescue && ++polls % 3 === 0 && g.track.group) {
@@ -118,7 +141,7 @@ async function race(id) {
         wasRescue = p.rescue > 0;
         if (g.state === 'race' && rt > 5) minV = Math.min(minV, p.v);
         if (p.finished || rt > limit) {
-          clearInterval(t);
+          clearInterval(t); over = true;
           const order = [...g.karts].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.finishTime - b.finishTime : b.progress - a.progress));
           done({ finished: p.finished, time: p.finishTime || rt, laps: laps.map((x, i) => +(x - (laps[i - 1] ?? 0)).toFixed(2)),
             place: order.indexOf(p) + 1, stalls, rescues, autopilot: g.autopilot, minV: +minV.toFixed(1),
@@ -127,7 +150,9 @@ async function race(id) {
             hidden: { of: looks, n: Object.values(hidden).reduce((a, e) => a + e.n, 0),
               by: Object.entries(hidden).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) },
             clip: { n: Object.values(clip).reduce((a, e) => a + e.n, 0),
-              by: Object.entries(clip).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) } });
+              by: Object.entries(clip).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) },
+            snap: { of: frames, n: Object.values(snap).reduce((a, e) => a + e.n, 0),
+              by: Object.entries(snap).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `kart ${k} x${e.n} (in ${e.in} out ${e.out}) max ${e.max} t${e.rt}`) } });
         }
       }, 100);
       });

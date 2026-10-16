@@ -737,7 +737,7 @@ export class Track {
     this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
     // Not in MK64: the nearest crossing (0..1 along it) of the 3D segment p -> q with a steep face, or null. The chase
     // camera stops short of it so it never ends up behind a wall looking at its culled back (Sherbet Land's ice walls)
-    const segmentHit = (grid, tris, p, q) => {
+    const segmentHit = (grid, tris, p, q, top = null, over = -Infinity) => {
       const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, seen = new Set();
       let best = null;
       for (let cx = Math.floor(Math.min(p.x, q.x) / CELL); cx <= Math.floor(Math.max(p.x, q.x) / CELL); cx++)
@@ -745,6 +745,7 @@ export class Track {
           for (const t of grid.get(cx * 65536 + cz) || []) {
             if (seen.has(t)) continue;
             seen.add(t);
+            if (top && top[t] < over) continue;
             const [a, b, c] = tris[t];
             const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
             const h = [dy * e2[2] - dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1] - dy * e2[0]];
@@ -761,7 +762,10 @@ export class Track {
           }
       return best;
     };
-    this.sightHit = (p, q) => segmentHit(wallGrid, walls, p, q);
+    // over: only faces whose top reaches that height (the chase camera's low sight line leaves out a stair's riser
+    // under the kart's eye: Bowser's Castle's stairs at (1630..1330, -800) held the camera 1 off the kart, a step
+    // behind the kart cutting that line while the view over it was clear)
+    this.sightHit = (p, q, over) => segmentHit(wallGrid, walls, p, q, over === undefined ? null : wallTop, over);
     // the same with every opaque face drawn (not the alpha-edged signs and trees, the translucent ones or the offCourse
     // void): a chase camera that rose through a tunnel roof (Luigi Raceway's tunnel, its ceiling and the hill on top of
     // it) or swung behind a rock face left out of the collision (Choco Mountain's) is brought back in front of it

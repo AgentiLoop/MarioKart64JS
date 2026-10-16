@@ -1416,7 +1416,7 @@ function keepInside(pos, k) {
   _eye.copy(k.world).addScaledVector(k.up, 1.6);
   _lowEye.copy(k.world).addScaledVector(k.up, 0.8);
   _lowPos.copy(pos).addScaledVector(k.up, -0.8);
-  const h1 = track.sightHit(_eye, pos), h2 = track.sightHit(_lowEye, _lowPos);
+  const h1 = track.sightHit(_eye, pos), h2 = track.sightHit(_lowEye, _lowPos, _eye.y);
   const hit = h1 !== null && h2 !== null ? Math.min(h1, h2) : (h1 ?? h2);
   if (hit !== null) {
     const len = pos.distanceTo(_eye);
@@ -1450,6 +1450,18 @@ function clearNear(camera) {
   }
   camera.near = near;
 }
+// Not in MK64: keepInside takes the chase camera in front of a face at once, but it goes back out at most CAM_OUT a
+// second (along its line to the kart, which stays clear), so a face the line grazes on and off no longer jerks it in
+// and out frame by frame (Bowser's Castle at (1350..1600, -800): 41 jumps of up to 16 a race, tools/test-autopilot.mjs
+// "snap"); the camera's normal pull-back with speed is far slower than that
+const CAM_OUT = 30;
+function easeOut(pos, k, v, dt) {
+  _eye.copy(k.world).addScaledVector(k.up, 1.6);
+  const d = pos.distanceTo(_eye);
+  if (!v.init || !(v.reach < d)) { v.reach = d; return; }
+  v.reach = Math.min(d, v.reach + CAM_OUT * dt);
+  pos.lerpVectors(_eye, pos, v.reach / d);
+}
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
   if (k.rescue?.watch) { camera.lookAt(k.world); return; }   // camera.c: holds still while Lakitu fishes the kart out
@@ -1462,7 +1474,7 @@ function updateCamera(dt, v) {
   v.pos.lerp(target, a);
   v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
   v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
-  camera.position.copy(v.pos); keepInside(camera.position, k); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.position.copy(v.pos); keepInside(camera.position, k); easeOut(camera.position, k, v, dt); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   clearNear(camera);
   camera.updateProjectionMatrix();
