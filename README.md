@@ -51,16 +51,11 @@ After the last lap, the camera orbits your kart, then cuts to roadside, crane an
   </tr>
   <tr>
     <td><img src="docs/screenshots/hires/race3d-mario.jpg" alt="Racing in 3D, Mario Raceway" width="400"></td>
+    <td><img src="docs/screenshots/hires/race3d-royal-boost.jpg" alt="Racing in 3D, Royal Raceway, boosting" width="400"></td>
   </tr>
-</table>
-
-<table>
   <tr>
     <td><img src="docs/screenshots/hires/race3d-mario-pack.jpg" alt="Racing in 3D, Mario Raceway, in the pack" width="400"></td>
     <td><img src="docs/screenshots/hires/race3d-mario-shells.jpg" alt="Racing in 3D, Mario Raceway, with triple green shells" width="400"></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/hires/race3d-royal-boost.jpg" alt="Racing in 3D, Royal Raceway, boosting" width="400"></td>
   </tr>
 </table>
 
