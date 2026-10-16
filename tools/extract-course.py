@@ -77,6 +77,7 @@ COURSES['wario_stadium']['unused'] = ['3B0']  # only under the unreferenced aggr
 # init_course (render_courses.c) find_vtx_and_set_colours(list, alpha, r, g, b): rewrites the unpacked
 # vertices (alpha 0xFF) of a list, colour too when red != 0. Sherbet Land's see-through ice.
 COURSES['sherbet_land']['vtxColours'] = [('1EB8', 180, 255, 255, 255), ('2308', 150, 255, 255, 255)]
+COURSES['rainbow_road']['vtxColours'] = [('2068', 150, 255, 255, 255), ('1E18', 150, 255, 255, 255)]   # the see-through road
 # Lists drawn with gsSPTexture(G_OFF) under a combiner that still reads TEXEL0: the RDP samples texel (0, 0) of
 # whatever TMEM holds from the list drawn before it at run time. Kalimari Desert's dl_A18 quad follows dl_8398 /
 # dl_4AA8 in every section (course_data.c), both ending on gKDTexture646CA8 (sand), not a white shade-only patch.
@@ -262,16 +263,17 @@ def convert(source, rom, course_id):
             raise ValueError(f'Unsupported texture format {fmt} {size}')
         state.update(texture=name, format=kind)
 
-    def walk(name, stack=()):
+    def walk(name, stack=(), emit=True):
         if name in stack:
             raise ValueError('Recursive display list')
-        if name in visited:
-            return  # each packed list is converted once, in the first pass that draws it
+        # Each packed list's triangles are converted once, in the first pass that draws it; a repeat still
+        # replays its texture/mode state, which lists drawn after it (Rainbow Road dl_1FC8) inherit.
+        emit = emit and name not in visited
         visited.add(name)
         for command, args in re.findall(r'(gs\w+)\((.*?)\)', lists[name], re.S):
             a = [v.strip() for v in args.split(',')]
             if command == 'gsSPDisplayList':
-                walk(a[0], (*stack, name))
+                walk(a[0], (*stack, name), emit)
             elif command == 'gsSPTexture':
                 if a[-1] == 'G_ON' and a[:2] != ['0xFFFF', '0xFFFF']:
                     raise ValueError('Unsupported texture scale')
@@ -307,6 +309,8 @@ def convert(source, rom, course_id):
                         raise ValueError('Vertex out of range')
                     cache[start + i] = first + i
             elif command in ('gsSP1Triangle', 'gsSP2Triangles'):
+                if not emit:
+                    continue
                 if state.get('raceOnly') and name not in race_lists:
                     continue   # root pass: geometry the race renderer never submits (collision table / credits only)
                 texture = state['texture'] if state['enabled'] and not state['shade'] else None
