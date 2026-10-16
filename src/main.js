@@ -1409,27 +1409,44 @@ function cinematicCamera(dt, v, k) {
 // Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's or Frappe Snowland's ice walls, with the
 // kart against or angled near one) is pulled in along its line to the kart and pushed clear of overhanging wall faces
 // and snow banks so its frustum never clips behind the wall; nor behind any opaque face drawn (Luigi Raceway's tunnel
-// roof, Choco Mountain's rock faces)
-const CAM_GAP = 1, _eye = new THREE.Vector3(), _lowEye = new THREE.Vector3(), _lowPos = new THREE.Vector3();
-function keepInside(pos, k) {
+// roof, Choco Mountain's rock faces). A face that only grazes the view (its top under GRAZE over the view's line where
+// they cross, or under the camera: a bank it looks down over) or that only the low line (0.8 under the view's) meets hides at most the kart's body: v (the chase view)
+// pulls in for it at most CAM_OUT a second, not at once (dropping down Frappe Snowland's bank at (-1250, -1250) its top
+// grazed both lines for a frame or two and jerked the camera 13-17 in, 3 times a race)
+const CAM_GAP = 1, GRAZE = 0.5, _eye = new THREE.Vector3(), _lowEye = new THREE.Vector3(), _lowPos = new THREE.Vector3();
+function pullIn(pos, hit, hard, v, dt) {
+  const len = pos.distanceTo(_eye);
+  let f = Math.max(0.06, hit - CAM_GAP / len);
+  if (!hard && v?.init && v.reach > 0) f = Math.max(f, Math.min(1, (v.reach - CAM_OUT * dt) / len));
+  pos.lerpVectors(_eye, pos, f);
+}
+function keepInside(pos, k, v, dt) {
   if (!track.sightHit) return;
+  const why = [];   // hook: what moved the camera this tick (v.why, tools/test-autopilot.mjs "snap"); ~ = eased
   _eye.copy(k.world).addScaledVector(k.up, 1.6);
   _lowEye.copy(k.world).addScaledVector(k.up, 0.8);
   _lowPos.copy(pos).addScaledVector(k.up, -0.8);
-  const h1 = track.sightHit(_eye, pos), h2 = track.sightHit(_lowEye, _lowPos, _eye.y);
+  const h1 = track.sightHit(_eye, pos), h2 = track.sightHit(_lowEye, _lowPos, 0.8 * k.up.y);
   const hit = h1 !== null && h2 !== null ? Math.min(h1, h2) : (h1 ?? h2);
   if (hit !== null) {
-    const len = pos.distanceTo(_eye);
-    pos.lerpVectors(_eye, pos, Math.max(0.06, hit - CAM_GAP / len));
+    const hard = h1 !== null && track.sightHit(_eye, pos, GRAZE, pos.y) !== null;
+    pullIn(pos, hit, hard, v, dt);
+    why.push(`${h1 === null ? 'low' : 'wall'}${hard ? '' : '~'} ${hit.toFixed(2)}`);
   }
   track.wallPush?.(pos, 1.6, pos.y - 0.8);
   track.wallPush?.(pos, 1.6, k.world.y);
   const g = track.groundAt?.(pos.x, pos.z, k.world.y) || track.groundBelow?.(pos.x, pos.z, pos.y + 1.5);
-  if (g && pos.y < g.y + 1.2) pos.y = g.y + 1.2;
+  const lifted = g && pos.y < g.y + 1.2;
+  if (lifted) { why.push(`ground ${(g.y + 1.2 - pos.y).toFixed(2)}`); pos.y = g.y + 1.2; }
   // last, against every opaque face drawn, as lifting it over the ground under it can take it up through a roof
-  // (inside Luigi Raceway's tunnel the ground under a camera in the roof's slab is the hill on top)
+  // (inside Luigi Raceway's tunnel the ground under a camera in the roof's slab is the hill on top: always at once)
   const last = track.sightHitScene?.(_eye, pos) ?? null;
-  if (last !== null) pos.lerpVectors(_eye, pos, Math.max(0.06, last - CAM_GAP / pos.distanceTo(_eye)));
+  if (last !== null) {
+    const hard = lifted || track.sightHitScene(_eye, pos, GRAZE, pos.y) !== null;
+    pullIn(pos, last, hard, v, dt);
+    why.push(`scene${hard ? '' : '~'} ${last.toFixed(2)}`);
+  }
+  if (v) v.why = why.join(' ');
 }
 // Not in MK64: a camera kept in front of a face can still have it closer than its near plane at the view's edges
 // (Luigi Raceway's tunnel roof, Choco Mountain's rock faces, Bowser's Castle's walls: 30 of ~7000 race samples cut
@@ -1474,7 +1491,7 @@ function updateCamera(dt, v) {
   v.pos.lerp(target, a);
   v.up.lerp(k.up, 1 - Math.exp(-dt * 4)).normalize();
   v.look.copy(k.world).addScaledVector(k.up, 1.6).addScaledVector(k.fwd, 6);
-  camera.position.copy(v.pos); keepInside(camera.position, k); easeOut(camera.position, k, v, dt); camera.up.copy(v.up); camera.lookAt(v.look);
+  camera.position.copy(v.pos); keepInside(camera.position, k, v, dt); easeOut(camera.position, k, v, dt); camera.up.copy(v.up); camera.lookAt(v.look);
   camera.fov += ((68 + Math.min(k.v, 62) * 0.35 + (k.boost > 0 ? 10 : 0)) - camera.fov) * Math.min(1, dt * 4);
   clearNear(camera);
   camera.updateProjectionMatrix();

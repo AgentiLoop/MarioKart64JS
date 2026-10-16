@@ -104,6 +104,7 @@ async function race(id) {
             const e = snap[k] ??= { n: 0, max: 0, rt: +g.raceTime.toFixed(1), in: 0, out: 0 };
             e.n++;
             if (off.length() < prevOff.length()) e.in++; else e.out++;   // pulled in toward the kart or let out
+            if (d > e.max) e.why = g.views[0].why;   // what moved the camera (main.js keepInside)
             e.max = Math.max(e.max, +d.toFixed(1));
           }
           prevOff.copy(off); had = true;
@@ -152,7 +153,7 @@ async function race(id) {
             clip: { n: Object.values(clip).reduce((a, e) => a + e.n, 0),
               by: Object.entries(clip).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) },
             snap: { of: frames, n: Object.values(snap).reduce((a, e) => a + e.n, 0),
-              by: Object.entries(snap).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `kart ${k} x${e.n} (in ${e.in} out ${e.out}) max ${e.max} t${e.rt}`) } });
+              by: Object.entries(snap).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `kart ${k} x${e.n} (in ${e.in} out ${e.out}) max ${e.max} t${e.rt}${e.why ? ` [${e.why}]` : ''}`) } });
         }
       }, 100);
       });

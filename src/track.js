@@ -737,7 +737,7 @@ export class Track {
     this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
     // Not in MK64: the nearest crossing (0..1 along it) of the 3D segment p -> q with a steep face, or null. The chase
     // camera stops short of it so it never ends up behind a wall looking at its culled back (Sherbet Land's ice walls)
-    const segmentHit = (grid, tris, p, q, top = null, over = -Infinity) => {
+    const segmentHit = (grid, tris, p, q, top = null, lift = 0, floor = -Infinity) => {
       const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, seen = new Set();
       let best = null;
       for (let cx = Math.floor(Math.min(p.x, q.x) / CELL); cx <= Math.floor(Math.max(p.x, q.x) / CELL); cx++)
@@ -745,7 +745,6 @@ export class Track {
           for (const t of grid.get(cx * 65536 + cz) || []) {
             if (seen.has(t)) continue;
             seen.add(t);
-            if (top && top[t] < over) continue;
             const [a, b, c] = tris[t];
             const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
             const h = [dy * e2[2] - dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1] - dy * e2[0]];
@@ -758,14 +757,17 @@ export class Track {
             const v = (dx * r[0] + dy * r[1] + dz * r[2]) / det;
             if (v < 0 || u + v > 1) continue;
             const k = (e2[0] * r[0] + e2[1] * r[1] + e2[2] * r[2]) / det;
+            if (top && top[t] < Math.max(p.y + k * dy + lift, floor)) continue;
             if (k >= 0 && k <= 1 && (best === null || k < best)) best = k;
           }
       return best;
     };
-    // over: only faces whose top reaches that height (the chase camera's low sight line leaves out a stair's riser
-    // under the kart's eye: Bowser's Castle's stairs at (1630..1330, -800) held the camera 1 off the kart, a step
-    // behind the kart cutting that line while the view over it was clear)
-    this.sightHit = (p, q, over) => segmentHit(wallGrid, walls, p, q, over === undefined ? null : wallTop, over);
+    // lift: only faces whose top reaches the line that far over where they cross it (the chase camera's low sight
+    // line, 0.8 under the view's, leaves out a face the view itself passes over: a stair's riser behind the kart on
+    // Bowser's Castle's stairs at (1630..1330, -800) held the camera 1 off the kart, and on Frappe Snowland's drop at
+    // (-1250, -1250) the snow bank beside the kart pulled it 17 in, while the view over them was clear); floor: nor
+    // faces whose top is under that height (a bank the camera looks down over)
+    this.sightHit = (p, q, lift, floor) => segmentHit(wallGrid, walls, p, q, lift === undefined ? null : wallTop, lift, floor);
     // the same with every opaque face drawn (not the alpha-edged signs and trees, the translucent ones or the offCourse
     // void): a chase camera that rose through a tunnel roof (Luigi Raceway's tunnel, its ceiling and the hill on top of
     // it) or swung behind a rock face left out of the collision (Choco Mountain's) is brought back in front of it
@@ -778,7 +780,8 @@ export class Track {
         bucket(sceneGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), sceneTris.push(t) - 1);
       }
     }
-    this.sightHitScene = (p, q) => segmentHit(sceneGrid, sceneTris, p, q);
+    const sceneTop = sceneTris.map(tri => Math.max(tri[0][1], tri[1][1], tri[2][1]));
+    this.sightHitScene = (p, q, lift, floor) => segmentHit(sceneGrid, sceneTris, p, q, lift === undefined ? null : sceneTop, lift, floor);
     // Kart against the wall faces, as check_bounding_collision + func_8003F734 do it: a sphere of radius r at body
     // height whose centre projects inside a face and is closer than r to it (or up to 16 MK64 units = 1.6 past
     // it) is pushed back out along the face normal by the overlap, onto the side the kart came from (x0, z0).
