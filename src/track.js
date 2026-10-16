@@ -737,15 +737,15 @@ export class Track {
     this.wallTris = walls;   // steep faces [a, b, c] (physics overlay, tools/test-walls.mjs)
     // Not in MK64: the nearest crossing (0..1 along it) of the 3D segment p -> q with a steep face, or null. The chase
     // camera stops short of it so it never ends up behind a wall looking at its culled back (Sherbet Land's ice walls)
-    this.sightHit = (p, q) => {
+    const segmentHit = (grid, tris, p, q) => {
       const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, seen = new Set();
       let best = null;
       for (let cx = Math.floor(Math.min(p.x, q.x) / CELL); cx <= Math.floor(Math.max(p.x, q.x) / CELL); cx++)
         for (let cz = Math.floor(Math.min(p.z, q.z) / CELL); cz <= Math.floor(Math.max(p.z, q.z) / CELL); cz++)
-          for (const t of wallGrid.get(cx * 65536 + cz) || []) {
+          for (const t of grid.get(cx * 65536 + cz) || []) {
             if (seen.has(t)) continue;
             seen.add(t);
-            const [a, b, c] = walls[t];
+            const [a, b, c] = tris[t];
             const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
             const h = [dy * e2[2] - dz * e2[1], dz * e2[0] - dx * e2[2], dx * e2[1] - dy * e2[0]];
             const det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
@@ -761,6 +761,20 @@ export class Track {
           }
       return best;
     };
+    this.sightHit = (p, q) => segmentHit(wallGrid, walls, p, q);
+    // the same with every opaque face drawn (not the alpha-edged signs and trees, the translucent ones or the offCourse
+    // void): a chase camera that rose through a tunnel roof (Luigi Raceway's tunnel, its ceiling and the hill on top of
+    // it) or swung behind a rock face left out of the collision (Choco Mountain's) is brought back in front of it
+    const sceneGrid = new Map(), sceneTris = [];
+    for (const batch of course.batches) {
+      if (batch.alphaTest || batch.translucent || batch.offCourse) continue;
+      for (let i = 0; i + 2 < batch.indices.length; i += 3) {
+        const t = [0, 1, 2].map(k => course.vertices[batch.indices[i + k]].slice(0, 3).map(v => v * S));
+        const xs = t.map(v => v[0]), zs = t.map(v => v[2]);
+        bucket(sceneGrid, Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), sceneTris.push(t) - 1);
+      }
+    }
+    this.sightHitScene = (p, q) => segmentHit(sceneGrid, sceneTris, p, q);
     // Kart against the wall faces, as check_bounding_collision + func_8003F734 do it: a sphere of radius r at body
     // height whose centre projects inside a face and is closer than r to it (or up to 16 MK64 units = 1.6 past
     // it) is pushed back out along the face normal by the overlap, onto the side the kart came from (x0, z0).

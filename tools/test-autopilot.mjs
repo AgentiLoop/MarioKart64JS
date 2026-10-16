@@ -1,5 +1,6 @@
 // Autopilot race test: Mario (the player kart) is driven by the CPU driver (?autopilot) for 3 laps on every race
-// course, in Google Chrome via playwright-core. Reports lap times, place, stalls and page errors per course.
+// course, in Google Chrome via playwright-core. Reports lap times, place, stalls and page errors per course, and
+// "hidden": how many of the 0.3 s samples had course geometry between the kart and the chase camera (by mesh).
 // usage: node tools/test-autopilot.mjs [course ids...]   (PLAYWRIGHT=path/to/playwright-core, PARALLEL=n, CC=50|100|150)
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -77,11 +78,27 @@ async function race(id) {
     await page.waitForFunction(() => window.__game && window.__game.player, null, { timeout: 60000 });
     // poll: lap splits, stalls (no progress for 5 race seconds), rescues (fell off), place at the finish
     let settled = false;
-    const run = page.evaluate(limit => new Promise(done => {
+    const run = page.evaluate(async limit => {
+      const T = await import('/node_modules/.vite/deps/three.js');
+      return new Promise(done => {
       const g = window.__game, p = g.player, laps = [];
       let lastLap = p.crossings, best = p.progress, bestAt = 0, stalls = 0, rescues = 0, wasRescue = false, minV = 1e9;
+      // camera behind the course: course geometry between the kart (1.6 above it) and the race camera hides the kart.
+      // Sampled every 0.3 s of the race; counts per mesh name with the first hit point (MK64 units) and race time.
+      const rc = new T.Raycaster(), eye = new T.Vector3(), dir = new T.Vector3(), hidden = {};
+      let looks = 0, polls = 0;
       const t = setInterval(() => {
         const rt = g.raceTime;
+        if (g.state === 'race' && !p.finished && !p.rescue && ++polls % 3 === 0 && g.track.group) {
+          looks++;
+          eye.copy(p.world).addScaledVector(p.up, 1.6);
+          dir.copy(g.camera.position).sub(eye);
+          const len = dir.length();
+          rc.set(eye, dir.normalize()); rc.far = len;
+          const hit = rc.intersectObject(g.track.group, true).find(i => i.object.isMesh && i.object.visible);
+          const mk = v => v.toArray().map(c => Math.round(c * 10));
+          if (hit) (hidden[hit.object.name || hit.object.type] ??= { n: 0, at: `${mk(hit.point)} kart ${mk(p.world)} cam ${mk(g.camera.position)}`, rt: +rt.toFixed(1) }).n++;
+        }
         if (p.crossings > lastLap) { if (p.crossings >= 1) laps.push(rt); lastLap = p.crossings; }
         if (p.progress > best + 1) { best = p.progress; bestAt = rt; }
         else if (g.state === 'race' && rt - bestAt > 5) { stalls++; bestAt = rt; }
@@ -94,10 +111,13 @@ async function race(id) {
           done({ finished: p.finished, time: p.finishTime || rt, laps: laps.map((x, i) => +(x - (laps[i - 1] ?? 0)).toFixed(2)),
             place: order.indexOf(p) + 1, stalls, rescues, autopilot: g.autopilot, minV: +minV.toFixed(1),
             cpusFinished: g.karts.filter(k => !k.isPlayer && k.finished).length,
-            cpuTimes: g.karts.filter(k => !k.isPlayer && k.finished).map(k => +k.finishTime.toFixed(1)) });
+            cpuTimes: g.karts.filter(k => !k.isPlayer && k.finished).map(k => +k.finishTime.toFixed(1)),
+            hidden: { of: looks, n: Object.values(hidden).reduce((a, e) => a + e.n, 0),
+              by: Object.entries(hidden).sort((a, b) => b[1].n - a[1].n).slice(0, 4).map(([k, e]) => `${k} x${e.n} @${e.at} t${e.rt}`) } });
         }
       }, 100);
-    }), LIMIT).finally(() => { settled = true; });
+      });
+    }, LIMIT).finally(() => { settled = true; });
     run.catch(() => {});   // awaited below; keeps a rejection during the screenshot loop from going unhandled
     const worst = { white: { v: -1 }, black: { v: -1 } };
     while (SHOTS && !settled) {

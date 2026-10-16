@@ -1407,7 +1407,8 @@ function cinematicCamera(dt, v, k) {
 }
 // Not in MK64: a chase camera that would sit behind a wall (Sherbet Land's or Frappe Snowland's ice walls, with the
 // kart against or angled near one) is pulled in along its line to the kart and pushed clear of overhanging wall faces
-// and snow banks so its frustum never clips behind the wall
+// and snow banks so its frustum never clips behind the wall; nor behind any opaque face drawn (Luigi Raceway's tunnel
+// roof, Choco Mountain's rock faces)
 const CAM_GAP = 1, _eye = new THREE.Vector3(), _lowEye = new THREE.Vector3(), _lowPos = new THREE.Vector3();
 function keepInside(pos, k) {
   if (!track.sightHit) return;
@@ -1424,6 +1425,10 @@ function keepInside(pos, k) {
   track.wallPush?.(pos, 1.6, k.world.y);
   const g = track.groundAt?.(pos.x, pos.z, k.world.y) || track.groundBelow?.(pos.x, pos.z, pos.y + 1.5);
   if (g && pos.y < g.y + 1.2) pos.y = g.y + 1.2;
+  // last, against every opaque face drawn, as lifting it over the ground under it can take it up through a roof
+  // (inside Luigi Raceway's tunnel the ground under a camera in the roof's slab is the hill on top)
+  const last = track.sightHitScene?.(_eye, pos) ?? null;
+  if (last !== null) pos.lerpVectors(_eye, pos, Math.max(0.06, last - CAM_GAP / pos.distanceTo(_eye)));
 }
 function updateCamera(dt, v) {
   const k = v.kart, camera = v.cam;
