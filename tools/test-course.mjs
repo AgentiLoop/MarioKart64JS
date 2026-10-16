@@ -13,7 +13,7 @@ const COURSES = [
   { dir: 'frappe-snowland', tris: 3139 }, { dir: 'choco-mountain', tris: 2316 },
   { dir: 'wario-stadium', tris: 3236 }, { dir: 'sherbet-land', tris: 1269 },
   { dir: 'royal-raceway', tris: 3452 }, { dir: 'bowsers-castle', tris: 4613 },
-  { dir: 'dks-jungle-parkway', tris: 3633 }, { dir: 'yoshi-valley', tris: 2440 },
+  { dir: 'dks-jungle-parkway', tris: 3651 }, { dir: 'yoshi-valley', tris: 2440 },
   { dir: 'banshee-boardwalk', tris: 2608 }, { dir: 'rainbow-road', tris: 1622 },
 ];
 for (const { dir: name, tris: expectedTris, road: roadName } of COURSES) {

@@ -70,6 +70,9 @@ for _id, _sections in {
     COURSES[_id]['sections'] = _sections
 COURSES['banshee_boardwalk']['xlu'] = ['878']
 COURSES['wario_stadium']['xlu'] = ['EC0']
+# func_8029122C's DK_JUNGLE case draws the river (dl_3DD0/3E40/3EB0/3F30, also under the root's opaque dl_3FA8) and
+# the wave foam dl_36A8 (gDKJTextureWaves0, reached in the race only from there) with G_RM_AA_ZB_XLU_INTER.
+COURSES['dks_jungle_parkway']['xlu'] = ['3DD0', '3E40', '3EB0', '3F30', '36A8']
 COURSES['wario_stadium']['unused'] = ['3B0']  # only under the unreferenced aggregate list F20
 # init_course (render_courses.c) find_vtx_and_set_colours(list, alpha, r, g, b): rewrites the unpacked
 # vertices (alpha 0xFF) of a list, colour too when red != 0. Sherbet Land's see-through ice.
