@@ -29,6 +29,9 @@ export const PATH_POINTS = { luigi: 0x2DA, moomoo: 0x230, koopa: 0x2BC, kalimari
 const PACK_BAND = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 50, 75, 100, 125, 150, 175, 40, 30, 60, 90, 120, 150, 180, 210, 50, 40, 80, 120, 160, 200, 240, 280];
 const PACK_BAND_MARIO = [20, 5, 10, 15, 20, 25, 30, 35, 30, 25, 45, 65, 90, 115, 140, 165, 40, 3, 6, 16, 46, 49, 59, 89, 50, 30, 60, 63, 73, 78, 108, 138];
 const LAKITU_MARGIN = { frappe: 20 };   // scene units of flagged ground a kart may cross before Lakitu fishes it out (Kart.updateNative)
+// D.K.'s Jungle Parkway's river under the big jump: a kart that falls short is fished out and put down on the far side
+// (Kart.syncMesh; gameplay tweak, not MK64 behaviour). RIVER_F: scratch route frame for the far-side search
+const RIVER_ACROSS = { dk: true }, RIVER_F = { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
 const CPU_MIN_SPEED = [2.5, 10 / 3, 3.75, 10 / 3];   // regulate_cpu_speed var_f0 per gCCSelection, units/frame
 // The route frame's step scale 1 - k d, kept 0.3 from 0 on its own side: past a bend's centre (far in on the inside,
 // 1 - k d < 0) the frame runs backwards under the kart, and clamping to +0.3 moved it backwards and 3x its step
@@ -1638,10 +1641,29 @@ export class Kart {
       const rising = this.air && this.vy > 0;
       if (below?.lakitu && this.y - below.y <= 0.3 && !rising || this.overLakitu > 0.25) this.fell = { kind: 'drop', base: this.y };
     }
+    // D.K.'s Jungle Parkway: short of the big jump the kart lands on the river bed (just under the water level) or the
+    // OUT_OF_BOUNDS island in it, and the 50-75 deg banks held it there for good. Half a second on either and Lakitu
+    // fishes it out; one that came off the ramp is put down on the far bank: the first route point on from where it
+    // is whose ground is dry, on the course and within 2.5 under the route (s494, past the island at s446-464)
+    if (dt && RIVER_ACROSS[t.def?.id] && t.fluidAt && !this.rescue) {
+      if (this.ramp) this.jumped = true;
+      if (!this.fell) {
+        const wading = g && !this.air && (g.surface === 'OUT_OF_BOUNDS' || g.y < t.fluidAt(x, z, g));
+        this.wading = wading ? (this.wading || 0) + dt : 0;
+        if (this.wading > 0.5) this.fell = { kind: 'water', base: t.fluidAt(x, z, g) };
+      }
+      if (this.fell && this.jumped) {
+        for (let s = this.s; s < this.s + 150; s += 2) {
+          const p = t.frameAt(s, RIVER_F).pos, q = t.groundBelow(p.x, p.z, p.y + 3);
+          if (q && q.surface !== 'OUT_OF_BOUNDS' && q.y >= t.fluidAt(p.x, p.z, q) && p.y - q.y < 2.5) { this.lastGroundS = (s + 6) % t.length; break; }
+        }
+        this.jumped = false;
+      }
+    }
     this.stepBounce(dt);
     if (g && !this.air) {
       this.groundY = g.y; this.world.y = PHYSICS.glue ? g.y : this.y + this.lead;
-      if (!this.ramp) this.lastGroundS = this.s;   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
+      if (!this.ramp && !this.wading) { this.lastGroundS = this.s; this.jumped = false; }   // gCopyNearestPathPointByPlayerId: Lakitu's drop-off point
       this.groundN = (this.groundN || g.normal.clone()).lerp(g.normal, 0.25).normalize();
       this.up.copy(this.groundN);
       this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();   // pitch with the slope

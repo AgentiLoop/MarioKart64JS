@@ -375,6 +375,34 @@ describe('CPU driving', () => {
       }
     } finally { PHYSICS.glue = glue; }
   });
+  it('fishes a kart that falls short of D.K.\'s Jungle Parkway\'s big jump out of the river onto the far bank', async () => {
+    // slowed in flight (a shell hit), the kart came down on the river bed (-3.4, just under the water level) or the
+    // island in it, the 50-75 deg banks held it there and Lakitu never came; now it is fished out and put down past them
+    const track = await makeTrack('dk');
+    track.fluidY = fluidLevel(track); track.fluidAt = (x, z, f) => fluidAt(track, x, z, f);
+    const glue = PHYSICS.glue;
+    try {
+      for (const g of [true, false]) for (const cut of [425, 435, 465]) {
+        PHYSICS.glue = g;
+        const k = makeKart(track, { isPlayer: true, character: 'mario', s: 385, d: 0 });
+        k.v = 40;
+        let slowed = false;
+        for (let i = 0; i < 60 * 15 && !k.fell; i++) {
+          k.update(1 / 60, k.think(1 / 60, [k]), [k]);
+          if (!slowed && k.s > cut) { k.v = 8; k.ramp = null; slowed = true; }
+        }
+        expect(k.fell).toBeTruthy();
+        expect(k.lastGroundS).toBeGreaterThan(490);
+        expect(k.lastGroundS).toBeLessThan(520);
+        // put down there as Lakitu does (rescueTick phase 2), it drives on
+        Object.assign(k, { fell: null, s: k.lastGroundS, prevS: k.lastGroundS, d: 0, psi: 0, phi: 0, y: null, groundY: null, air: false, vy: 0 });
+        k.syncMesh(0); k.y += 4; k.air = true;
+        for (let i = 0; i < 60 * 2 && !k.fell; i++) k.update(1 / 60, k.think(1 / 60, [k]), [k]);
+        expect(k.fell).toBeFalsy();
+        expect(k.s).toBeGreaterThan(530);
+      }
+    } finally { PHYSICS.glue = glue; }
+  });
   it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
     // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
     const track = await makeTrack('dk');
