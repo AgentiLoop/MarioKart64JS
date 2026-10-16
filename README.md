@@ -19,10 +19,6 @@ We built it as a test of how closely AI tools can recreate a classic game, and i
     <td><img src="docs/screenshots/hires/title.jpg" alt="Title" width="400"></td>
     <td><img src="docs/screenshots/hires/course-select.jpg" alt="Course select" width="400"></td>
   </tr>
-  <tr>
-    <td><img src="docs/screenshots/hires/race-mario.jpg" alt="Mario Raceway" width="400"></td>
-    <td><img src="docs/screenshots/hires/race-rainbow.jpg" alt="Rainbow Road" width="400"></td>
-  </tr>
 </table>
 
 ## What you can do
@@ -52,7 +48,6 @@ After the last lap, the camera orbits your kart, then cuts to roadside, crane an
   </tr>
   <tr>
     <td><img src="docs/screenshots/hires/race3d-mario.jpg" alt="Racing in 3D, Mario Raceway" width="400"></td>
-    <td><img src="docs/screenshots/hires/fly3d-head-mario.jpg" alt="Finish fly-over" width="400"></td>
   </tr>
 </table>
 
@@ -63,11 +58,6 @@ After the last lap, the camera orbits your kart, then cuts to roadside, crane an
   </tr>
   <tr>
     <td><img src="docs/screenshots/hires/race3d-royal-boost.jpg" alt="Racing in 3D, Royal Raceway, boosting" width="400"></td>
-    <td><img src="docs/screenshots/hires/race3d-bowser.jpg" alt="Racing in 3D, Bowser's Castle" width="400"></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/hires/race3d-sherbet-start.jpg" alt="Racing in 3D, Sherbet Land, start" width="400"></td>
-    <td><img src="docs/screenshots/hires/race3d-sherbet.jpg" alt="Racing in 3D, Sherbet Land" width="400"></td>
   </tr>
 </table>
 
