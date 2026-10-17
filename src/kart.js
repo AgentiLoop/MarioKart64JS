@@ -19,6 +19,8 @@ const CHARACTER_ID = { mario: 0, luigi: 1, yoshi: 2, toad: 3, donkeykong: 4, war
 // Top velocity is the drive force currentSpeed^2 / 25 over the drag 0.12 * kartFriction (5800), so it scales with
 // the square of gTopSpeedTable: 320 -> 5.885 units/frame (= MAX_SPEED), 290 -> 4.83 (50cc is 82% of 150cc).
 const V_TOP = 320 * 320 / 25 / (0.12 * 5800);
+// collision surfaces (course.json TrackSections names) a kart leaving the route's limit is not let onto (Kart.roadAhead)
+const OFF_ROAD = new Set(['GRASS', 'SAND', 'SAND_OFFROAD', 'DIRT_OFFROAD', 'SNOW_OFFROAD', 'OUT_OF_BOUNDS', 'CLIFF']);
 export const ccSpeedScale = (cc, character) => (TOP_SPEED[cc][CHARACTER_ID[character] ?? 0] / 320) ** 2;
 // CPU personalities, cpu_vehicles_camera_path/cpu_speed_control.inc.c regulate_cpu_speed: every frame a CPU
 // accelerates normally, accelerates with CPU_FAST_EFFECT or decelerates 1 currentSpeed unit per frame.
@@ -958,10 +960,11 @@ export class Kart {
     // And so is a kart on ground of its own, apart from the route's (Yoshi Valley's maze: its left fork at s225 runs
     // 130-160 out with drops to Lakitu's canyon between, and the limit dragged a kart there 0.5 a frame sideways into
     // the bridge's rail): its own steep faces keep it in (routeWallPush); kept through a jump there.
-    // And so is a kart that drives out past the limit onto level ground going on 20 ahead with no face across it
-    // (roadAhead): Yoshi Valley's left fork into the maze leaves the route at s252-258 heading north while the route
-    // turns west, its limit there 6-14 (the canyon either side of the fork's mouth); karts steering in met it as a
-    // wall and were turned back (v 30 -> -18) 2 times in 3. Kept while past the limit. The player only: CPUs keep to
+    // And so is a kart that drives out past the limit onto road going on 6 ahead with no face across it (roadAhead):
+    // Yoshi Valley's left fork into the maze leaves the route at s252-258 heading north while the route turns west,
+    // its limit there 6-14 (the canyon either side of the fork's mouth); karts steering in met it as a wall and were
+    // turned back (v 30 -> -18) 2 times in 3, and with 20 ahead still 4 in 10 when the canyon lay 20 ahead (only the
+    // fork's own faces now: MK64 has no route limit). Kept while past the limit. The player only: CPUs keep to
     // the route, and the limit keeps them out of gaps they wedge in (Koopa Troopa Beach's start ramp and rock).
     this.apart = out > 0 && !!this.apart && (out > 4 || !this.air) || out > 4 && !this.air && this.apartFromRoute(t, wall) ||
       out > 0 && !this.air && this.isPlayer && this.roadAhead(t);
@@ -1031,19 +1034,19 @@ export class Kart {
     return false;
   }
 
-  // Does ground go on 20 the way the kart travels, no steeper than 45 deg down (2 a step of 2) or 1.2 up a step, with
-  // no steep face and no Lakitu's ground across it (a way leading off the route: Yoshi Valley's left fork into the
-  // maze at (-120, -130))?
-  roadAhead(t) {
+  // Does ground go on `reach` the way the kart travels, no steeper than 45 deg down (2 a step of 2) or 1.2 up a step,
+  // not off-road (OFF_ROAD: past the limit the kart is not slowed as off-road) with no steep face and no Lakitu's
+  // ground across it (a way leading off the route: Yoshi Valley's left fork into the maze at (-120, -130))?
+  roadAhead(t, reach = 6) {
     if (!t.groundBelow) return false;
     const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
     const c = Math.cos(this.phi), s = Math.sin(this.phi), dx = f.T.x * c + f.R.x * s, dz = f.T.z * c + f.R.z * s;
     const x = f.pos.x + f.R.x * this.d, z = f.pos.z + f.R.z * this.d;
     let y = this.groundY ?? this.y;
-    if (t.sweep && t.sweep(x, z, x + dx * 20, z + dz * 20, y)) return false;
-    for (let a = 2; a <= 20; a += 2) {
+    if (t.sweep && t.sweep(x, z, x + dx * reach, z + dz * reach, y)) return false;
+    for (let a = 2; a <= reach; a += 2) {
       const g = t.groundBelow(x + dx * a, z + dz * a, y + 1.2);
-      if (!g || g.lakitu || g.y < y - 2) return false;
+      if (!g || g.lakitu || g.y < y - 2 || OFF_ROAD.has(g.surface)) return false;
       y = g.y;
     }
     return true;
