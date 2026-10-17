@@ -829,7 +829,7 @@ export class Kart {
     if (this.rescue) { this.v = 0; this.drift = 0; this.boost = 0; this.spin = 0; this.spinAngle = 0; return; }   // held by Lakitu (src/lakitu.js)
     const t = this.track;
     const absD = Math.abs(this.d);
-    this.offroad = absD > HALF_WIDTH + 1.5;
+    this.offroad = absD > HALF_WIDTH + 1.5 && !this.apart;
     let scale = this.speedScale * (this.isPlayer ? 1 : 0.93 + 0.05 * this.skill);
     // CPU_FAST_EFFECT: unk_0E8 eases to 380 on top of the speed force currentSpeed^2 / 25 (func_80030150);
     // top velocity is linear in the force: (cs^2 / 25 + 380) / (cs^2 / 25)
@@ -920,6 +920,11 @@ export class Kart {
       if (!this.isPlayer) this.psi = THREE.MathUtils.clamp(this.psi, -1.45, 1.45);
     }
 
+    // far out past the limit on another stretch of the route (Yoshi Valley's maze: its left fork at s225 comes out
+    // on the route at s~510 while the kart's s stayed at 260, 150 out, and the limit there dragged it sideways
+    // against the bridge's rail): the kart is put on that stretch
+    if (Math.abs(this.d) > t.wallAt(this.s, Math.sign(this.d)) + 4) denom = this.rejoinRoute(t) ?? denom;
+
     // walls
     const sgn = Math.sign(this.d), wall = t.wallAt(this.s, sgn) - 1.2, out = Math.abs(this.d) - wall;
     // the limit closing in under the kart (more than a frame's sideways move past it at once: beside Koopa Troopa
@@ -950,9 +955,13 @@ export class Kart {
     // (s1199) it closes from 14.5 to 4.5 over s1196-1197.5, 2.5 short of the face; a kart driving at the wall was
     // snapped sideways 1.1 a step (2.2 a frame), out < 1 so not even eased, instead of meeting the face. Held, the
     // face stops it (routeWallPush).
+    // And so is a kart on ground of its own, apart from the route's (Yoshi Valley's maze: its left fork at s225 runs
+    // 130-160 out with drops to Lakitu's canyon between, and the limit dragged a kart there 0.5 a frame sideways into
+    // the bridge's rail): its own steep faces keep it in (routeWallPush); kept through a jump there.
+    this.apart = out > 4 && (this.air ? !!this.apart : this.apartFromRoute(t, wall));
     const ahead = this.s + (this.v < 0 ? -4 : 4);
     const faceAhead = out > 0 && this.faceAlong(t, this.v < 0 ? -4 : 4);
-    const held = (ease > 0 || out > Math.abs(lateral) + 0.05) && faceAhead || ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)) ||
+    const held = this.apart || (ease > 0 || out > Math.abs(lateral) + 0.05) && faceAhead || ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)) ||
       this.wallBetween(t, this.d, sgn * wall) || this.wallBetween(t, this.d, sgn * wall, ahead));
     this.wallEase = held ? Math.abs(this.d) : ease > 0 ? wall + ease : 0;
     if (held) { /* stays out past the limit */ }
@@ -1003,6 +1012,48 @@ export class Kart {
   // behind. (Taking the nearest route point instead left part of the offset along the tangent where the route wiggles,
   // dropped from d: jumps of 2-6.) Only a foot where the route runs the same way as here (within 90 degrees), not the
   // far leg of a hairpin. Returns the new spot's frame denominator, or null with no foot found.
+  // Does the ground drop away between the route's limit (wall, |d|) and the kart: none within 6 under its height,
+  // or Lakitu's, somewhere across (sampled every 2)?
+  apartFromRoute(t, wall) {
+    if (!t.groundBelow) return false;
+    const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const sg = Math.sign(this.d), y = this.groundY ?? this.y;
+    for (let a = wall; a < Math.abs(this.d) - 2; a += 2) {
+      const g = t.groundBelow(f.pos.x + f.R.x * sg * a, f.pos.z + f.R.z * sg * a, y + 2);
+      if (!g || g.lakitu || g.y < y - 6) return true;
+    }
+    return false;
+  }
+
+  // The nearest stretch of the route within a quarter lap whose limits the kart's world spot is inside (route point
+  // within 8 of its height, the spot square across from it), nearer the route than now: (s, d) and the nose and travel
+  // moved onto it. Returns the new spot's frame denominator, or null with no such stretch.
+  rejoinRoute(t) {
+    const g = this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 };
+    const split = (q, u, w) => { const det = q.T.x * q.R.z - q.T.z * q.R.x; return [(u * q.R.z - w * q.R.x) / det, (q.T.x * w - q.T.z * u) / det]; };
+    t.frameAt(this.s, g);
+    const x = g.pos.x + g.R.x * this.d, z = g.pos.z + g.R.z * this.d;
+    const h = [g.T.x * Math.cos(this.psi) + g.R.x * Math.sin(this.psi), g.T.z * Math.cos(this.psi) + g.R.z * Math.sin(this.psi)];
+    const m = [g.T.x * Math.cos(this.phi) + g.R.x * Math.sin(this.phi), g.T.z * Math.cos(this.phi) + g.R.z * Math.sin(this.phi)];
+    let best = null, bestD = Math.abs(this.d);
+    for (let o = -t.length / 4; o <= t.length / 4; o++) {
+      const u = this.s + o;
+      t.frameAt(u, g);
+      if (Math.abs(g.pos.y - this.y) > 8) continue;
+      const [a, b] = split(g, x - g.pos.x, z - g.pos.z);
+      if (Math.abs(a) > 1 || Math.abs(b) >= bestD || Math.abs(b) > t.wallAt(u, Math.sign(b)) - 1.2) continue;
+      best = u + a; bestD = Math.abs(b);
+    }
+    if (best === null) return null;
+    const f = this.frame;
+    this.s = best; t.frameAt(this.s, f);
+    this.d = split(f, x - f.pos.x, z - f.pos.z)[1];
+    const ang = v => { const [a, b] = split(f, v[0], v[1]); return Math.atan2(b, a); };
+    this.psi = ang(h); this.phi = this.psi + wrapAngle(ang(m) - this.psi);
+    this.wallEase = 0;
+    return frameDen(f.k, this.d);
+  }
+
   routeStep(t, along, lateral) {
     const f = this.frame, x = f.pos.x + f.R.x * this.d + f.T.x * along + f.R.x * lateral;
     const z = f.pos.z + f.R.z * this.d + f.T.z * along + f.R.z * lateral, tx = f.T.x, tz = f.T.z;

@@ -403,6 +403,19 @@ describe('CPU driving', () => {
       }
     } finally { PHYSICS.glue = glue; }
   });
+  it('leaves a kart on Yoshi Valley\'s left fork where it is, not dragged back toward the route', async () => {
+    // the fork runs 130-160 out of the route at s225-300 with drops to the canyon between; the route's limit there
+    // (6-14) eased a kart on it 0.5 a frame sideways into the bridge's rail at (-222, -47)
+    const track = await makeTrack('yoshi');
+    const k = makeKart(track, { isPlayer: true, character: 'yoshi', s: 281, d: 0 });
+    Object.assign(k, { d: -136, y: null, groundY: null });
+    k.syncMesh(0);
+    expect(k.air).toBe(false);
+    run(k, 1, idle);
+    expect(k.fell).toBeFalsy();
+    expect(Math.abs(k.d)).toBeGreaterThan(130);
+    expect(k.offroad).toBe(false);
+  });
   it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
     // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
     const track = await makeTrack('dk');
