@@ -416,6 +416,22 @@ describe('CPU driving', () => {
     expect(Math.abs(k.d)).toBeGreaterThan(130);
     expect(k.offroad).toBe(false);
   });
+  it('lets the player turn off into Yoshi Valley\'s left fork without the route\'s limit turning it back', async () => {
+    // the fork leaves the route at s252-258 heading north (+z) between drops to the canyon; the limit there is 6-14
+    const track = await makeTrack('yoshi');
+    const k = makeKart(track, { isPlayer: true, character: 'yoshi', s: 240, d: 0 });
+    let px = null, pz = null, reversed = false;
+    for (let i = 0; i < 180; i++) {
+      const p = k.mesh.position, hd = px === null ? 0 : Math.atan2(p.x - px, p.z - pz);   // 0 = heading north
+      px = p.x; pz = p.z;
+      k.update(1 / 60, { throttle: 1, brake: 0, steer: i > 20 && Math.abs(hd) < 0.3 ? -hd : -0.6, drift: false }, [k]);
+      if (i > 30 && k.v < 0) reversed = true;
+    }
+    expect(reversed).toBe(false);
+    expect(k.mesh.position.z).toBeGreaterThan(-105);
+    expect(k.mesh.position.x).toBeGreaterThan(-130);
+    expect(k.mesh.position.x).toBeLessThan(-105);
+  });
   it('keeps CPUs off the bank into D.K.\'s Jungle Parkway\'s river after the big jump', async () => {
     // the wall limit runs 40 out across the river at (92, -188); the dry limit stops at the bank's edge
     const track = await makeTrack('dk');

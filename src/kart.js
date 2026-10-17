@@ -958,7 +958,13 @@ export class Kart {
     // And so is a kart on ground of its own, apart from the route's (Yoshi Valley's maze: its left fork at s225 runs
     // 130-160 out with drops to Lakitu's canyon between, and the limit dragged a kart there 0.5 a frame sideways into
     // the bridge's rail): its own steep faces keep it in (routeWallPush); kept through a jump there.
-    this.apart = out > 4 && (this.air ? !!this.apart : this.apartFromRoute(t, wall));
+    // And so is a kart that drives out past the limit onto level ground going on 20 ahead with no face across it
+    // (roadAhead): Yoshi Valley's left fork into the maze leaves the route at s252-258 heading north while the route
+    // turns west, its limit there 6-14 (the canyon either side of the fork's mouth); karts steering in met it as a
+    // wall and were turned back (v 30 -> -18) 2 times in 3. Kept while past the limit. The player only: CPUs keep to
+    // the route, and the limit keeps them out of gaps they wedge in (Koopa Troopa Beach's start ramp and rock).
+    this.apart = out > 0 && !!this.apart && (out > 4 || !this.air) || out > 4 && !this.air && this.apartFromRoute(t, wall) ||
+      out > 0 && !this.air && this.isPlayer && this.roadAhead(t);
     const ahead = this.s + (this.v < 0 ? -4 : 4);
     const faceAhead = out > 0 && this.faceAlong(t, this.v < 0 ? -4 : 4);
     const held = this.apart || (ease > 0 || out > Math.abs(lateral) + 0.05) && faceAhead || ease > 0 && (this.intoGround(t, sgn * (wall + ease)) || this.wallBetween(t, this.d, sgn * (wall + ease)) ||
@@ -1023,6 +1029,24 @@ export class Kart {
       if (!g || g.lakitu || g.y < y - 6) return true;
     }
     return false;
+  }
+
+  // Does ground go on 20 the way the kart travels, no steeper than 45 deg down (2 a step of 2) or 1.2 up a step, with
+  // no steep face and no Lakitu's ground across it (a way leading off the route: Yoshi Valley's left fork into the
+  // maze at (-120, -130))?
+  roadAhead(t) {
+    if (!t.groundBelow) return false;
+    const f = t.frameAt(this.s, this.probeFrame ??= { pos: new THREE.Vector3(), T: new THREE.Vector3(), U: new THREE.Vector3(), R: new THREE.Vector3(), k: 0 });
+    const c = Math.cos(this.phi), s = Math.sin(this.phi), dx = f.T.x * c + f.R.x * s, dz = f.T.z * c + f.R.z * s;
+    const x = f.pos.x + f.R.x * this.d, z = f.pos.z + f.R.z * this.d;
+    let y = this.groundY ?? this.y;
+    if (t.sweep && t.sweep(x, z, x + dx * 20, z + dz * 20, y)) return false;
+    for (let a = 2; a <= 20; a += 2) {
+      const g = t.groundBelow(x + dx * a, z + dz * a, y + 1.2);
+      if (!g || g.lakitu || g.y < y - 2) return false;
+      y = g.y;
+    }
+    return true;
   }
 
   // The nearest stretch of the route within a quarter lap whose limits the kart's world spot is inside (route point
