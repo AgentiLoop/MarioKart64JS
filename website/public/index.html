@@ -42,19 +42,13 @@
 <header class="nav">
   <a class="brand" href="#top"><img src="/icon.png?v=2" alt="" width="32" height="32"><span>MarioKart64JS</span></a>
   <nav>
+    <a href="#showcase">Games</a>
     <a href="#features">Features</a>
     <a href="#wii3d">3D karts</a>
     <a href="#controls">Controls</a>
-    <a href="#build">Build it</a>
     <a href="/play">Play online</a>
-    <a href="/architecture">Architecture</a>
     <a class="btn small" href="#download">Download</a>
   </nav>
-  <a class="bmb-banner" href="https://boss-man.us" target="_blank" rel="noopener">
-    <canvas id="bmb-cv" aria-hidden="true"></canvas>
-    <span class="bmb-txt"><b>New: Boss-Man!</b> <span class="bmb-sub">Finish the TPS report, dodge the bosses, keep your red stapler.</span></span>
-    <span class="bmb-go">boss-man.us <span aria-hidden="true">&rarr;</span></span>
-  </a>
 </header>
 
 <main id="top">
@@ -89,17 +83,59 @@
   <div><b>0</b><span>emulators</span></div>
 </section>
 
-<section class="f1ad-wrap" aria-label="Also from AgentiLoop.ai: AgentiLoop Racing F1 Simulator">
-  <a class="f1ad" href="https://f1.gokart.games" target="_blank" rel="noopener">
-    <span class="f1ad-bg" aria-hidden="true"></span>
-    <span class="f1ad-copy">
-      <span class="f1ad-kicker">New from AgentiLoop.ai &middot; free in your browser</span>
-      <span class="f1ad-title">AgentiLoop Racing <b>F1</b> Simulator</span>
-      <span class="f1ad-chips"><span class="f1ad-chip proto">Prototype III</span><span class="f1ad-chip xbox">&#127918; Xbox controller compatible</span></span>
-      <span class="f1ad-tag">Race an open-wheel car against an AI field in 3D on 18 real circuits like Monza, Silverstone, Spa and Monaco. Pit stops, tyre compounds, ERS and DRS on 240&nbsp;Hz physics.</span>
-    </span>
-    <span class="f1ad-cta">Lights out at f1.gokart.games &rarr;</span>
-  </a>
+<section id="showcase" class="games-wrap" aria-labelledby="games-h">
+  <div class="games-head">
+    <span class="games-kicker"><span class="games-dot"></span>Built with AgentiLoop Agent!</span>
+    <h2 class="games-title" id="games-h">Game Showcase</h2>
+    <p class="games-sub">Four racing games made with <a href="https://agentiloop.ai">AgentiLoop.ai</a>. Free to play.</p>
+  </div>
+  <div class="games-grid">
+    <article class="game-card game-gokart">
+      <a class="game-shot" href="https://gokart.games/#download" target="_blank" rel="noopener"><img src="/img/sunset-speedway.jpg" width="1280" height="720" loading="lazy" alt="GoKart.games racing on Sunset Speedway"></a>
+      <div class="game-body">
+        <h3>GoKart.games</h3>
+        <p>A free arcade kart racer built with Godot 4 for macOS, Windows &amp; Linux.</p>
+        <div class="game-ctas">
+          <a class="game-cta" href="https://gokart.games/#download" target="_blank" rel="noopener">Race now &rarr;</a>
+          <a class="game-cta game-cta-ghost" href="https://github.com/AgentiLoop/GoKart" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </article>
+    <article class="game-card game-f1">
+      <a class="game-shot" href="https://f1.gokart.games" target="_blank" rel="noopener"><img src="/img/f1-monaco.jpg" width="1440" height="900" loading="lazy" alt="AgentiLoop Racing F1 Simulator at Monaco"></a>
+      <div class="game-body">
+        <h3>AgentiLoop Racing F1</h3>
+        <p>F1 in your browser: 18 real circuits, pit stops, tyre compounds, ERS and DRS on 240&nbsp;Hz physics.</p>
+        <div class="game-ctas">
+          <a class="game-cta" href="https://f1.gokart.games" target="_blank" rel="noopener">Lights out &rarr;</a>
+          <a class="game-cta game-cta-ghost" href="https://github.com/AgentiLoop/F1" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </article>
+    <article class="game-card game-taxi">
+      <a class="game-shot" href="https://ct.gokart.games" target="_blank" rel="noopener"><img src="/img/crazytaxi.jpg" width="1280" height="720" loading="lazy" alt="CrazyTaxi driving through the Arcade city"></a>
+      <div class="game-body">
+        <h3>CrazyTaxi</h3>
+        <p>A three.js reconstruction of the Sega Dreamcast <em>Crazy Taxi</em>, playable in the browser.</p>
+        <div class="game-ctas">
+          <a class="game-cta" href="https://ct.gokart.games" target="_blank" rel="noopener">Drive now &rarr;</a>
+          <a class="game-cta game-cta-ghost" href="https://github.com/AgentiLoop/CrazyTaxi" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </article>
+    <article class="game-card game-mk">
+      <a class="game-shot" href="/play"><img src="/img/mk64js.jpg" width="1280" height="960" loading="lazy" alt="MarioKart64JS 3D race with Mario"></a>
+      <div class="game-body">
+        <h3>MarioKart64JS</h3>
+        <p>MarioKart64 ported to JavaScript, created with Auto-Pilot, Goals and editing via prompts.</p>
+        <div class="game-ctas">
+          <a class="game-cta" href="/play">Play it &rarr;</a>
+          <a class="game-cta game-cta-ghost" href="https://github.com/AgentiLoop/MarioKart64JS" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </article>
+  </div>
+  <p class="games-note">GoKart and AgentiLoop Racing F1 are 100% original. MarioKart64JS and CrazyTaxi are fan-made reverse-engineering studies: free, not for sale, and not affiliated with or endorsed by Nintendo, SEGA or Formula 1. All trademarks belong to their owners.</p>
 </section>
 
 <section class="band" id="play">
@@ -126,72 +162,6 @@
   </div>
 </section>
 
-<section class="wrap" id="wii3d">
-  <h2>Wii 3D karts: press 3</h2>
-  <p class="sub">An alternative look, and yes, you can dig it. Hit <kbd>3</kbd> on the title screen and the N64 title becomes a 3D scene: Mario, Wario, Bowser, Peach and Toad in Wii-style Standard Karts driving at you down a scrolling road. Hit <kbd>3</kbd> again for the original art. In a race, <kbd>3</kbd> swaps every kart (each driver in their own Standard Kart) and the referee Lakitu for 3D models with real shadows. Your choice is remembered for the next race.</p>
-  <h3 class="gh">The 3D title screen</h3>
-  <p><img src="/img/title3d.gif" alt="Animated 3D title screen: five Wii karts driving at the camera" width="640" height="480" loading="lazy" style="max-width:100%;height:auto;border-radius:8px"></p>
-  <div class="gallery">
-    <a href="/img/title3d.jpg"><img src="/img/title3d.jpg" alt="3D title screen with five Wii karts driving at the camera" loading="lazy"><span>3D title screen</span></a>
-    <a href="/img/game-select3d.jpg"><img src="/img/game-select3d.jpg" alt="Game select over the 3D title scene" loading="lazy"><span>Game select over the 3D scene</span></a>
-  </div>
-  <h3 class="gh">Racing in 3D</h3>
-  <div class="gallery">
-    <a href="/img/race3d-mario.jpg"><img src="/img/race3d-mario.jpg" alt="Driving a 3D Wii kart on Mario Raceway" loading="lazy"><span>Mario Raceway</span></a>
-    <a href="/img/race3d-luigi.jpg"><img src="/img/race3d-luigi.jpg" alt="Driving a 3D Wii kart on Luigi Raceway" loading="lazy"><span>Luigi Raceway</span></a>
-    <a href="/img/race3d-koopa.jpg"><img src="/img/race3d-koopa.jpg" alt="Driving a 3D Wii kart on Koopa Troopa Beach" loading="lazy"><span>Koopa Troopa Beach</span></a>
-    <a href="/img/race3d-royal.jpg"><img src="/img/race3d-royal.jpg" alt="Driving a 3D Wii kart on Royal Raceway" loading="lazy"><span>Royal Raceway</span></a>
-    <a href="/img/race3d-dk.jpg"><img src="/img/race3d-dk.jpg" alt="Driving a 3D Wii kart on D.K.'s Jungle Parkway" loading="lazy"><span>D.K.'s Jungle Parkway</span></a>
-    <a href="/img/race3d-bowser.jpg"><img src="/img/race3d-bowser.jpg" alt="Driving a 3D Wii kart on Bowser's Castle" loading="lazy"><span>Bowser's Castle</span></a>
-  </div>
-  <h3 class="gh">Fly-overs after the finish</h3>
-  <p class="sub">Cross the line on the last lap and the camera takes over like the console's: it swings round the kart to its nose, cuts to roadside shots, a high crane and a low tail shot. With the Wii karts on, your 3D kart is the star of every one.</p>
-  <div class="gallery quad">
-    <a href="/img/fly3d-tail-bowser.jpg"><img src="/img/fly3d-tail-bowser.jpg" alt="Finish fly-over: low tail shot of a 3D Wii kart and two rivals on Bowser's Castle" loading="lazy"><span>Low tail shot, Bowser's Castle</span></a>
-    <a href="/img/fly3d-nose-wario.jpg"><img src="/img/fly3d-nose-wario.jpg" alt="Finish fly-over: head-on view of a 3D Wii kart and a rival on Wario Stadium" loading="lazy"><span>Head-on, Wario Stadium</span></a>
-    <a href="/img/fly3d-tail-sherbet.jpg"><img src="/img/fly3d-tail-sherbet.jpg" alt="Finish fly-over: low tail shot of a 3D Wii kart and a rival on Sherbet Land" loading="lazy"><span>Low tail shot, Sherbet Land</span></a>
-    <a href="/img/fly3d-chase-royal.jpg"><img src="/img/fly3d-chase-royal.jpg" alt="Finish fly-over: low tail shot of a 3D Wii kart and a rival on Royal Raceway" loading="lazy"><span>Low tail shot, Royal Raceway</span></a>
-  </div>
-</section>
-
-<section class="wrap" id="controls">
-  <h2>Controls</h2>
-  <p class="sub">Keyboard or gamepad. Enter, Space, click or the arrow keys get you through the menus; Esc or Delete goes back, L opens Options and R opens Data.</p>
-  <div class="keys">
-    <div><kbd>&uarr;</kbd><kbd>W</kbd><span>Gas</span></div>
-    <div><kbd>&darr;</kbd><kbd>S</kbd><span>Brake</span></div>
-    <div><kbd>&larr;</kbd><kbd>&rarr;</kbd><kbd>A</kbd><kbd>D</kbd><span>Steer</span></div>
-    <div><kbd>Space</kbd><span>Drift, release for mini-turbo</span></div>
-    <div><kbd>Shift</kbd><kbd>E</kbd><span>Use item: hold to drag, release to drop (with &darr; / S a green shell goes backwards)</span></div>
-    <div><kbd>Q</kbd><span>Use item, a held banana is thrown ahead</span></div>
-    <div><kbd>Delete</kbd><span>Restart</span></div>
-    <div><kbd>G</kbd><span>Resolution: 240p / 480p / 960p / native</span></div>
-    <div><kbd>3</kbd><span>Wii 3D karts on / off (title screen and races)</span></div>
-    <div><kbd>J</kbd><span>Jump mode: Jumps / Glue</span></div>
-    <div><kbd>N</kbd><span>Music on / off</span></div>
-    <div><kbd>M</kbd><span>Course menu</span></div>
-  </div>
-</section>
-
-<section class="wrap" id="url-arguments">
-  <h2>URL arguments</h2>
-  <p class="sub">Add these to the game's address to skip the menus or switch settings, for example <a href="/play/?track=banshee&amp;char=mario&amp;cc=extra&amp;mode=mario_gp&amp;autopilot&amp;3d=3d&amp;graphics=960&amp;jump=glue&amp;showphysics=true"><code>/play/?track=banshee&amp;char=mario&amp;cc=extra&amp;mode=mario_gp&amp;autopilot&amp;3d=3d&amp;graphics=960&amp;jump=glue&amp;showphysics=true</code></a></p>
-  <div class="keys">
-    <div><code>track</code><span>Starts a race on that course: luigi, moomoo, koopa, kalimari, toad, frappe, choco, mario, wario, sherbet, royal, bowser, dk, yoshi, banshee, rainbow; battle: big-donut, block-fort, double-deck, skyscraper</span></div>
-    <div><code>char</code><span>Your driver: mario, luigi, peach, toad, yoshi, donkeykong, wario, bowser</span></div>
-    <div><code>cc</code><span>50 / 100 / 150 / extra (mirror). Default 150, ignored in Time Trials and Battle</span></div>
-    <div><code>mode</code><span>mario_gp / vs / time_trials / battle. Default mario_gp</span></div>
-    <div><code>autopilot</code><span>No value: the CPU drives your kart</span></div>
-    <div><code>3d</code><span>3d / 2d: Wii 3D karts on / off, like <kbd>3</kbd></span></div>
-    <div><code>graphics</code><span>240 / 480 / 960 / native, like <kbd>G</kbd></span></div>
-    <div><code>jump</code><span>jump / glue: kart physics, like <kbd>J</kbd></span></div>
-    <div><code>showphysics</code><span>true / false: show physics bodies, like <kbd>P</kbd> (<code>physics</code> also works)</span></div>
-    <div><code>players</code><span>2 / 3 / 4 with <code>track</code>: join an online race</span></div>
-    <div><code>lobby</code><span>A ws:// or wss:// lobby server URL, kept for the session</span></div>
-  </div>
-  <p class="muted">3d, graphics and jump are saved like their keys. The game adds <code>menu</code>, <code>from</code>, <code>room</code> and <code>you</code> to its own links; you don't need to set them.</p>
-</section>
-
 <section class="band" id="download">
   <div class="wrap">
     <h2>Download</h2>
@@ -208,6 +178,100 @@
   </div>
 </section>
 
+<section class="wrap more" aria-label="More about MarioKart64JS">
+  <h2>More about MarioKart64JS</h2>
+
+  <details id="wii3d">
+    <summary>Wii 3D karts: press 3</summary>
+    <div class="dbody">
+      <p class="sub">An alternative look, and yes, you can dig it. Hit <kbd>3</kbd> on the title screen and the N64 title becomes a 3D scene: Mario, Wario, Bowser, Peach and Toad in Wii-style Standard Karts driving at you down a scrolling road. Hit <kbd>3</kbd> again for the original art. In a race, <kbd>3</kbd> swaps every kart (each driver in their own Standard Kart) and the referee Lakitu for 3D models with real shadows. Your choice is remembered for the next race.</p>
+      <h3 class="gh">The 3D title screen</h3>
+      <p><img src="/img/title3d.gif" alt="Animated 3D title screen: five Wii karts driving at the camera" width="640" height="480" loading="lazy" style="max-width:100%;height:auto;border-radius:8px"></p>
+      <div class="gallery">
+        <a href="/img/title3d.jpg"><img src="/img/title3d.jpg" alt="3D title screen with five Wii karts driving at the camera" loading="lazy"><span>3D title screen</span></a>
+        <a href="/img/game-select3d.jpg"><img src="/img/game-select3d.jpg" alt="Game select over the 3D title scene" loading="lazy"><span>Game select over the 3D scene</span></a>
+      </div>
+      <h3 class="gh">Racing in 3D</h3>
+      <div class="gallery">
+        <a href="/img/race3d-mario.jpg"><img src="/img/race3d-mario.jpg" alt="Driving a 3D Wii kart on Mario Raceway" loading="lazy"><span>Mario Raceway</span></a>
+        <a href="/img/race3d-luigi.jpg"><img src="/img/race3d-luigi.jpg" alt="Driving a 3D Wii kart on Luigi Raceway" loading="lazy"><span>Luigi Raceway</span></a>
+        <a href="/img/race3d-koopa.jpg"><img src="/img/race3d-koopa.jpg" alt="Driving a 3D Wii kart on Koopa Troopa Beach" loading="lazy"><span>Koopa Troopa Beach</span></a>
+        <a href="/img/race3d-royal.jpg"><img src="/img/race3d-royal.jpg" alt="Driving a 3D Wii kart on Royal Raceway" loading="lazy"><span>Royal Raceway</span></a>
+        <a href="/img/race3d-dk.jpg"><img src="/img/race3d-dk.jpg" alt="Driving a 3D Wii kart on D.K.'s Jungle Parkway" loading="lazy"><span>D.K.'s Jungle Parkway</span></a>
+        <a href="/img/race3d-bowser.jpg"><img src="/img/race3d-bowser.jpg" alt="Driving a 3D Wii kart on Bowser's Castle" loading="lazy"><span>Bowser's Castle</span></a>
+      </div>
+      <h3 class="gh">Fly-overs after the finish</h3>
+      <p class="sub">Cross the line on the last lap and the camera takes over like the console's: it swings round the kart to its nose, cuts to roadside shots, a high crane and a low tail shot. With the Wii karts on, your 3D kart is the star of every one.</p>
+      <div class="gallery quad">
+        <a href="/img/fly3d-tail-bowser.jpg"><img src="/img/fly3d-tail-bowser.jpg" alt="Finish fly-over: low tail shot of a 3D Wii kart and two rivals on Bowser's Castle" loading="lazy"><span>Low tail shot, Bowser's Castle</span></a>
+        <a href="/img/fly3d-nose-wario.jpg"><img src="/img/fly3d-nose-wario.jpg" alt="Finish fly-over: head-on view of a 3D Wii kart and a rival on Wario Stadium" loading="lazy"><span>Head-on, Wario Stadium</span></a>
+        <a href="/img/fly3d-tail-sherbet.jpg"><img src="/img/fly3d-tail-sherbet.jpg" alt="Finish fly-over: low tail shot of a 3D Wii kart and a rival on Sherbet Land" loading="lazy"><span>Low tail shot, Sherbet Land</span></a>
+        <a href="/img/fly3d-chase-royal.jpg"><img src="/img/fly3d-chase-royal.jpg" alt="Finish fly-over: low tail shot of a 3D Wii kart and a rival on Royal Raceway" loading="lazy"><span>Low tail shot, Royal Raceway</span></a>
+      </div>
+    </div>
+  </details>
+
+  <details id="controls">
+    <summary>Controls</summary>
+    <div class="dbody">
+      <p class="sub">Keyboard or gamepad. Enter, Space, click or the arrow keys get you through the menus; Esc or Delete goes back, L opens Options and R opens Data.</p>
+      <div class="keys">
+        <div><kbd>&uarr;</kbd><kbd>W</kbd><span>Gas</span></div>
+        <div><kbd>&darr;</kbd><kbd>S</kbd><span>Brake</span></div>
+        <div><kbd>&larr;</kbd><kbd>&rarr;</kbd><kbd>A</kbd><kbd>D</kbd><span>Steer</span></div>
+        <div><kbd>Space</kbd><span>Drift, release for mini-turbo</span></div>
+        <div><kbd>Shift</kbd><kbd>E</kbd><span>Use item: hold to drag, release to drop (with &darr; / S a green shell goes backwards)</span></div>
+        <div><kbd>Q</kbd><span>Use item, a held banana is thrown ahead</span></div>
+        <div><kbd>Delete</kbd><span>Restart</span></div>
+        <div><kbd>G</kbd><span>Resolution: 240p / 480p / 960p / native</span></div>
+        <div><kbd>3</kbd><span>Wii 3D karts on / off (title screen and races)</span></div>
+        <div><kbd>J</kbd><span>Jump mode: Jumps / Glue</span></div>
+        <div><kbd>N</kbd><span>Music on / off</span></div>
+        <div><kbd>M</kbd><span>Course menu</span></div>
+      </div>
+    </div>
+  </details>
+
+  <details id="url-arguments">
+    <summary>URL arguments</summary>
+    <div class="dbody">
+      <p class="sub">Add these to the game's address to skip the menus or switch settings, for example <a href="/play/?track=banshee&amp;char=mario&amp;cc=extra&amp;mode=mario_gp&amp;autopilot&amp;3d=3d&amp;graphics=960&amp;jump=glue&amp;showphysics=true"><code>/play/?track=banshee&amp;char=mario&amp;cc=extra&amp;mode=mario_gp&amp;autopilot&amp;3d=3d&amp;graphics=960&amp;jump=glue&amp;showphysics=true</code></a></p>
+      <div class="keys">
+        <div><code>track</code><span>Starts a race on that course: luigi, moomoo, koopa, kalimari, toad, frappe, choco, mario, wario, sherbet, royal, bowser, dk, yoshi, banshee, rainbow; battle: big-donut, block-fort, double-deck, skyscraper</span></div>
+        <div><code>char</code><span>Your driver: mario, luigi, peach, toad, yoshi, donkeykong, wario, bowser</span></div>
+        <div><code>cc</code><span>50 / 100 / 150 / extra (mirror). Default 150, ignored in Time Trials and Battle</span></div>
+        <div><code>mode</code><span>mario_gp / vs / time_trials / battle. Default mario_gp</span></div>
+        <div><code>autopilot</code><span>No value: the CPU drives your kart</span></div>
+        <div><code>3d</code><span>3d / 2d: Wii 3D karts on / off, like <kbd>3</kbd></span></div>
+        <div><code>graphics</code><span>240 / 480 / 960 / native, like <kbd>G</kbd></span></div>
+        <div><code>jump</code><span>jump / glue: kart physics, like <kbd>J</kbd></span></div>
+        <div><code>showphysics</code><span>true / false: show physics bodies, like <kbd>P</kbd> (<code>physics</code> also works)</span></div>
+        <div><code>players</code><span>2 / 3 / 4 with <code>track</code>: join an online race</span></div>
+        <div><code>lobby</code><span>A ws:// or wss:// lobby server URL, kept for the session</span></div>
+      </div>
+      <p class="muted">3d, graphics and jump are saved like their keys. The game adds <code>menu</code>, <code>from</code>, <code>room</code> and <code>you</code> to its own links; you don't need to set them.</p>
+    </div>
+  </details>
+
+  <details id="build">
+    <summary>Run it from source</summary>
+    <div class="dbody">
+      <p class="sub">You need Node.js.</p>
+    <pre><code>git clone https://github.com/AgentiLoop/MarioKart64JS.git
+cd MarioKart64JS
+npm install
+npm run dev        # http://localhost:5173</code></pre>
+      <p class="muted">Hi-res graphics (press G) come from the <a href="https://github.com/GhostlyDark/MK64-Reloaded">MK64 Reloaded</a> pack.</p>
+      <h3 class="gap">On the roadmap</h3>
+      <ul class="road">
+        <li>Character select highlighter for the animated faces</li>
+        <li>Battle mode on the 4 battle arenas</li>
+        <li>More gameplay parity: CC classes, AI personalities, Lakitu</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
 <section class="bm-wrap" aria-label="Also from AgentiLoop.ai: Boss-Man">
   <a class="bm" href="https://boss-man.us" target="_blank" rel="noopener">
     <span class="bm-maze" aria-hidden="true"></span>
@@ -219,22 +283,6 @@
     </span>
     <span class="bm-cta">Play free at boss-man.us &rarr;</span>
   </a>
-</section>
-
-<section class="wrap" id="build">
-  <h2>Run it from source</h2>
-  <p class="sub">You need Node.js.</p>
-<pre><code>git clone https://github.com/AgentiLoop/MarioKart64JS.git
-cd MarioKart64JS
-npm install
-npm run dev        # http://localhost:5173</code></pre>
-  <p class="muted">Hi-res graphics (press G) come from the <a href="https://github.com/GhostlyDark/MK64-Reloaded">MK64 Reloaded</a> pack.</p>
-  <h3 class="gap">On the roadmap</h3>
-  <ul class="road">
-    <li>Character select highlighter for the animated faces</li>
-    <li>Battle mode on the 4 battle arenas</li>
-    <li>More gameplay parity: CC classes, AI personalities, Lakitu</li>
-  </ul>
 </section>
 </main>
 

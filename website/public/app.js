@@ -29,6 +29,17 @@
   fit();
 })();
 
+// Open a collapsed "More about" section when its #hash is linked or clicked in the nav.
+(() => {
+  const open = () => {
+    const t = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    const d = t && t.closest('details');
+    if (d) { d.open = true; t.scrollIntoView(); }
+  };
+  open();
+  addEventListener('hashchange', open);
+})();
+
 // Screenshot lightbox.
 document.querySelectorAll('.gallery a').forEach((a) => a.addEventListener('click', (e) => {
   e.preventDefault();
