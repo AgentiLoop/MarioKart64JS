@@ -126,7 +126,7 @@ body{background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparen
 .mk-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fde68a;background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.35);padding:6px 13px;border-radius:999px}
 .mk-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;animation:mkLights 1.8s steps(1) infinite}
 @keyframes mkLights{0%{background:#ef4444}33%{background:#facc15}66%{background:#22c55e}}
-.mk-title{font-size:clamp(36px,5vw,60px);line-height:1.05;letter-spacing:-.025em;margin:18px 0 10px;color:#fff;font-weight:900}
+.mk-title{white-space:nowrap;font-size:clamp(32px,4.2vw,56px);line-height:1.05;letter-spacing:-.025em;margin:18px 0 10px;color:#fff;font-weight:900}
 .mk-rainbow{background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:mkShine 4s linear infinite;filter:drop-shadow(0 0 18px rgba(236,72,153,.45))}
 @keyframes mkShine{to{background-position:200% center}}
 .mk-js{color:#f7df1e;text-shadow:0 0 22px rgba(247,223,30,.55)}
