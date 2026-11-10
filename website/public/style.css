@@ -309,7 +309,9 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 .agent-ad-os .os-b{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
 .agent-ad-os .os-c{background:linear-gradient(135deg,#0ea5e9,#22c55e)}
 .agent-ad-os .os-d{background:linear-gradient(135deg,#ef4444,#f97316)}
-.agent-ad-ctas{display:flex;flex-wrap:wrap;gap:12px}
+.agent-ad-ctas{display:flex;flex-wrap:nowrap;gap:12px}
+.agent-ad-ctas .agent-ad-cta{white-space:nowrap;padding:13px 20px;font-size:17px}
+@media (max-width:480px){.agent-ad-ctas{flex-wrap:wrap}}
 .agent-ad-cta{position:relative;display:inline-flex;align-items:center;gap:8px;overflow:hidden;font-weight:900;font-size:18px;color:#111;padding:14px 26px;border-radius:14px;text-decoration:none;background:linear-gradient(135deg,#facc15,#f97316);box-shadow:0 12px 30px -8px rgba(250,204,21,.75);transition:transform .2s ease,box-shadow .2s ease;animation:aaPulse 2.2s ease-in-out infinite}
 .agent-ad-cta::after{content:"";position:absolute;top:-50%;left:-60%;width:40%;height:200%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:rotate(20deg);animation:bmShine 3.2s ease-in-out infinite}
 .agent-ad-cta span{transition:transform .2s ease}
