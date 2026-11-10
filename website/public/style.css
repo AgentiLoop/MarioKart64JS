@@ -284,37 +284,64 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 @media (max-width:640px){.promo-slide{padding:8px 14px;font-size:.9rem;gap:6px 10px}.promo-icon,.promo-more,.promo-dots{display:none}}
 @media (prefers-reduced-motion:reduce){.promo::after,.promo-slide::before,.promo-grad,.promo-cta,.promo-new,.promo-caret{animation:none}.promo-slide{transition:opacity .3s ease,visibility 0s linear .3s;transform:none;filter:none}}
 
-/* ---------- AgentiLoop Agent! ad (white card, ported from agent.xcf.ai .cli-ad), first on the page: the top padding clears the fixed nav + promo banner ---------- */
-.agent-ad-wrap{max-width:1120px;margin:0 auto;padding:150px 22px 20px}
-.agent-ad{position:relative;display:grid;gap:28px;background:#fff;color:#0f172a;border-radius:22px;padding:36px 40px;overflow:hidden;box-shadow:0 20px 60px rgba(59,130,246,.25);transition:transform .25s ease,box-shadow .25s ease}
-.agent-ad::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#3b82f6,#22d3ee)}
-.agent-ad:hover{transform:translateY(-3px);box-shadow:0 26px 70px rgba(139,92,246,.3)}
-.agent-ad-copy{display:grid;grid-template-columns:1.05fr 1fr;column-gap:40px;align-items:start}
-.agent-ad-copy>*{grid-column:1}
-.agent-ad-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.agent-ad-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c2410c;background:#fff7ed;border:1px solid #fed7aa;padding:5px 12px;border-radius:999px}
-.agent-ad-dot{width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0;animation:agentAdPulse 1.6s infinite}
-@keyframes agentAdPulse{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}50%{box-shadow:0 0 0 6px rgba(249,115,22,0)}}
-.agent-ad h2{display:flex;align-items:center;gap:14px;font-size:clamp(30px,4vw,42px);line-height:1.1;margin:14px 0 8px;letter-spacing:-.02em;color:#0f172a;background:none}
-.agent-ad h2 img{flex-shrink:0}
-.agent-ad-grad{background:linear-gradient(135deg,#f97316,#ec4899 50%,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
-.agent-ad-sub{font-size:17px;color:#475569;margin:0 0 16px}
-.agent-ad-os{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-.agent-ad-os span{font-size:13px;font-weight:600;padding:5px 12px;border-radius:8px}
-.agent-ad-os .os-a{background:#eff6ff;color:#1d4ed8}
-.agent-ad-os .os-b{background:#ecfeff;color:#0e7490}
-.agent-ad-os .os-c{background:#f5f3ff;color:#6d28d9}
-.agent-ad-points{grid-column:2;grid-row:1/span 6;align-self:center;list-style:none;margin:0;padding:0}
-.agent-ad-points li{position:relative;padding-left:24px;font-size:15px;color:#334155;margin:6px 0}
-.agent-ad-points li::before{content:"\25B8";position:absolute;left:4px;color:#ec4899;font-weight:700}
-.agent-ad-points code{font-size:13px;background:#f1f5f9}
-.agent-ad-release{font-size:16px;font-weight:700;color:#0f172a;margin:6px 0 12px}
+/* ---------- AgentiLoop Agent! ad: spinning rainbow-border card (same family as .mk-card / Boss-Man), first on the page: the top padding clears the fixed nav + promo banner ---------- */
+.agent-ad-wrap{max-width:1180px;margin:0 auto;padding:150px 22px 20px}
+@property --aa-angle{syntax:"<angle>";initial-value:0deg;inherits:false}
+.agent-ad{position:relative;display:grid;grid-template-columns:1fr 1.15fr;gap:34px 40px;align-items:center;padding:42px 44px 38px;border-radius:26px;overflow:hidden;isolation:isolate;color:#e2e8f0;box-shadow:0 30px 90px -24px rgba(139,92,246,.6),0 0 90px -30px rgba(34,211,238,.6);transition:transform .3s ease,box-shadow .3s ease}
+.agent-ad:hover{transform:translateY(-4px);box-shadow:0 40px 100px -24px rgba(236,72,153,.65),0 0 120px -30px rgba(34,211,238,.8)}
+.agent-ad::before{content:"";position:absolute;inset:0;z-index:-2;border-radius:inherit;background:conic-gradient(from var(--aa-angle),#f97316,#facc15,#22c55e,#22d3ee,#3b82f6,#8b5cf6,#ec4899,#f97316);animation:aaSpin 5s linear infinite}
+.agent-ad::after{content:"";position:absolute;inset:3px;z-index:-1;border-radius:23px;background:radial-gradient(70% 90% at 0% 0%,rgba(249,115,22,.28),transparent 60%),radial-gradient(70% 90% at 100% 0%,rgba(139,92,246,.3),transparent 60%),radial-gradient(90% 70% at 50% 110%,rgba(34,211,238,.22),transparent 60%),linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px) 0 0/34px 34px,linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px) 0 0/34px 34px,linear-gradient(160deg,#160a2c,#0b1026 55%,#06182a)}
+@keyframes aaSpin{to{--aa-angle:360deg}}
+.agent-ad-copy{position:relative;z-index:1}
+.agent-ad-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fde68a;background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.35);padding:6px 13px;border-radius:999px}
+.agent-ad-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;animation:mkLights 1.8s steps(1) infinite}
+.agent-ad h2{display:flex;align-items:center;gap:16px;font-size:clamp(38px,5.2vw,62px);line-height:1;margin:18px 0 10px;letter-spacing:-.03em;font-weight:900;color:#fff;background:none;-webkit-text-fill-color:currentColor}
+.agent-ad h2 img{flex-shrink:0;width:clamp(48px,6vw,68px);height:auto;filter:drop-shadow(0 0 18px rgba(34,211,238,.55));animation:aaBob 3s ease-in-out infinite}
+@keyframes aaBob{50%{transform:translateY(-6px) rotate(-4deg)}}
+.agent-ad-grad{background:linear-gradient(90deg,#f97316,#facc15,#ec4899,#8b5cf6,#22d3ee,#f97316);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:mkShine 3.5s linear infinite;filter:drop-shadow(0 0 20px rgba(236,72,153,.5))}
+.agent-ad-punch{margin:0 0 14px;font-size:clamp(22px,2.6vw,30px);font-weight:900;font-style:italic;letter-spacing:-.01em;color:#fff;transform:skewX(-6deg);transform-origin:left}
+.agent-ad-punch span{color:#facc15;text-shadow:0 0 22px rgba(250,204,21,.6)}
+.agent-ad-sub{font-size:17px;color:#cbd5e1;margin:0 0 18px}
+.agent-ad-sub b{color:#fff}
+.agent-ad-os{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}
+.agent-ad-os span{font-size:13px;font-weight:800;padding:7px 14px;border-radius:10px;color:#fff;transform:skewX(-8deg);box-shadow:0 8px 20px -8px currentColor}
+.agent-ad-os .os-a{background:linear-gradient(135deg,#3b82f6,#22d3ee)}
+.agent-ad-os .os-b{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+.agent-ad-os .os-c{background:linear-gradient(135deg,#0ea5e9,#22c55e)}
+.agent-ad-os .os-d{background:linear-gradient(135deg,#ef4444,#f97316)}
 .agent-ad-ctas{display:flex;flex-wrap:wrap;gap:12px}
-.agent-ad-cta{display:inline-block;font-weight:700;color:#fff;padding:11px 22px;border-radius:10px;text-decoration:none;background:linear-gradient(135deg,#f97316,#ec4899 55%,#8b5cf6);transition:transform .2s ease,box-shadow .2s ease}
-.agent-ad-cta:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(139,92,246,.3)}
-.agent-ad-cta-alt{background:linear-gradient(135deg,#00add8,#3b82f6 55%,#8b5cf6)}
-.agent-ad-shot{display:block;perspective:1400px}
-.agent-ad-shot img{width:100%;height:auto;border-radius:2%/3.556%;background:#262728;transform:rotateX(9deg) scale(.985);transform-origin:50% 100%;box-shadow:0 30px 60px -20px rgba(139,92,246,.45),0 18px 40px rgba(15,23,42,.25);transition:transform .55s cubic-bezier(.2,.8,.2,1),box-shadow .55s ease}
-.agent-ad-shot:hover img{transform:rotateX(0) scale(1.01);box-shadow:0 40px 80px -20px rgba(59,130,246,.5),0 24px 50px rgba(15,23,42,.3)}
-@media (max-width:900px){.agent-ad{padding:30px 24px}.agent-ad-copy{grid-template-columns:1fr}.agent-ad-points{grid-column:1;grid-row:auto;margin-bottom:20px}}
-@media (prefers-reduced-motion:reduce){.agent-ad-dot{animation:none}.agent-ad,.agent-ad-shot img,.agent-ad-cta{transition:none}}
+.agent-ad-cta{position:relative;display:inline-flex;align-items:center;gap:8px;overflow:hidden;font-weight:900;font-size:18px;color:#111;padding:14px 26px;border-radius:14px;text-decoration:none;background:linear-gradient(135deg,#facc15,#f97316);box-shadow:0 12px 30px -8px rgba(250,204,21,.75);transition:transform .2s ease,box-shadow .2s ease;animation:aaPulse 2.2s ease-in-out infinite}
+.agent-ad-cta::after{content:"";position:absolute;top:-50%;left:-60%;width:40%;height:200%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:rotate(20deg);animation:bmShine 3.2s ease-in-out infinite}
+.agent-ad-cta span{transition:transform .2s ease}
+.agent-ad-cta:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 16px 38px -8px rgba(250,204,21,.95)}
+.agent-ad-cta:hover span{transform:translateX(4px)}
+.agent-ad-cta-alt{color:#e2e8f0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.2);box-shadow:none;animation:none}
+.agent-ad-cta-alt::after{display:none}
+.agent-ad-cta-alt:hover{background:rgba(255,255,255,.12);box-shadow:0 0 0 1px rgba(34,211,238,.6),0 12px 30px -10px rgba(34,211,238,.6)}
+@keyframes aaPulse{0%,100%{box-shadow:0 12px 30px -8px rgba(250,204,21,.75),0 0 0 0 rgba(250,204,21,.5)}50%{box-shadow:0 12px 30px -8px rgba(250,204,21,.75),0 0 0 9px rgba(250,204,21,0)}}
+.agent-ad-shot{position:relative;z-index:1;display:block;perspective:1400px;text-decoration:none;animation:mkFloat 5s ease-in-out infinite}
+.agent-ad-shot:hover{animation-play-state:paused}
+.agent-ad-shot img{width:100%;height:auto;border-radius:2%/3.556%;background:#262728;border:2px solid rgba(255,255,255,.12);transform:rotateY(10deg) rotateX(4deg);transform-origin:70% 50%;box-shadow:0 0 0 1px rgba(139,92,246,.45),0 34px 70px -18px rgba(139,92,246,.7),0 0 70px rgba(34,211,238,.25);transition:transform .6s cubic-bezier(.2,.8,.2,1),box-shadow .6s ease}
+.agent-ad-shot:hover img{transform:rotateY(0) rotateX(0) scale(1.02);box-shadow:0 0 0 1px rgba(250,204,21,.6),0 40px 90px -18px rgba(250,204,21,.5),0 0 90px rgba(236,72,153,.35)}
+.agent-ad-prompt{position:absolute;z-index:2;left:-14px;top:-18px;max-width:92%;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:12px;font:700 14px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#e2e8f0;background:rgba(6,9,19,.92);border:1px solid rgba(74,222,128,.45);box-shadow:0 0 22px rgba(74,222,128,.3),0 14px 30px -10px rgba(0,0,0,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-ad-prompt b{color:#4ade80}
+.agent-ad-prompt i{display:inline-block;width:8px;height:1.05em;background:#4ade80;animation:promo-caret 1s steps(1) infinite}
+.agent-ad-why{grid-column:1/-1;position:relative;z-index:1}
+.agent-ad-why-h{margin:0 0 16px;text-align:center;font-size:clamp(24px,3vw,34px);font-weight:900;letter-spacing:-.02em;color:#fff}
+.agent-ad-why-h span{background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:mkShine 4s linear infinite}
+.agent-ad-feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;list-style:none;margin:0;padding:0}
+.agent-ad-feats li{--c:#facc15;position:relative;display:flex;flex-direction:column;gap:6px;padding:18px 18px 18px 20px;border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-left:4px solid var(--c);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.agent-ad-feats li:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--c) 70%,transparent);box-shadow:0 18px 40px -16px var(--c)}
+.agent-ad-feats b{font-size:17px;font-weight:900;color:var(--c)}
+.agent-ad-feats span{font-size:14.5px;color:#cbd5e1;line-height:1.5}
+.agent-ad-feats code{font-size:13px;color:#4ade80;background:rgba(74,222,128,.1)}
+.agent-ad-feats .f-a{--c:#f97316}
+.agent-ad-feats .f-b{--c:#facc15}
+.agent-ad-feats .f-c{--c:#22c55e}
+.agent-ad-feats .f-d{--c:#22d3ee}
+.agent-ad-feats .f-e{--c:#a78bfa}
+.agent-ad-feats .f-f{--c:#ec4899}
+@media (max-width:980px){.agent-ad-feats{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:900px){.agent-ad{grid-template-columns:1fr;padding:32px 22px;gap:30px}.agent-ad-shot img{transform:none}.agent-ad-prompt{left:8px;top:-16px}}
+@media (max-width:600px){.agent-ad-feats{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.agent-ad::before,.agent-ad-dot,.agent-ad h2 img,.agent-ad-grad,.agent-ad-cta,.agent-ad-cta::after,.agent-ad-shot,.agent-ad-prompt i,.agent-ad-why-h span{animation:none}.agent-ad,.agent-ad-shot img,.agent-ad-cta,.agent-ad-feats li{transition:none}}
