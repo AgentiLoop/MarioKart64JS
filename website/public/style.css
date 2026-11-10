@@ -137,7 +137,8 @@ body{background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparen
 .mk-chip-a{background:linear-gradient(135deg,#ef4444,#f97316)}
 .mk-chip-b{background:linear-gradient(135deg,#22c55e,#0ea5e9)}
 .mk-chip-c{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
-.hero .cta{justify-content:flex-start;gap:12px}
+.hero .cta{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:520px}
+.hero .cta .btn{text-align:center;white-space:nowrap}
 .hero .plat-line{grid-column:1/-1;margin:0;text-align:center}
 .mk-screen{display:block;perspective:1400px;position:relative;animation:mkFloat 5s ease-in-out infinite}
 .mk-screen:hover{animation-play-state:paused}
