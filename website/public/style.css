@@ -314,7 +314,7 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 .agent-ad-cta:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(139,92,246,.3)}
 .agent-ad-cta-alt{background:linear-gradient(135deg,#00add8,#3b82f6 55%,#8b5cf6)}
 .agent-ad-shot{display:block;perspective:1400px}
-.agent-ad-shot img{width:100%;height:auto;border-radius:14px;background:#0f172a;transform:rotateX(9deg) scale(.985);transform-origin:50% 100%;box-shadow:0 30px 60px -20px rgba(139,92,246,.45),0 18px 40px rgba(15,23,42,.25);transition:transform .55s cubic-bezier(.2,.8,.2,1),box-shadow .55s ease}
+.agent-ad-shot img{width:100%;height:auto;border-radius:2%/3.556%;background:#262728;transform:rotateX(9deg) scale(.985);transform-origin:50% 100%;box-shadow:0 30px 60px -20px rgba(139,92,246,.45),0 18px 40px rgba(15,23,42,.25);transition:transform .55s cubic-bezier(.2,.8,.2,1),box-shadow .55s ease}
 .agent-ad-shot:hover img{transform:rotateX(0) scale(1.01);box-shadow:0 40px 80px -20px rgba(59,130,246,.5),0 24px 50px rgba(15,23,42,.3)}
 @media (max-width:900px){.agent-ad{padding:30px 24px}.agent-ad-copy{grid-template-columns:1fr}.agent-ad-points{grid-column:1;grid-row:auto;margin-bottom:20px}}
 @media (prefers-reduced-motion:reduce){.agent-ad-dot{animation:none}.agent-ad,.agent-ad-shot img,.agent-ad-cta{transition:none}}
