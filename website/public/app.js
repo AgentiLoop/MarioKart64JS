@@ -13,6 +13,57 @@
   document.getElementById('hero-dl').href = card.href;
 })();
 
+// Promo banner under the nav: alternate the slides, pause on hover/focus, the segments jump to a slide (from agent.xcf.ai promo.js).
+(() => {
+  const promo = document.getElementById('promo');
+  if (!promo) return;
+  const slides = promo.querySelectorAll('.promo-slide'), dots = promo.querySelectorAll('.promo-dot');
+  const ms = 7000;
+  let cur = 0, timer = null, left = ms, started = 0;
+  const schedule = () => {
+    clearTimeout(timer);
+    if (promo.classList.contains('is-paused')) return;
+    started = Date.now();
+    timer = setTimeout(() => show(cur + 1), left);
+  };
+  const show = (i) => {
+    cur = (i + slides.length) % slides.length;
+    slides.forEach((s, n) => {
+      const on = n === cur;
+      s.classList.toggle('is-active', on);
+      s.setAttribute('aria-hidden', on ? 'false' : 'true');
+      s.querySelectorAll('a').forEach((a) => { a.tabIndex = on ? 0 : -1; });
+    });
+    dots.forEach((d, n) => {
+      d.classList.remove('is-active');
+      void d.offsetWidth; // restart the progress animation
+      d.classList.toggle('is-active', n === cur);
+      d.classList.toggle('is-done', n < cur);
+      d.setAttribute('aria-selected', n === cur ? 'true' : 'false');
+      d.title = d.getAttribute('aria-label') || '';
+    });
+    left = ms;
+    schedule();
+  };
+  const pause = () => {
+    if (promo.classList.contains('is-paused')) return;
+    promo.classList.add('is-paused');
+    clearTimeout(timer);
+    left = Math.max(0, left - (Date.now() - started));
+  };
+  const resume = () => {
+    if (promo.contains(document.activeElement) && promo.matches(':focus-within')) return;
+    promo.classList.remove('is-paused');
+    schedule();
+  };
+  dots.forEach((d, n) => d.addEventListener('click', () => show(n)));
+  promo.addEventListener('mouseenter', pause);
+  promo.addEventListener('mouseleave', resume);
+  promo.addEventListener('focusin', pause);
+  promo.addEventListener('focusout', () => setTimeout(resume, 0));
+  show(0);
+})();
+
 // Scale the hero card up to fill the viewport when there's room (never below 1x).
 (() => {
   const card = document.querySelector('.mk-card');

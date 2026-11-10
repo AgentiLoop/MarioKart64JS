@@ -223,13 +223,16 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 @media(max-width:800px){.dbody{padding-inline:14px}}
 .dbody .gh:first-of-type{margin-top:8px}
 
-/* ---------- Sticky promo banners (ported from agent.xcf.ai promo.css) ---------- */
-/* 1: AgentiLoop Agent! under the nav. 2: AgentiLoopCLI (Rust + Go) along the bottom of the window. */
+/* ---------- Promo banner under the nav: two slides alternate (ported from agent.xcf.ai promo.css, rotation in app.js) ---------- */
 .topbar{position:fixed;inset:0 0 auto 0;z-index:20}
 .topbar .nav{position:static}
-.promo{position:relative;overflow:hidden;isolation:isolate;background:#060913;border-bottom:1px solid rgba(255,255,255,.08)}
-.promo-bottom{position:sticky;bottom:0;z-index:19;border-bottom:0;border-top:1px solid rgba(255,255,255,.08)}
-.promo-slide{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 16px;padding:10px 22px;text-align:center;font-size:.98rem;line-height:1.45;color:#eef2fb}
+.promo{--promo-ms:7000ms;position:relative;overflow:hidden;isolation:isolate;background:#060913;border-bottom:1px solid rgba(255,255,255,.08)}
+.promo::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.1) 50%,transparent 65%);transform:translateX(-100%);animation:promo-shine 3.5s ease-in-out infinite}
+@keyframes promo-shine{0%,30%{transform:translateX(-100%)}70%,100%{transform:translateX(100%)}}
+.promo-stage{display:grid;position:relative;z-index:2}
+.promo-slide{grid-area:1/1;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 16px;padding:10px 84px;text-align:center;font-size:.98rem;line-height:1.45;color:#eef2fb;opacity:0;visibility:hidden;transform:translateY(14px) scale(.98);filter:blur(6px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1),filter .6s ease,visibility 0s linear .6s}
+.promo-slide.is-active{opacity:1;visibility:visible;transform:none;filter:none;transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1),filter .6s ease,visibility 0s}
+
 .promo-slide::before{content:"";position:absolute;inset:0;z-index:-1;background-size:300% 300%;animation:promo-flow 10s ease infinite}
 @keyframes promo-flow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 .promo-text{margin:0}
@@ -266,11 +269,23 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 .promo-caret{display:inline-block;width:9px;height:1.05em;margin-left:4px;vertical-align:-2px;background:#4ade80;animation:promo-caret 1s steps(1) infinite}
 @keyframes promo-caret{50%{opacity:0}}
 .promo-cli .promo-cta{background:linear-gradient(135deg,#f97316,#00add8)}
-@media (max-width:640px){.promo-slide{padding:8px 14px;font-size:.9rem;gap:6px 10px}.promo-icon,.promo-more{display:none}}
-@media (prefers-reduced-motion:reduce){.promo-slide::before,.promo-grad,.promo-cta,.promo-new,.promo-caret{animation:none}}
+/* Segmented progress bar: one segment per slide, click to jump */
+.promo-dots{position:absolute;z-index:3;right:14px;top:0;bottom:0;width:50px;display:flex;align-items:center;gap:4px}
+.promo-dot{position:relative;flex:1 1 0;min-width:0;height:14px;padding:0;border:0;background:none;cursor:pointer}
+.promo-dot::before,.promo-dot span{content:"";position:absolute;left:0;top:4px;height:6px;border-radius:3px}
+.promo-dot::before{right:0;background:#4b5563;transition:background .2s ease}
+.promo-dot:hover::before,.promo-dot:focus-visible::before{background:#6b7280}
+.promo-dot:focus-visible{outline:none}
+.promo-dot span{width:0;background:#fff}
+.promo-dot.is-done span{width:100%;background:#d1d5db}
+.promo-dot.is-active span{animation:promo-progress var(--promo-ms) linear forwards}
+.promo.is-paused .promo-dot.is-active span{animation-play-state:paused}
+@keyframes promo-progress{to{width:100%}}
+@media (max-width:640px){.promo-slide{padding:8px 14px;font-size:.9rem;gap:6px 10px}.promo-icon,.promo-more,.promo-dots{display:none}}
+@media (prefers-reduced-motion:reduce){.promo::after,.promo-slide::before,.promo-grad,.promo-cta,.promo-new,.promo-caret{animation:none}.promo-slide{transition:opacity .3s ease,visibility 0s linear .3s;transform:none;filter:none}}
 
-/* ---------- AgentiLoop Agent! ad (white card, ported from agent.xcf.ai .cli-ad) ---------- */
-.agent-ad-wrap{max-width:1120px;margin:0 auto;padding:56px 22px 0}
+/* ---------- AgentiLoop Agent! ad (white card, ported from agent.xcf.ai .cli-ad), first on the page: the top padding clears the fixed nav + promo banner ---------- */
+.agent-ad-wrap{max-width:1120px;margin:0 auto;padding:150px 22px 56px}
 .agent-ad{position:relative;display:grid;gap:28px;background:#fff;color:#0f172a;border-radius:22px;padding:36px 40px;overflow:hidden;box-shadow:0 20px 60px rgba(59,130,246,.25);transition:transform .25s ease,box-shadow .25s ease}
 .agent-ad::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#3b82f6,#22d3ee)}
 .agent-ad:hover{transform:translateY(-3px);box-shadow:0 26px 70px rgba(139,92,246,.3)}

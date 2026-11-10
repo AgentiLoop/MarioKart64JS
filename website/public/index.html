@@ -51,17 +51,53 @@
     <a class="btn small" href="#download">Download</a>
   </nav>
 </header>
-<!-- Sticky banner 1: AgentiLoop Agent! (from agent.xcf.ai) -->
-<aside class="promo promo-top" aria-label="Made with AgentiLoop Agent!">
-  <div class="promo-slide promo-mac">
-    <img class="promo-icon" src="/img/agent-icon.webp" width="34" height="34" alt="">
-    <p class="promo-text">Made with <strong class="promo-grad">AgentiLoop Agent!</strong> for Mac<span class="promo-more">: macOS 14.6 or later on <span class="promo-chip chip-as">Apple Silicon</span> and <span class="promo-chip chip-intel">Intel</span></span></p>
-    <a class="promo-cta" href="https://github.com/AgentiLoop/Agent/releases/latest" target="_blank" rel="noopener">Download here <span aria-hidden="true">&rarr;</span></a>
+<!-- Promo banner under the nav: AgentiLoop Agent! and AgentiLoopCLI alternate (same as agent.xcf.ai; rotation in app.js) -->
+<aside class="promo" id="promo" aria-label="Announcements">
+  <div class="promo-stage">
+    <div class="promo-slide promo-mac is-active">
+      <img class="promo-icon" src="/img/agent-icon.webp" width="34" height="34" alt="">
+      <p class="promo-text">Made with <strong class="promo-grad">AgentiLoop Agent!</strong> for Mac<span class="promo-more">: macOS 14.6 or later on <span class="promo-chip chip-as">Apple Silicon</span> and <span class="promo-chip chip-intel">Intel</span></span></p>
+      <a class="promo-cta" href="https://github.com/AgentiLoop/Agent/releases/latest" target="_blank" rel="noopener">Download here <span aria-hidden="true">&rarr;</span></a>
+    </div>
+    <div class="promo-slide promo-cli" aria-hidden="true">
+      <span class="promo-icon promo-prompt" aria-hidden="true">&gt;_</span>
+      <p class="promo-text"><span class="promo-new">New</span><span class="promo-more"> from AgentiLoop:</span> <strong class="promo-grad">AgentiLoopCLI</strong><span class="promo-more"> in two flavors:</span> <a class="promo-lang lang-rust" href="https://github.com/AgentiLoop/AgentiLoopCLI" target="_blank" rel="noopener" tabindex="-1">Rust</a> and <a class="promo-lang lang-go" href="https://github.com/AgentiLoop/AgentiLoopGo" target="_blank" rel="noopener" tabindex="-1">Go</a><span class="promo-caret" aria-hidden="true"></span></p>
+      <a class="promo-cta" href="https://github.com/AgentiLoop/AgentiLoopCLI" target="_blank" rel="noopener" tabindex="-1">Check it out here <span aria-hidden="true">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="promo-dots" role="tablist" aria-label="Choose announcement">
+    <button type="button" class="promo-dot is-active" aria-label="AgentiLoop Agent! for Mac"><span></span></button>
+    <button type="button" class="promo-dot" aria-label="AgentiLoopCLI"><span></span></button>
   </div>
 </aside>
 </div>
 
 <main id="top">
+<!-- AD: AgentiLoop Agent! (white card + press banner from agent.xcf.ai), first on the page -->
+<section class="agent-ad-wrap" id="agent" aria-label="MarioKart64JS was made with AgentiLoop Agent!">
+  <div class="agent-ad">
+    <div class="agent-ad-copy">
+      <div class="agent-ad-top"><span class="agent-ad-tag"><span class="agent-ad-dot"></span>MarioKart64JS was made with AgentiLoop Agent!</span></div>
+      <h2><img src="/img/agent-icon.webp" width="60" height="60" alt=""><span>AgentiLoop <span class="agent-ad-grad">Agent!</span></span></h2>
+      <p class="agent-ad-sub">Agentic AI for your entire Mac and More! One app. Any AI. Tell Agent! what you need in plain English and it gets it done.</p>
+      <div class="agent-ad-os"><span class="os-a">macOS 14.6+</span><span class="os-b">Apple Silicon</span><span class="os-c">Intel</span></div>
+      <ul class="agent-ad-points">
+        <li>Answers your email, drives Safari, builds Xcode apps, fixes code, and runs your Mac apps for you</li>
+        <li>Auto-pilot (<code>/auto [goal]</code>) works a goal end-to-end on its own</li>
+        <li>Pick from 27 LLM providers or stay fully local with LM Studio, vLLM, or Ollama</li>
+        <li>Native Swift with Accessibility, AppleScript, and MCP</li>
+      </ul>
+      <p class="agent-ad-release">This game was made with AgentiLoop Agent! using Auto-Pilot, Goals and editing via prompts.</p>
+      <div class="agent-ad-ctas">
+        <a class="agent-ad-cta" href="https://github.com/AgentiLoop/Agent/releases/latest" target="_blank" rel="noopener">Download for Mac &rarr;</a>
+        <a class="agent-ad-cta agent-ad-cta-alt" href="https://agentiloop.ai/" target="_blank" rel="noopener">Visit agentiloop.ai &rarr;</a>
+      </div>
+    </div>
+    <a class="agent-ad-shot" href="https://agentiloop.ai/" target="_blank" rel="noopener"><img src="/img/agent-banner-screenshots.webp" width="1920" height="1080" alt="Two AgentiLoop Agent! windows, one publishing a GitHub release and one playing chess, on a dark blue background under the AgentiLoop Agent! name"></a>
+  </div>
+</section>
+
+
 <section class="hero">
   <div class="hero-bg" style="background-image:url(/img/race-mario.jpg)"></div>
   <div class="hero-in mk-card">
@@ -94,31 +130,8 @@
   <div><b>0</b><span>emulators</span></div>
 </section>
 
-<!-- AD: AgentiLoop Agent! (white card + press banner from agent.xcf.ai) -->
-<section class="agent-ad-wrap" id="agent" aria-label="MarioKart64JS was made with AgentiLoop Agent!">
-  <div class="agent-ad">
-    <div class="agent-ad-copy">
-      <div class="agent-ad-top"><span class="agent-ad-tag"><span class="agent-ad-dot"></span>MarioKart64JS was made with AgentiLoop Agent!</span></div>
-      <h2><img src="/img/agent-icon.webp" width="60" height="60" alt=""><span>AgentiLoop <span class="agent-ad-grad">Agent!</span></span></h2>
-      <p class="agent-ad-sub">Agentic AI for your entire Mac and More! One app. Any AI. Tell Agent! what you need in plain English and it gets it done.</p>
-      <div class="agent-ad-os"><span class="os-a">macOS 14.6+</span><span class="os-b">Apple Silicon</span><span class="os-c">Intel</span></div>
-      <ul class="agent-ad-points">
-        <li>Answers your email, drives Safari, builds Xcode apps, fixes code, and runs your Mac apps for you</li>
-        <li>Auto-pilot (<code>/auto [goal]</code>) works a goal end-to-end on its own</li>
-        <li>Pick from 27 LLM providers or stay fully local with LM Studio, vLLM, or Ollama</li>
-        <li>Native Swift with Accessibility, AppleScript, and MCP</li>
-      </ul>
-      <p class="agent-ad-release">This game was made with AgentiLoop Agent! using Auto-Pilot, Goals and editing via prompts.</p>
-      <div class="agent-ad-ctas">
-        <a class="agent-ad-cta" href="https://github.com/AgentiLoop/Agent/releases/latest" target="_blank" rel="noopener">Download for Mac &rarr;</a>
-        <a class="agent-ad-cta agent-ad-cta-alt" href="https://agentiloop.ai/" target="_blank" rel="noopener">Visit agentiloop.ai &rarr;</a>
-      </div>
-    </div>
-    <a class="agent-ad-shot" href="https://agentiloop.ai/" target="_blank" rel="noopener"><img src="/img/agent-banner-screenshots.webp" width="1920" height="1080" loading="lazy" alt="Two AgentiLoop Agent! windows, one publishing a GitHub release and one playing chess, on a dark blue background under the AgentiLoop Agent! name"></a>
-  </div>
-</section>
-
 <section id="showcase" class="games-wrap" aria-labelledby="games-h">
+
   <div class="games-head">
     <span class="games-kicker"><span class="games-dot"></span>Built with AgentiLoop Agent!</span>
     <h2 class="games-title" id="games-h">Game Showcase</h2>
@@ -329,16 +342,8 @@ npm run dev        # http://localhost:5173</code></pre>
 <div class="agentiloop-backlink" style="margin-top:8px;font-size:.85em">Built by <a href="https://agentiloop.ai">AgentiLoop</a> &middot; <a href="mailto:agent@agentiloop.ai">agent@agentiloop.ai</a></div>
 </footer>
 
-<!-- Sticky banner 2: AgentiLoopCLI, Rust and Go (from agent.xcf.ai) -->
-<aside class="promo promo-bottom" aria-label="AgentiLoopCLI in Rust and Go">
-  <div class="promo-slide promo-cli">
-    <span class="promo-icon promo-prompt" aria-hidden="true">&gt;_</span>
-    <p class="promo-text"><span class="promo-new">New</span><span class="promo-more"> from AgentiLoop:</span> <strong class="promo-grad">AgentiLoopCLI</strong><span class="promo-more"> in two flavors:</span> <a class="promo-lang lang-rust" href="https://github.com/AgentiLoop/AgentiLoopCLI" target="_blank" rel="noopener">Rust</a> and <a class="promo-lang lang-go" href="https://github.com/AgentiLoop/AgentiLoopGo" target="_blank" rel="noopener">Go</a><span class="promo-caret" aria-hidden="true"></span></p>
-    <a class="promo-cta" href="https://github.com/AgentiLoop/AgentiLoopCLI" target="_blank" rel="noopener">Check it out here <span aria-hidden="true">&rarr;</span></a>
-  </div>
-</aside>
-
 <script src="/app.js"></script>
+
 <script type="module" src="/tv/tv.js"></script>
 <script src="/bossbanner.js" defer></script>
 </body>
