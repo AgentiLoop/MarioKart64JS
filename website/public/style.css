@@ -114,7 +114,7 @@ body{background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparen
 .brand span{background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:mkShine 4s linear infinite}
 
 /* Hero = the showcase card */
-.hero{text-align:left;padding:150px 22px 70px}
+.hero{text-align:left;min-height:0;padding:20px 22px 70px}
 .hero-bg{filter:blur(6px) brightness(.3) saturate(1.4)}
 .hero::after{background:radial-gradient(ellipse at 50% 45%,transparent 0,rgba(11,10,34,.5) 55%,#0b1026 100%)}
 .hero-in.mk-card{max-width:1180px;width:100%}
@@ -285,7 +285,7 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 @media (prefers-reduced-motion:reduce){.promo::after,.promo-slide::before,.promo-grad,.promo-cta,.promo-new,.promo-caret{animation:none}.promo-slide{transition:opacity .3s ease,visibility 0s linear .3s;transform:none;filter:none}}
 
 /* ---------- AgentiLoop Agent! ad (white card, ported from agent.xcf.ai .cli-ad), first on the page: the top padding clears the fixed nav + promo banner ---------- */
-.agent-ad-wrap{max-width:1120px;margin:0 auto;padding:150px 22px 56px}
+.agent-ad-wrap{max-width:1120px;margin:0 auto;padding:150px 22px 20px}
 .agent-ad{position:relative;display:grid;gap:28px;background:#fff;color:#0f172a;border-radius:22px;padding:36px 40px;overflow:hidden;box-shadow:0 20px 60px rgba(59,130,246,.25);transition:transform .25s ease,box-shadow .25s ease}
 .agent-ad::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#3b82f6,#22d3ee)}
 .agent-ad:hover{transform:translateY(-3px);box-shadow:0 26px 70px rgba(139,92,246,.3)}
