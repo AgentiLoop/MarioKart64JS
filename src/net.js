@@ -8,7 +8,7 @@
 // course, seed} · mesh · data {from, msg} · left {id, why} · error {message}.
 // The lowest id in the room is the host: it decides anything that must agree (the start).
 
-const DEFAULT_LOBBY = 'wss://mk64js.gokart.games/api/mp';
+export const DEFAULT_LOBBY = 'wss://mk64js.gokart.games/api/mp';
 const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: ['stun:stun.cloudflare.com:3478'] },

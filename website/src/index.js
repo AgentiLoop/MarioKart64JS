@@ -1,4 +1,5 @@
-// mk64js.gokart.games: static fan site + the multiplayer lobby (a Durable Object, see lobby.js).
+// mk64js.gokart.games: static fan site + the multiplayer lobby (a Durable Object, see lobby.js), which also keeps
+// the play statistics shown on /stats (stats.js: /api/presence from single-player games, /api/stats for the page).
 // /play/ is the hosted game (npm run build:web -> public/play, every texture tier like the desktop apps), linked from the home page.
 // Security headers: HTTPS is forced in the worker (301 http->https; Cloudflare's edge terminates both,
 // so no redirect loop), the strict HSTS covers apex + subdomains, and the CSP covers what the game uses.
@@ -39,7 +40,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.protocol === "http:") { url.protocol = "https:"; return Response.redirect(url.toString(), 301); }
-    if (url.pathname === "/api/mp" || url.pathname === "/api/mp/status") {
+    if (["/api/mp", "/api/mp/status", "/api/presence", "/api/stats"].includes(url.pathname)) {
       return env.LOBBY.get(env.LOBBY.idFromName("global")).fetch(request);
     }
     const dl = url.pathname.match(/^\/download\/([a-z-]+)$/);

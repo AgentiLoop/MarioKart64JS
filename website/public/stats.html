@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html,body{background:#0b0a22}</style>
+<meta name="color-scheme" content="dark">
+<title>Live stats · MarioKart64JS</title>
+<meta name="description" content="How many MarioKart64JS games are running right now, who is waiting to race online, and the history: peaks, hour by hour and course by course.">
+<meta name="theme-color" content="#1a0b2e">
+<link rel="icon" type="image/png" href="/favicon.png?v=2">
+<link rel="apple-touch-icon" href="/icon.png?v=2">
+<link rel="canonical" href="https://mk64js.gokart.games/stats">
+<link rel="stylesheet" href="/style.css">
+<style>
+.st{padding-top:120px}
+.st h1{font-size:clamp(34px,5vw,54px);line-height:1.1;margin:6px 0 10px;letter-spacing:-.02em}
+.st h2{margin-top:72px}
+.st h3{margin:44px 0 12px;color:#fde68a}
+.st .sub{margin-bottom:26px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.tile{background:linear-gradient(160deg,rgba(26,11,46,.8),rgba(11,16,38,.8));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:22px 24px;border-top:4px solid var(--c)}
+.tile b{display:block;font-size:54px;line-height:1.05;font-weight:900;color:var(--c);font-variant-numeric:tabular-nums}
+.tile span{color:var(--mut);text-transform:uppercase;letter-spacing:.12em;font-size:13px;font-weight:700}
+.k-solo{--c:#ffc928}.k-waiting{--c:#38d2ff}.k-racing{--c:#f472b6}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:rgba(11,16,38,.6)}
+.tw table{width:100%;border-collapse:collapse;font-size:16px}
+.tw th{text-align:left;padding:11px 16px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--mut);background:rgba(255,255,255,.04);border-bottom:1px solid var(--line);vertical-align:bottom}
+.tw td{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap}
+.tw tr:last-child td{border-bottom:0}
+.tw .num{text-align:right;font-variant-numeric:tabular-nums}
+.tw tr.total td{font-weight:800;border-top:1px solid var(--line)}
+.none{color:var(--mut);margin:0;padding:14px 16px}
+.chart{margin:0 0 22px}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px;font-weight:700}
+.chart-head span:last-child{color:var(--mut);font-size:14px;font-weight:600}
+.bars{display:flex;align-items:flex-end;gap:2px;height:96px;border-bottom:1px solid var(--line)}
+.bar{flex:1;height:100%;position:relative;min-width:3px}
+.bar i{position:absolute;inset:auto 0 0 0;border-radius:3px 3px 0 0;background:var(--c)}
+.bar i.pk{opacity:.28}
+.bar:hover{background:rgba(255,255,255,.06)}
+.axis{display:flex;gap:2px;color:var(--mut);font-size:12px;margin-top:4px}
+.axis span{flex:1;min-width:3px;white-space:nowrap;overflow:visible;width:0}
+.key{display:flex;flex-wrap:wrap;gap:18px;color:var(--mut);font-size:14px;margin:0 0 18px}
+.key i{display:inline-block;width:12px;height:12px;border-radius:3px;background:#c9c2dc;margin-right:6px;vertical-align:-1px}
+.key i.pk{opacity:.28}
+</style>
+</head>
+<body>
+<div class="topbar">
+<header class="nav">
+  <a class="brand" href="/"><img src="/icon.png?v=2" alt="" width="32" height="32"><span>MarioKart64JS</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a class="btn small" href="/play">Play online</a>
+  </nav>
+</header>
+</div>
+
+<main class="wrap st">
+  <p class="kicker">Live stats</p>
+  <h1>Who's playing right now</h1>
+  <p class="sub" id="updated">Loading&hellip;</p>
+
+  <div class="tiles">
+    <div class="tile k-solo"><b id="nSolo">&ndash;</b><span>Single-player games running</span></div>
+    <div class="tile k-waiting"><b id="nWaiting">&ndash;</b><span>Waiting to play online</span></div>
+    <div class="tile k-racing"><b id="nRacing">&ndash;</b><span>Racing online</span></div>
+  </div>
+
+  <h3>Waiting to play online</h3>
+  <div class="tw" id="waiting"></div>
+  <h3>Racing online</h3>
+  <div class="tw" id="racing"></div>
+  <h3>Single-player games</h3>
+  <div class="tw" id="solo"></div>
+
+  <h2>History</h2>
+  <h3>Peaks</h3>
+  <div class="tw" id="peaks"></div>
+
+  <h3>Hour by hour, last 48 hours</h3>
+  <p class="key"><span><i></i>Average over the hour</span><span><i class="pk"></i>Most at once in the hour</span><span>Times are your local time.</span></p>
+  <div id="charts"></div>
+
+  <h3>Course by course</h3>
+  <div class="tw" id="courses"></div>
+
+  <h3>Players who waited to play online</h3>
+  <p class="sub" id="lobbySum"></p>
+  <div class="tw" id="lobby"></div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p class="muted">A single-player game counts while its tab is open and visible, and reaches this server. Online players are counted by the matchmaking lobby. Players are shown by the driver they picked; nothing else about them is collected.</p>
+  </div>
+<div class="agentiloop-backlink" style="margin-top:8px;font-size:.85em">Built by <a href="https://agentiloop.ai">AgentiLoop</a> &middot; <a href="mailto:agent@agentiloop.ai">agent@agentiloop.ai</a></div>
+</footer>
+
+<script src="/stats.js"></script>
+</body>
+</html>

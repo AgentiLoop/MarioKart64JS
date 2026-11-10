@@ -8,6 +8,7 @@ import * as HD from './hd.js';
 import { createSharpen } from './sharpen.js';
 import { Exhaust } from './smoke.js';
 import { Net } from './net.js';
+import { startPresence } from './presence.js';
 import { Lakitu } from './lakitu.js';
 import { Penguins } from './penguins.js';
 import { Foliage } from './foliage.js';
@@ -993,6 +994,9 @@ const online = !!trackDef && PLAYERS_WANTED >= 2;
 const timeTrial = raceMode === 'time_trials' && !online;
 if (timeTrial) { for (const b of items.boxes) items.group.remove(b.mesh); items.boxes = []; }
 const net = online ? new Net() : null;
+// Single-player games report in for the live count on mk64js.gokart.games/stats (online ones are counted by the lobby).
+const reportSolo = () => startPresence({ mode: raceMode, course: trackDef.id, cc: battle ? '' : ccParam || '150', char: playerChar });
+if (trackDef && !online && !autopilot) reportSolo();
 const lobbyEl = $('lobby'), lobbyCount = $('lobbyCount'), lobbyList = $('lobbyList'), lobbyMsg = $('lobbyMsg');
 const SEND_INTERVAL = 1 / 30, PUPPET_DELAY = 0.1;
 let sendClock = 0, netReady = new Set(), raceGo = false, vsTakeover = false;
@@ -1146,6 +1150,7 @@ function startRace() {
 }
 function raceCpuInstead() {   // Enter on the lobby: nobody came, so CPU karts fill the empty seats (MAX_ONLINE_KARTS karts)
   net.leave();
+  reportSolo();
   setup(MAX_ONLINE_KARTS);
   startRace();
 }

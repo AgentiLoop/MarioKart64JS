@@ -15,6 +15,8 @@
 //                                                      servers from the worker's secrets, so every client build gets them)
 //   {t:"sig", from, data}                              relayed signaling data
 //   {t:"error", message}
+//
+// The same object keeps the play statistics (stats.js): POST /api/presence from single-player games, GET /api/stats.
 
 // Humans per room. Keep in step with MAX_ONLINE_KARTS in src/main.js (the CPU fills the rest of the grid up to it).
 const MAX_ROOM_PLAYERS = 4;
@@ -22,14 +24,44 @@ const AUTO_START_SECS = 15; // a room starts this long after its first player ar
 const READY_TIMEOUT_MS = 30_000; // players not back on the course page by then are dropped
 const SIGNAL_GRACE_MS = 30 * 60_000; // sockets of a started room are closed after this (they carry ICE restarts mid-race)
 
+import { Stats } from "./stats.js";
+
 const clean = (s, n) => String(s ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, n);
 
 export class Lobby {
   constructor(state, env) {
     this.state = state;
     this.env = env || {};
-    this.members = new Map(); // ws -> {ws, id, name, char, room, ready}
-    this.rooms = new Map(); // code -> {code, max, version, course, seed, members: [member], started, go, deadline, timer}
+    this.members = new Map(); // ws -> {ws, id, name, char, room, ready, joined}
+    this.rooms = new Map(); // code -> {code, max, version, course, seed, members: [member], started, go, deadline, timer, created, startedAt}
+    try { this.stats = new Stats(state.storage); } catch (e) { console.warn("stats", e); this.stats = null; }
+  }
+
+  // Statistics must never break matchmaking: a storage error is logged and dropped.
+  stat(fn) {
+    if (!this.stats) return undefined;
+    try { return fn(this.stats); } catch (e) { console.warn("stats", e); return undefined; }
+  }
+
+  // Lets the statistics take their once-a-minute sample; called on anything that happens.
+  touch() {
+    this.stat((s) => s.tick(Date.now(), () => this.snapshot()));
+  }
+
+  // The rooms as the statistics see them. No room codes: a code and a player id re-attach to a slot (rejoin).
+  snapshot() {
+    const now = Date.now(), rooms = [], racingBy = new Map();
+    let waiting = 0, racing = 0;
+    for (const r of this.rooms.values()) {
+      const n = r.members.length;
+      if (r.started) { racing += n; racingBy.set(r.course, (racingBy.get(r.course) || 0) + n); } else waiting += n;
+      rooms.push({
+        started: r.started, course: r.course, mode: r.mode, max: r.max, since: r.started ? r.startedAt : r.created,
+        countdown: !r.started && r.deadline ? Math.max(0, Math.ceil((r.deadline - now) / 1000)) : -1,
+        players: r.members.map((p) => ({ char: p.char, joined: p.joined })),
+      });
+    }
+    return { waiting, racing, racingBy, rooms };
   }
 
   async fetch(request) {
@@ -38,6 +70,22 @@ export class Lobby {
       let waiting = 0, racing = 0;
       for (const r of this.rooms.values()) (r.started ? (racing += r.members.length) : (waiting += r.members.length));
       return new Response(JSON.stringify({ waiting, racing, rooms: this.rooms.size }), {
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
+      });
+    }
+    if (url.pathname.endsWith("/presence")) {
+      if (request.method === "POST" && !(Number(request.headers.get("content-length")) > 512)) {
+        let b = null;
+        try { b = JSON.parse(await request.text()); } catch {}
+        if (b && typeof b === "object") this.stat((s) => { const now = Date.now(); if (s.beat(b, now)) s.peak(now, "solo", s.soloCount(now)); });
+        this.touch();
+      }
+      return new Response(null, { status: 204 });
+    }
+    if (url.pathname.endsWith("/stats")) {
+      const body = this.stat((s) => s.report(Date.now(), this.snapshot()));
+      return new Response(JSON.stringify(body || { error: "Statistics are unavailable." }), {
+        status: body ? 200 : 503,
         headers: { "content-type": "application/json", "cache-control": "no-store" },
       });
     }
@@ -60,6 +108,7 @@ export class Lobby {
   onMessage(ws, raw) {
     const c = this.members.get(ws);
     if (!c) return;
+    this.touch();
     if (typeof raw !== "string" || raw.length > 16384) return;
     let m;
     try { m = JSON.parse(raw); } catch { return; }
@@ -87,7 +136,7 @@ export class Lobby {
       if (!r.started && r.version === version && r.max === max && r.mode === mode && r.members.length < r.max) { room = r; break; }
     }
     if (!room) {
-      room = { code: this.freshCode(), max, mode, version, course: clean(m.course, 40), seed: 0, members: [], started: false, go: false, deadline: 0, timer: null };
+      room = { code: this.freshCode(), max, mode, version, course: clean(m.course, 40), seed: 0, members: [], started: false, go: false, deadline: 0, timer: null, created: Date.now(), startedAt: 0 };
       this.rooms.set(room.code, room);
       room.deadline = Date.now() + AUTO_START_SECS * 1000;
     }
@@ -95,7 +144,9 @@ export class Lobby {
     c.id = 1;
     while (used.has(c.id)) c.id++;
     c.room = room.code;
+    c.joined = Date.now();
     room.members.push(c);
+    this.stat((s) => s.peak(c.joined, "waiting", this.snapshot().waiting));
     if (room.members.length >= room.max) return this.start(room);
     this.broadcastRoom(room);
     this.schedule(room);
@@ -143,6 +194,7 @@ export class Lobby {
     if (room.started || !room.deadline) return;
     room.timer = setTimeout(() => {
       if (!this.rooms.has(room.code) || room.started) return;
+      this.touch();
       if (Date.now() >= room.deadline) {
         if (room.members.length >= 2) return this.start(room);
         room.deadline = Date.now() + AUTO_START_SECS * 1000;
@@ -159,6 +211,8 @@ export class Lobby {
   start(room) {
     clearTimeout(room.timer);
     room.started = true;
+    room.startedAt = Date.now();
+    this.stat((s) => { s.raceStart(room.startedAt, room); s.peak(room.startedAt, "racing", this.snapshot().racing); });
     room.seed = Math.floor(Math.random() * 2147483647);
     for (const p of room.members) this.send(p, this.startMsg(room, p));
     room.timer = setTimeout(() => this.go(room), READY_TIMEOUT_MS);
@@ -217,6 +271,7 @@ export class Lobby {
     if (!room) return;
     // Between "start" and "go" a member may be reloading onto the course page: keep its slot.
     if (room.started && !room.go) return;
+    if (!room.started) this.stat((s) => s.visit(Date.now(), c, room, "left"));
     room.members = room.members.filter((p) => p !== c);
     if (room.members.length === 0) {
       clearTimeout(room.timer);
