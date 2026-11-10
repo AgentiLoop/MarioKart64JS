@@ -295,7 +295,7 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 .agent-ad-copy{position:relative;z-index:1}
 .agent-ad-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fde68a;background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.35);padding:6px 13px;border-radius:999px}
 .agent-ad-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;animation:mkLights 1.8s steps(1) infinite}
-.agent-ad h2{display:flex;align-items:center;gap:16px;font-size:clamp(38px,5.2vw,62px);line-height:1;margin:18px 0 10px;letter-spacing:-.03em;font-weight:900;color:#fff;background:none;-webkit-text-fill-color:currentColor}
+.agent-ad h2{display:flex;align-items:center;gap:14px;white-space:nowrap;font-size:clamp(26px,3.4vw,42px);line-height:1;margin:18px 0 10px;letter-spacing:-.03em;font-weight:900;color:#fff;background:none;-webkit-text-fill-color:currentColor}
 .agent-ad h2 img{flex-shrink:0;width:clamp(48px,6vw,68px);height:auto;filter:drop-shadow(0 0 18px rgba(34,211,238,.55));animation:aaBob 3s ease-in-out infinite}
 @keyframes aaBob{50%{transform:translateY(-6px) rotate(-4deg)}}
 .agent-ad-grad{background:linear-gradient(90deg,#f97316,#facc15,#ec4899,#8b5cf6,#22d3ee,#f97316);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:mkShine 3.5s linear infinite;filter:drop-shadow(0 0 20px rgba(236,72,153,.5))}
