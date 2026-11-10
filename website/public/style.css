@@ -104,7 +104,7 @@ kbd{font:700 14px ui-monospace,Menlo,monospace;background:linear-gradient(180deg
 @media (max-width:760px){.bm{grid-template-columns:1fr;padding:28px 22px 88px}.bm-cta{justify-self:start}}
 @media (prefers-reduced-motion:reduce){.bm,.bm *,.bm::after{animation:none!important}}
 
-html{scroll-padding-top:72px}
+html{scroll-padding-top:140px}
 
 .gh{margin:40px 0 14px;font-size:20px}
 
@@ -222,3 +222,84 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 .dbody .sub{margin-bottom:24px}
 @media(max-width:800px){.dbody{padding-inline:14px}}
 .dbody .gh:first-of-type{margin-top:8px}
+
+/* ---------- Sticky promo banners (ported from agent.xcf.ai promo.css) ---------- */
+/* 1: AgentiLoop Agent! under the nav. 2: AgentiLoopCLI (Rust + Go) along the bottom of the window. */
+.topbar{position:fixed;inset:0 0 auto 0;z-index:20}
+.topbar .nav{position:static}
+.promo{position:relative;overflow:hidden;isolation:isolate;background:#060913;border-bottom:1px solid rgba(255,255,255,.08)}
+.promo-bottom{position:sticky;bottom:0;z-index:19;border-bottom:0;border-top:1px solid rgba(255,255,255,.08)}
+.promo-slide{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 16px;padding:10px 22px;text-align:center;font-size:.98rem;line-height:1.45;color:#eef2fb}
+.promo-slide::before{content:"";position:absolute;inset:0;z-index:-1;background-size:300% 300%;animation:promo-flow 10s ease infinite}
+@keyframes promo-flow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.promo-text{margin:0}
+.promo-grad{background-clip:text;-webkit-background-clip:text;color:transparent;background-size:200% auto;animation:promo-text-flow 4s linear infinite}
+@keyframes promo-text-flow{to{background-position:200% center}}
+.promo-icon{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;flex-shrink:0}
+.promo-cta{position:relative;display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:999px;font-weight:700;font-size:.9rem;color:#fff;text-decoration:none;white-space:nowrap;transition:transform .2s ease,box-shadow .2s ease;animation:promo-pulse 2.4s ease-in-out infinite}
+.promo-cta:hover{transform:translateY(-2px) scale(1.04)}
+.promo-cta span{transition:transform .2s ease}
+.promo-cta:hover span{transform:translateX(4px)}
+@keyframes promo-pulse{0%,100%{box-shadow:0 0 0 0 var(--promo-glow,rgba(59,130,246,.55))}50%{box-shadow:0 0 0 8px transparent}}
+/* Banner 1: AgentiLoop Agent! for Mac */
+.promo-mac::before{background-image:linear-gradient(120deg,#0b1a3a,#1e1b4b,#0c2a3a,#1e1b4b,#0b1a3a)}
+.promo-mac{--promo-glow:rgba(34,211,238,.55)}
+.promo-mac .promo-grad{background-image:linear-gradient(90deg,#60a5fa,#22d3ee,#a78bfa,#60a5fa)}
+.promo-mac .promo-icon{border-radius:0}
+.promo-chip{display:inline-block;padding:1px 9px;border-radius:999px;font-weight:700;font-size:.85em}
+.chip-as{color:#e9d5ff;background:rgba(167,139,250,.18);border:1px solid rgba(167,139,250,.5)}
+.chip-intel{color:#bae6fd;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.5)}
+.promo-mac .promo-cta{background:linear-gradient(135deg,#3b82f6,#22d3ee)}
+/* Banner 2: AgentiLoopCLI (Rust + Go) */
+.promo-cli::before{background-image:linear-gradient(120deg,#1a0f08,#0a1f24,#24110a,#06222a,#1a0f08)}
+.promo-cli{--promo-glow:rgba(249,115,22,.55);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92rem}
+.promo-cli .promo-grad{background-image:linear-gradient(90deg,#fb923c,#f97316,#22d3ee,#00add8,#fb923c)}
+.promo-prompt{font-weight:800;color:#4ade80;background:#0b0f0c;border:1px solid rgba(74,222,128,.45);box-shadow:0 0 14px rgba(74,222,128,.35);font-size:.85rem}
+.promo-new{display:inline-block;margin-right:4px;padding:1px 8px;border-radius:6px;font-weight:800;font-size:.78em;letter-spacing:.08em;text-transform:uppercase;color:#0b0f0c;background:#4ade80;animation:promo-blink-bg 1.6s ease-in-out infinite}
+@keyframes promo-blink-bg{50%{background:#bbf7d0}}
+.promo-lang{font-weight:800;text-decoration:none;padding:1px 8px;border-radius:6px;transition:background .2s ease,transform .2s ease;display:inline-block}
+.promo-lang:hover{transform:translateY(-1px)}
+.lang-rust{color:#fdba74;background:rgba(249,115,22,.16);border:1px solid rgba(249,115,22,.5)}
+.lang-rust:hover{background:rgba(249,115,22,.32)}
+.lang-go{color:#67e8f9;background:rgba(0,173,216,.16);border:1px solid rgba(0,173,216,.5)}
+.lang-go:hover{background:rgba(0,173,216,.32)}
+.promo-caret{display:inline-block;width:9px;height:1.05em;margin-left:4px;vertical-align:-2px;background:#4ade80;animation:promo-caret 1s steps(1) infinite}
+@keyframes promo-caret{50%{opacity:0}}
+.promo-cli .promo-cta{background:linear-gradient(135deg,#f97316,#00add8)}
+@media (max-width:640px){.promo-slide{padding:8px 14px;font-size:.9rem;gap:6px 10px}.promo-icon,.promo-more{display:none}}
+@media (prefers-reduced-motion:reduce){.promo-slide::before,.promo-grad,.promo-cta,.promo-new,.promo-caret{animation:none}}
+
+/* ---------- AgentiLoop Agent! ad (white card, ported from agent.xcf.ai .cli-ad) ---------- */
+.agent-ad-wrap{max-width:1120px;margin:0 auto;padding:56px 22px 0}
+.agent-ad{position:relative;display:grid;gap:28px;background:#fff;color:#0f172a;border-radius:22px;padding:36px 40px;overflow:hidden;box-shadow:0 20px 60px rgba(59,130,246,.25);transition:transform .25s ease,box-shadow .25s ease}
+.agent-ad::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:linear-gradient(90deg,#f97316,#ec4899,#8b5cf6,#3b82f6,#22d3ee)}
+.agent-ad:hover{transform:translateY(-3px);box-shadow:0 26px 70px rgba(139,92,246,.3)}
+.agent-ad-copy{display:grid;grid-template-columns:1.05fr 1fr;column-gap:40px;align-items:start}
+.agent-ad-copy>*{grid-column:1}
+.agent-ad-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.agent-ad-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c2410c;background:#fff7ed;border:1px solid #fed7aa;padding:5px 12px;border-radius:999px}
+.agent-ad-dot{width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0;animation:agentAdPulse 1.6s infinite}
+@keyframes agentAdPulse{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}50%{box-shadow:0 0 0 6px rgba(249,115,22,0)}}
+.agent-ad h2{display:flex;align-items:center;gap:14px;font-size:clamp(30px,4vw,42px);line-height:1.1;margin:14px 0 8px;letter-spacing:-.02em;color:#0f172a;background:none}
+.agent-ad h2 img{flex-shrink:0}
+.agent-ad-grad{background:linear-gradient(135deg,#f97316,#ec4899 50%,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.agent-ad-sub{font-size:17px;color:#475569;margin:0 0 16px}
+.agent-ad-os{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.agent-ad-os span{font-size:13px;font-weight:600;padding:5px 12px;border-radius:8px}
+.agent-ad-os .os-a{background:#eff6ff;color:#1d4ed8}
+.agent-ad-os .os-b{background:#ecfeff;color:#0e7490}
+.agent-ad-os .os-c{background:#f5f3ff;color:#6d28d9}
+.agent-ad-points{grid-column:2;grid-row:1/span 6;align-self:center;list-style:none;margin:0;padding:0}
+.agent-ad-points li{position:relative;padding-left:24px;font-size:15px;color:#334155;margin:6px 0}
+.agent-ad-points li::before{content:"\25B8";position:absolute;left:4px;color:#ec4899;font-weight:700}
+.agent-ad-points code{font-size:13px;background:#f1f5f9}
+.agent-ad-release{font-size:16px;font-weight:700;color:#0f172a;margin:6px 0 12px}
+.agent-ad-ctas{display:flex;flex-wrap:wrap;gap:12px}
+.agent-ad-cta{display:inline-block;font-weight:700;color:#fff;padding:11px 22px;border-radius:10px;text-decoration:none;background:linear-gradient(135deg,#f97316,#ec4899 55%,#8b5cf6);transition:transform .2s ease,box-shadow .2s ease}
+.agent-ad-cta:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(139,92,246,.3)}
+.agent-ad-cta-alt{background:linear-gradient(135deg,#00add8,#3b82f6 55%,#8b5cf6)}
+.agent-ad-shot{display:block;perspective:1400px}
+.agent-ad-shot img{width:100%;height:auto;border-radius:14px;background:#0f172a;transform:rotateX(9deg) scale(.985);transform-origin:50% 100%;box-shadow:0 30px 60px -20px rgba(139,92,246,.45),0 18px 40px rgba(15,23,42,.25);transition:transform .55s cubic-bezier(.2,.8,.2,1),box-shadow .55s ease}
+.agent-ad-shot:hover img{transform:rotateX(0) scale(1.01);box-shadow:0 40px 80px -20px rgba(59,130,246,.5),0 24px 50px rgba(15,23,42,.3)}
+@media (max-width:900px){.agent-ad{padding:30px 24px}.agent-ad-copy{grid-template-columns:1fr}.agent-ad-points{grid-column:1;grid-row:auto;margin-bottom:20px}}
+@media (prefers-reduced-motion:reduce){.agent-ad-dot{animation:none}.agent-ad,.agent-ad-shot img,.agent-ad-cta{transition:none}}
