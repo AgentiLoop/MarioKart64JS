@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""MK64JS app icon, shared by every desktop build (Electron Windows / Linux, the macOS WebKit app).
+"""MK64JS app icon, shared by every desktop build (macOS WebKit, Windows, Linux, Raspberry Pi).
 
 Draws desktop/icon/MK64JS.png (1024x1024: a rounded red tile with a checkered-flag band, "MK64" in Arial Black
 with a black outline and a yellow "JS" plate) and derives the platform icons from it:
-  desktop/build/icon.png      electron-builder (Linux png set, Windows .ico)
   desktop/webkit/MK64JS.icns  the WebKit app (iconutil)
 Usage: python3 tools/make-icon.py
 """
@@ -77,8 +76,6 @@ def main():
     out.mkdir(exist_ok=True)
     master = out / 'MK64JS.png'
     img.save(master)
-    (ROOT / 'build').mkdir(exist_ok=True)
-    img.save(ROOT / 'build' / 'icon.png')
     # macOS .icns: the Apple icon grid leaves a margin round the tile
     with tempfile.TemporaryDirectory() as td:
         iconset = pathlib.Path(td) / 'MK64JS.iconset'
@@ -91,7 +88,7 @@ def main():
                 canvas.alpha_composite(img.resize((inner, inner), Image.LANCZOS), ((n - inner) // 2, (n - inner) // 2))
                 canvas.save(iconset / f'icon_{size}x{size}{"@2x" if scale == 2 else ""}.png')
         subprocess.run(['iconutil', '-c', 'icns', str(iconset), '-o', str(ROOT / 'webkit' / 'MK64JS.icns')], check=True)
-    print(f'{master}, desktop/build/icon.png, desktop/webkit/MK64JS.icns')
+    print(f'{master}, desktop/webkit/MK64JS.icns')
 
 
 if __name__ == '__main__':

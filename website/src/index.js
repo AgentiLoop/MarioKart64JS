@@ -5,15 +5,17 @@
 // so no redirect loop), the strict HSTS covers apex + subdomains, and the CSP covers what the game uses.
 export { Lobby } from "./lobby.js";
 
-// /download/<plat> -> 302 to that platform's asset on the latest (non-pre-release) GitHub release,
-// so the site never needs editing for a new version. Asset names carry the version, so match by suffix.
+// /download/<plat> -> 302 to that platform's web-thin asset (no game files inside, it opens /play) on the latest
+// (non-pre-release) GitHub release, so the site never needs editing for a new version. Asset names carry the
+// version, so match by prefix + suffix. Windows and Linux ship one zip / tarball for both x64 and arm64.
 const REPO = "AgentiLoop/MarioKart64JS";
+const THIN = "MarioKart64JS-web-thin-";
 const DOWNLOADS = {
-  mac: "-mac-webkit-universal.zip",
-  win: "-win-x64.zip",
-  "win-arm": "-win-arm64.zip",
-  linux: "-linux-x64.tar.gz",
-  "linux-arm": "-linux-arm64.tar.gz",
+  mac: "-mac-universal.zip",
+  win: "-win.zip",
+  "win-arm": "-win.zip",
+  linux: "-linux.tar.gz",
+  "linux-arm": "-linux.tar.gz",
   pi: "-raspberrypi.tar.gz",
   sums: "SHA256SUMS.txt",
 };
@@ -26,7 +28,7 @@ async function latestDownload(suffix) {
       cf: { cacheTtl: 300, cacheEverything: true },   // 5 min edge cache, well under the API rate limit
     });
     if (r.ok) {
-      const asset = (await r.json()).assets.find((a) => a.name.endsWith(suffix));
+      const asset = (await r.json()).assets.find((a) => a.name === suffix || (a.name.startsWith(THIN) && a.name.endsWith(suffix)));
       if (asset) return Response.redirect(asset.browser_download_url, 302);
     }
   } catch {}

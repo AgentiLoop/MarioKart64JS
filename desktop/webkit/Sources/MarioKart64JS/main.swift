@@ -1,32 +1,10 @@
-// WebKit shell: serves the Vite build (Resources/game) over app://game so absolute paths and fetch() work.
+// WebKit shell: a WKWebView that opens the hosted game by its web address (Info.plist MK64WebURL). No game files bundled.
 import AppKit
-import UniformTypeIdentifiers
 import WebKit
-
-final class GameSchemeHandler: NSObject, WKURLSchemeHandler {
-    let root = Bundle.main.resourceURL!.appendingPathComponent("game").standardizedFileURL
-
-    func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
-        let url = task.request.url!
-        let rel = url.path.removingPercentEncoding ?? url.path
-        let file = root.appendingPathComponent(rel == "/" ? "index.html" : rel).standardizedFileURL
-        guard file.path.hasPrefix(root.path), let data = try? Data(contentsOf: file) else {
-            let r = HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: nil)!
-            task.didReceive(r); task.didReceive(Data()); task.didFinish(); return
-        }
-        let mime = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
-        let r = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
-                                headerFields: ["Content-Type": mime, "Content-Length": "\(data.count)"])!
-        task.didReceive(r); task.didReceive(data); task.didFinish()
-    }
-
-    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
-}
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var web: WKWebView!
-    let handler = GameSchemeHandler()
 
     // Develop > Show Web Inspector (⌥⌘I): opens WebKit's inspector attached to this window (SPI _inspector.show).
     @objc func showWebInspector(_ sender: Any?) {
@@ -38,7 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         let config = WKWebViewConfiguration()
-        config.setURLSchemeHandler(handler, forURLScheme: "app")
         config.mediaTypesRequiringUserActionForPlayback = []
         // right-click > Inspect Element inside the app itself (WKPreferences developerExtrasEnabled, set via KVC)
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -64,8 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setScale()
         NotificationCenter.default.addObserver(forName: NSWindow.didChangeBackingPropertiesNotification,
                                                object: window, queue: .main) { _ in setScale() }
-        // web-thin build: Info.plist MK64WebURL points at the hosted game instead of bundled Resources/game.
-        let start = (Bundle.main.object(forInfoDictionaryKey: "MK64WebURL") as? String) ?? "app://game/index.html"
+        let start = (Bundle.main.object(forInfoDictionaryKey: "MK64WebURL") as? String) ?? "https://mk64js.gokart.games/play"
         web.load(URLRequest(url: URL(string: start)!))
         NSApp.activate(ignoringOtherApps: true)
     }

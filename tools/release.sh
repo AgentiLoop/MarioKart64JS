@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Cuts a MarioKart64JS release end to end:
-#   bump desktop/package.json -> commit "Release X" -> push origin main -> deploy the site (/play)
-#   -> build the desktop apps (Electron win/linux, notarized WebKit mac, Raspberry Pi) and the web-thin apps
+#   bump desktop/VERSION -> commit "Release X" -> push origin main -> deploy the site (/play)
+#   -> build the web-thin desktop apps (no game files inside; they open the hosted /play): notarized WebKit mac,
+#      Windows (Edge / Chromium app window), Linux (Chrome / Chromium, WebKitGTK fallback), Raspberry Pi (WebKitGTK)
 #   -> SHA256SUMS -> GitHub release (notes and Z* screenshots taken from the previous release)
 #   -> delete older releases nobody downloaded (tools/prune-releases.sh).
 #
@@ -19,8 +20,8 @@ NOTES_IN="${1:?usage: tools/release.sh <whats-new.md> [version]}"
 NOTES_IN="$(cd "$(dirname "$NOTES_IN")" && pwd)/$(basename "$NOTES_IN")"
 cd "$ROOT"
 
-CUR=$(node -p "require('./desktop/package.json').version")
-VER="${2:-$(node -p "const v='$CUR'.split('.'); v[2]=+v[2]+1; v.join('.')")}"
+CUR=$(cat desktop/VERSION)
+VER="${2:-$(echo "$CUR" | awk -F. '{ print $1 "." $2 "." $3 + 1 }')}"
 PREV_TAG=$(gh release view -R "$REPO" --json tagName --jq .tagName)   # latest release
 PREV="${PREV_TAG#v}"
 WORK="/tmp/mk64js-release-$VER"
@@ -53,8 +54,8 @@ gh release view "v$VER" -R "$REPO" >/dev/null 2>&1 && { echo "error: v$VER alrea
 
 echo "== bump + push"
 if [ "$CUR" != "$VER" ]; then
-  sed -i '' "s/\"version\": \"$CUR\"/\"version\": \"$VER\"/" desktop/package.json
-  git commit -qm "Release $VER" desktop/package.json
+  echo "$VER" > desktop/VERSION
+  git commit -qm "Release $VER" desktop/VERSION
 fi
 git push -q origin main
 
@@ -65,10 +66,6 @@ if [ -z "${SKIP_BUILD:-}" ]; then
   echo "== build"
   (
     cd desktop
-    npm run game
-    npm run dist
-    ./webkit/build.sh notarize
-    ./raspberrypi/build.sh
     ./webkit/build-web-thin.sh notarize
     ./windows/build-web-thin.sh
     ./linux/build-web-thin.sh
@@ -77,9 +74,6 @@ if [ -z "${SKIP_BUILD:-}" ]; then
 fi
 
 ASSETS=(
-  "MarioKart64JS-$VER-linux-arm64.tar.gz" "MarioKart64JS-$VER-linux-x64.tar.gz"
-  "MarioKart64JS-$VER-mac-webkit-universal.zip" "MarioKart64JS-$VER-raspberrypi.tar.gz"
-  "MarioKart64JS-$VER-win-arm64.zip" "MarioKart64JS-$VER-win-x64.zip"
   "MarioKart64JS-web-thin-$VER-linux.tar.gz" "MarioKart64JS-web-thin-$VER-mac-universal.zip"
   "MarioKart64JS-web-thin-$VER-raspberrypi.tar.gz" "MarioKart64JS-web-thin-$VER-win.zip"
 )

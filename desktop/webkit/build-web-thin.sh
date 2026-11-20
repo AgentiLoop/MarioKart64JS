@@ -4,7 +4,7 @@
 # Usage: ./build-web-thin.sh [notarize]   (no `npm run game` needed)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-VERSION=$(node -p "require('$HERE/../package.json').version")
+VERSION=$(cat "$HERE/../VERSION")
 URL="${MK64_WEB_URL:-https://mk64js.gokart.games/play}"
 APP="$HERE/build/web-thin/MarioKart64JS Web.app"
 ZIP="$HERE/../release/MarioKart64JS-web-thin-$VERSION-mac-universal.zip"
