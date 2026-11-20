@@ -111,7 +111,7 @@ html{scroll-padding-top:140px}
 /* ---------- AgentiLoop "mk-card" theme (ported from agent.xcf.ai) ---------- */
 body{background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparent 60%),radial-gradient(90% 60% at 100% 40%,rgba(34,211,238,.14),transparent 60%),repeating-linear-gradient(45deg,rgba(255,255,255,.018) 0 14px,transparent 14px 28px),linear-gradient(160deg,#1a0b2e,#0b1026 55%,#071a2b);background-attachment:fixed}
 .nav{background:rgba(20,8,40,.78)}
-.brand span{background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:mkShine 4s linear infinite}
+.brand span{display:inline-block;background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;transform:translateZ(0);will-change:background-position;animation:mkShine 4s linear infinite}
 
 /* Hero = the showcase card */
 .hero{text-align:left;min-height:0;padding:20px 22px 70px}
