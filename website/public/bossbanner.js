@@ -100,8 +100,8 @@
     }
     g.globalAlpha = 1;
     // the red stapler (the game's own sprite) fleeing just ahead of Pete
-    var sy = y - 8 + Math.sin(t * 12) * 1.5;
-    if (stapler.complete && stapler.naturalWidth) g.drawImage(stapler, px + 22, sy, 16, 16);
+    var sy = y - 12 + Math.sin(t * 12) * 1.5;
+    if (stapler.complete && stapler.naturalWidth) g.drawImage(stapler, px + 36, sy, 24, 24);
     var st = t * Math.PI / .16, s = Math.min(.85, H / 52 * .85);
     person(px, y, s, PETE, st);
     for (var b = 0; b < 4; b++) person(px - 40 - b * 30, y, s, BOSSES[b], st + b * 1.3);
