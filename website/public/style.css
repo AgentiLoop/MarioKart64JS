@@ -114,7 +114,7 @@ body{background:radial-gradient(90% 60% at 0% 0%,rgba(236,72,153,.18),transparen
 .brand span{display:inline-block;background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15,#22c55e,#22d3ee,#8b5cf6,#ec4899,#ef4444);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;transform:translateZ(0);will-change:background-position;animation:mkShine 4s linear infinite}
 
 /* Hero = the showcase card */
-.hero{text-align:left;min-height:0;padding:20px 22px 70px}
+.hero{text-align:left;min-height:0;padding:150px 22px 70px}
 .hero-bg{filter:blur(6px) brightness(.3) saturate(1.4)}
 .hero::after{background:radial-gradient(ellipse at 50% 45%,transparent 0,rgba(11,10,34,.5) 55%,#0b1026 100%)}
 .hero-in.mk-card{max-width:1180px;width:100%}
@@ -286,7 +286,7 @@ h2{background:linear-gradient(90deg,#fff 30%,#fde68a 60%,#f9a8d4);-webkit-backgr
 @media (prefers-reduced-motion:reduce){.promo::after,.promo-slide::before,.promo-grad,.promo-cta,.promo-new,.promo-caret{animation:none}.promo-slide{transition:opacity .3s ease,visibility 0s linear .3s;transform:none;filter:none}}
 
 /* ---------- AgentiLoop Agent! ad: spinning rainbow-border card (same family as .mk-card / Boss-Man), first on the page: the top padding clears the fixed nav + promo banner ---------- */
-.agent-ad-wrap{max-width:1180px;margin:0 auto;padding:150px 22px 20px}
+.agent-ad-wrap{max-width:1180px;margin:0 auto;padding:20px 22px 72px}
 @property --aa-angle{syntax:"<angle>";initial-value:0deg;inherits:false}
 .agent-ad{position:relative;display:grid;grid-template-columns:1fr 1.15fr;gap:34px 40px;align-items:center;padding:42px 44px 38px;border-radius:26px;overflow:hidden;isolation:isolate;color:#e2e8f0;box-shadow:0 30px 90px -24px rgba(139,92,246,.6),0 0 90px -30px rgba(34,211,238,.6);transition:transform .3s ease,box-shadow .3s ease}
 .agent-ad:hover{transform:translateY(-4px);box-shadow:0 40px 100px -24px rgba(236,72,153,.65),0 0 120px -30px rgba(34,211,238,.8)}
