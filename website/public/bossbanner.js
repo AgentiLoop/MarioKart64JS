@@ -1,5 +1,5 @@
 // Boss-Man banners (nav bar + the big card): Pete chomps dots through a neon
-// cubicle maze with the four bosses on his tail. Canvas 2D; falls back to CSS.
+// cubicle maze with the four bosses on his tail, drawn like the game's sprites. Canvas 2D; falls back to CSS.
 (function () {
   var cvs = [document.getElementById('bmb-cv')].concat([].slice.call(document.querySelectorAll('.bm-cv')));
   cvs.forEach(function (cv) { if (cv) run(cv, cv.classList.contains('bm-cv')); });
@@ -7,7 +7,6 @@
   var g = cv.getContext('2d');
   if (!g) { cv.remove(); return; }
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var bosses = ['#ff3b3b', '#ff7ad9', '#2ee6c5', '#ffa43a'];
   var W = 0, H = 0, dpr = 1, k = 1, t = 0, last = performance.now();
   function size() {
     dpr = Math.min(devicePixelRatio || 1, 2);
@@ -33,30 +32,49 @@
     }
     g.stroke(); g.shadowBlur = 0;
   }
-  function pete(x, y, r, open) {
-    var m = (0.05 + 0.25 * open) * Math.PI;
-    g.fillStyle = '#ffd23f'; g.shadowBlur = 12; g.shadowColor = '#ffd23f';
-    g.beginPath(); g.moveTo(x, y); g.arc(x, y, r, m, Math.PI * 2 - m); g.closePath(); g.fill();
+  // Pete and the bosses as drawn by the game (Boss-Man PixelPerson.swift /
+  // SpriteFactory.swift / BossBlueprint.swift): pixel office workers in
+  // shirt, tie and slacks, here facing right toward the stapler.
+  var SKIN = '#f5c79e';
+  var PETE = { body: '#007aff', tie: '#ff9500', hair: '#40260f', shoe: '#ffffff', pants: '#b3732e', head: 0 };
+  var BOSSES = [
+    { body: '#ff3b30', tie: '#000000' },
+    { body: 'rgba(255,45,85,.75)', tie: '#693183', back: true },
+    { body: '#30b0c7', tie: '#0062cc' },
+    { body: '#ff9500', tie: '#e6352b' }
+  ].map(function (b) { b.hair = '#8c7359'; b.shoe = '#b38000'; b.pants = '#555555'; b.head = -1; return b; });
+  // rect centred at (cx, cy) in sprite units, y up like SpriteKit
+  function box(cx, cy, w, h, fill, stroke, lw) {
+    g.fillStyle = fill; g.fillRect(cx - w / 2, -cy - h / 2, w, h);
+    if (stroke) { g.lineWidth = lw; g.strokeStyle = stroke; g.strokeRect(cx - w / 2, -cy - h / 2, w, h); }
+  }
+  function person(x, y, s, p, step) {
+    // walk cycle: legs lift 3 and arms swing 2 alternately, 0.16 s per step
+    var a = Math.max(0, Math.sin(step)), b = Math.max(0, -Math.sin(step));
+    g.save(); g.translate(x, y); g.scale(s, s);
+    g.shadowBlur = 6; g.shadowColor = 'rgba(0,0,0,.6)';
+    [[-4, a], [4, b]].forEach(function (l) {
+      var ly = -14 + 3 * l[1];
+      box(l[0], ly, 6, 8, p.pants);
+      box(l[0] + 1.5, ly - 5, 8, 3, '#1f140d', p.shoe, 1);
+    });
     g.shadowBlur = 0;
+    if (p.back) { box(0, -2, 18, 16, '#fff'); box(-11, -2, 5, 14, '#fff'); box(11, -2, 5, 14, '#fff'); }
+    box(0, -2, 18, 16, p.body, '#fff', 1.5);
+    box(0, 3, 8, 3, '#fff');
+    box(0, -2, 4, 12, p.tie);
+    [[-11, -2 * b], [11, -2 * a]].forEach(function (r) {
+      var ay = -2 + r[1];
+      box(r[0], ay, 5, 14, p.body, '#fff', 1);
+      g.fillStyle = SKIN; g.beginPath(); g.arc(r[0], -(ay - 8), 2.5, 0, 7); g.fill();
+    });
+    var hy = 13 + p.head;
+    g.fillStyle = SKIN; g.beginPath(); g.roundRect(-7, -hy - 6, 14, 12, 2); g.fill();
+    box(0, hy + 4, 14, 4, p.hair);
+    box(-3, hy, 2, 2, '#000'); box(3, hy, 2, 2, '#000');
+    g.restore();
   }
-  function boss(x, y, r, col, wob) {
-    g.fillStyle = col; g.shadowBlur = 10; g.shadowColor = col;
-    g.beginPath(); g.arc(x, y - r * .15, r, Math.PI, 0);
-    var bot = y + r * .85, n = 4;
-    g.lineTo(x + r, bot);
-    for (var i = 0; i < n; i++) {
-      var x1 = x + r - (i + .5) * (2 * r / n), x2 = x + r - (i + 1) * (2 * r / n);
-      g.lineTo(x1, bot - r * .3 * (wob ? 1 : .5)); g.lineTo(x2, bot);
-    }
-    g.closePath(); g.fill(); g.shadowBlur = 0;
-    // eyes looking right toward Pete
-    g.fillStyle = '#fff';
-    g.beginPath(); g.arc(x - r * .3, y - r * .25, r * .28, 0, 7); g.arc(x + r * .35, y - r * .25, r * .28, 0, 7); g.fill();
-    g.fillStyle = '#1b2a7a';
-    g.beginPath(); g.arc(x - r * .2, y - r * .22, r * .13, 0, 7); g.arc(x + r * .45, y - r * .22, r * .13, 0, 7); g.fill();
-    // little tie
-    g.fillStyle = '#fff'; g.fillRect(x - r * .07, y + r * .2, r * .14, r * .35);
-  }
+  var stapler = new Image(); stapler.src = '/img/red-stapler.png';
   function frame(now) {
     var dt = Math.min((now - last) / 1000, .1); last = now;
     t += dt;
@@ -81,12 +99,12 @@
       g.beginPath(); g.arc(dxx, y, pel ? 3.5 : 1.8, 0, 7); g.fill();
     }
     g.globalAlpha = 1;
-    // red stapler fleeing just ahead of Pete
-    g.fillStyle = '#e8352e'; g.shadowBlur = 8; g.shadowColor = '#e8352e';
-    g.fillRect(px + 34, y - 2 + Math.sin(t * 12) * 1.5, 14, 5); g.fillRect(px + 36, y - 6 + Math.sin(t * 12) * 1.5, 11, 3);
-    g.shadowBlur = 0;
-    pete(px, y, r, Math.abs(Math.sin(t * 14)));
-    for (var b = 0; b < 4; b++) boss(px - 46 - b * 30, y + Math.sin(t * 6 + b) * 1.5, r * .95, bosses[b], Math.sin(t * 16 + b) > 0);
+    // the red stapler (the game's own sprite) fleeing just ahead of Pete
+    var sy = y - 8 + Math.sin(t * 12) * 1.5;
+    if (stapler.complete && stapler.naturalWidth) g.drawImage(stapler, px + 22, sy, 16, 16);
+    var st = t * Math.PI / .16, s = Math.min(.85, H / 52 * .85);
+    person(px, y, s, PETE, st);
+    for (var b = 0; b < 4; b++) person(px - 40 - b * 30, y, s, BOSSES[b], st + b * 1.3);
     if (!still) requestAnimationFrame(frame);
   }
   addEventListener('resize', function () { if (still) frame(performance.now()); });
