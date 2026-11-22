@@ -1,6 +1,6 @@
 # MarioKart64JS
 
-🤖 **Built by the makers of [Agent!](https://github.com/AgentiLoop/Agent)**, an autonomous macOS agent. 🌐 [agentiloop.ai](https://agentiloop.ai)
+🤖 **Made with [AgentiLoop Agent!](https://github.com/AgentiLoop/Agent)**, the autonomous AI agent for your Mac · 🌐 [agentiloop.ai](https://agentiloop.ai) · ▶️ **Play:** [mk64js.gokart.games](https://mk64js.gokart.games)
 
 
 > **⚠️ Work in progress. This is not a finished game.** Expect bugs, missing features and rough edges.
